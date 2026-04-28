@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Nostr Text Adventure — v0.4</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116; --panel: #161b22; --panel-2: #1c232c;
+    --border: #2a313c; --text: #d3dae2; --muted: #7c8895;
+    --accent: #f0b54a; --green: #6dc28d; --red: #e07a7a;
+    --blue: #6ea8df; --purple: #b48ad6;
+    --gold: #e8c468; --spark: #c896e0; --life: #e07a7a;
+    --fire: #f0884a; --load: #8ec98e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; font-size: 14px;
+    -webkit-text-size-adjust: 100%; }
+
+  /* ---------------- DESKTOP LAYOUT ---------------- */
+  #layout { display: grid; grid-template-columns: 1fr 380px; height: 100vh; }
+  #terminal-wrap { display: flex; flex-direction: column; border-right: 1px solid var(--border); height: 100vh; min-width: 0; }
+  #output { flex: 1; overflow-y: auto; padding: 16px 20px; line-height: 1.55; }
+  #prompt-row { display: flex; align-items: center; border-top: 1px solid var(--border);
+    padding: 10px 14px; background: var(--panel); }
+  .prompt { color: var(--accent); margin-right: 10px; font-weight: bold; }
+  #cmd { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font: inherit; }
+  .line { white-space: pre-wrap; word-wrap: break-word; }
+  .line.title    { color: var(--accent); font-weight: bold; margin: 8px 0; }
+  .line.echo     { color: var(--muted); }
+  .line.system   { color: var(--blue); }
+  .line.error    { color: var(--red); }
+  .line.success  { color: var(--green); }
+  .line.npc      { color: var(--purple); font-style: italic; }
+  .line.whisper  { color: var(--purple); }
+  .line.room-name{ color: var(--accent); font-weight: bold; margin-top: 6px; }
+  .line.room-desc{ color: var(--text); }
+  .line.items    { color: var(--green); }
+  .line.exits    { color: var(--blue); }
+  .line.gold     { color: var(--gold); }
+  .line.spark    { color: var(--spark); }
+  .line.life     { color: var(--life); }
+  .line.fire     { color: var(--fire); }
+  .line.combat   { color: var(--red); font-weight: 600; }
+
+  #side { background: var(--panel); overflow-y: auto; padding: 14px; height: 100vh; }
+  #side section { margin-bottom: 18px; }
+  #side h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin: 0 0 6px 0; font-weight: 600; }
+  .kv { display: flex; gap: 8px; margin: 3px 0; font-size: 12px; align-items: baseline; }
+  .kv .k { color: var(--muted); min-width: 80px; flex-shrink: 0; }
+  .kv .v { color: var(--text); word-break: break-all; }
+  .kv .v.gold  { color: var(--gold); font-weight: 600; }
+  .kv .v.spark { color: var(--spark); font-weight: 600; }
+  .kv .v.life  { color: var(--life); font-weight: 600; }
+  .kv .v.load  { color: var(--load); font-weight: 600; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+         background: var(--muted); margin-right: 6px; vertical-align: middle; }
+  .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .feed { background: var(--panel-2); border-radius: 4px; border: 1px solid var(--border);
+    padding: 4px; max-height: 180px; overflow-y: auto; font-size: 11.5px; }
+  .feed-item { padding: 4px 6px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-item .sig { color: var(--accent); flex-shrink: 0; }
+  .feed-item .msg { color: var(--text); word-break: break-word; min-width: 0; }
+  .empty { color: var(--muted); padding: 6px; font-size: 11px; font-style: italic; }
+  .skill-list, .mat-list { font-size: 12px; }
+  .skill-list .skl { display: flex; justify-content: space-between; padding: 1px 0; }
+  .skill-list .skl .name { color: var(--green); }
+  .mat-list .row { display: flex; justify-content: space-between; padding: 1px 0; }
+  .mat-list .row .qty { color: var(--gold); }
+
+  /* ---------------- MOBILE HEADER (hidden on desktop) ---------------- */
+  #mobile-header { display: none; }
+  #drawer-toggle { display: none; }
+  #drawer-backdrop { display: none; }
+
+  /* ---------------- MOBILE LAYOUT ---------------- */
+  @media (max-width: 760px) {
+    body { font-size: 13px; }
+    #layout { grid-template-columns: 1fr; }
+    #terminal-wrap { border-right: none; height: 100vh; }
+    #output { padding: 12px 14px; line-height: 1.5; }
+    #prompt-row { padding: 8px 12px; }
+
+    #mobile-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px; line-height: 1; flex-wrap: nowrap;
+      overflow-x: auto; white-space: nowrap;
+    }
+    #mobile-header .stat { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
+    #mobile-header .glyph { font-size: 13px; }
+    #mobile-header .stat.life  { color: var(--life); }
+    #mobile-header .stat.gold  { color: var(--gold); }
+    #mobile-header .stat.spark { color: var(--spark); }
+    #mobile-header .stat.load  { color: var(--load); }
+    #mobile-header .room { color: var(--muted); flex: 1 0 auto; text-align: right;
+      overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+    #drawer-toggle {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--panel-2); color: var(--accent);
+      border: 1px solid var(--border); border-radius: 4px;
+      width: 32px; height: 32px; font-size: 16px; cursor: pointer; flex-shrink: 0;
+    }
+
+    #side {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: 88vw; max-width: 360px; height: 100vh;
+      transform: translateX(100%); transition: transform 0.22s ease;
+      z-index: 11; box-shadow: -4px 0 16px rgba(0,0,0,0.5);
+      padding: 14px;
+    }
+    #side.open { transform: translateX(0); }
+    #drawer-backdrop {
+      display: block; position: fixed; inset: 0; z-index: 10;
+      background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none;
+      transition: opacity 0.22s;
+    }
+    #drawer-backdrop.show { opacity: 1; pointer-events: auto; }
+    #side .close-btn {
+      display: block; margin: 0 0 12px auto;
+      background: transparent; border: 1px solid var(--border); color: var(--muted);
+      padding: 4px 10px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 12px;
+    }
+    .feed { max-height: 140px; }
+  }
+  /* Always hide close-btn on desktop */
+  @media (min-width: 761px) {
+    #side .close-btn { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="layout">
+  <div id="terminal-wrap">
+    <div id="mobile-header">
+      <span class="stat life"><span class="glyph">❤</span><span id="mh-life">100</span></span>
+      <span class="stat gold"><span class="glyph">◆</span><span id="mh-gold">0</span></span>
+      <span class="stat spark"><span class="glyph">✦</span><span id="mh-sparks">0</span></span>
+      <span class="stat load"><span class="glyph">📦</span><span id="mh-load">0/40</span></span>
+      <span class="room" id="mh-room">…</span>
+      <button id="drawer-toggle" aria-label="Open panel">☰</button>
+    </div>
+    <div id="output"></div>
+    <div id="prompt-row">
+      <span class="prompt">&gt;</span>
+      <input id="cmd" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+    </div>
+  </div>
+  <div id="drawer-backdrop"></div>
+  <aside id="side">
+    <button class="close-btn" id="drawer-close">close</button>
+    <section>
+      <h3>Identity</h3>
+      <div class="kv"><span class="k">npub</span><span class="v" id="pubkey">…</span></div>
+      <div class="kv"><span class="k">⚡ relays</span><span class="v"><span class="dot" id="relayDot"></span><span id="relays">connecting…</span></span></div>
+    </section>
+    <section>
+      <h3>Vitals</h3>
+      <div class="kv"><span class="k">❤ life</span><span class="v life" id="life">100/100</span></div>
+      <div class="kv"><span class="k">◆ gold</span><span class="v gold" id="gold">0</span></div>
+      <div class="kv"><span class="k">✦ sparks</span><span class="v spark" id="sparks">0</span></div>
+      <div class="kv"><span class="k">📦 load</span><span class="v load" id="load">0/40</span></div>
+      <div class="kv"><span class="k">turn</span><span class="v" id="turn">0</span></div>
+    </section>
+    <section>
+      <h3>Materials</h3>
+      <div class="mat-list" id="materials"></div>
+    </section>
+    <section>
+      <h3>Skills known</h3>
+      <div class="skill-list" id="skillsKnown"></div>
+    </section>
+    <section>
+      <h3>Your signed events</h3>
+      <div class="feed" id="myEvents"><div class="empty">no events yet</div></div>
+    </section>
+    <section>
+      <h3>World feed</h3>
+      <div class="feed" id="worldFeed"><div class="empty">other players' actions appear here</div></div>
+    </section>
+    <section style="opacity:0.6;font-size:11px;text-align:center;border-top:1px solid var(--border);padding-top:12px;color:var(--muted);">
+      developed by AWB_ 🇨🇭
+    </section>
+  </aside>
+</div>
+
+<script type="module">
+import {
+  generateSecretKey, getPublicKey, finalizeEvent, SimplePool, nip19
+} from 'https://esm.sh/nostr-tools@2.7.2';
+
+// ============================================================
+//  STORY (inlined v0.4)
+// ============================================================
+const STORY = {
+  schema_version: '0.4',
+  meta: {
+    id: 'whispering-forest-v1', title: 'The Whispering Forest', author: 'Andres',
+    starting_location: 'forest_clearing',
+    starting_inventory: [], starting_materials: {},
+    starting_gold: 0, starting_sparks: 30, starting_skills: [],
+    starting_life: 100, life_max: 100, life_decay_per_turn: 0.5,
+    carry_capacity: 40, sparks_per_craft: 2
+  },
+  rooms: {
+    forest_clearing: {
+      name: 'A Clearing in the Forest',
+      summary: 'A small clearing ringed by pines. Old moss-covered stones in the center. A path winds east toward a canyon, and south to a village.',
+      exits: { east: 'red_canyon', south: 'greenmeadow_village' },
+      items: ['rusty_dagger'], npcs: [], riddle: null,
+      resources: [{ id:'wood', skill:'woodcutting', verb:'chop', yield_qty:1, regenerates:true, regen_seconds:60 }],
+      spawn_table: [{ entity:'deer', weight:2 }, { entity:'rabbit', weight:3 }],
+      hazards: {}, drink_source: null
+    },
+    red_canyon: {
+      name: 'The Red Canyon',
+      summary: 'A wide canyon glowing in late-afternoon light. Walls layered ochre and rust. The path continues east into a valley, or back west to the forest. You hear distant howling.',
+      exits: { west:'forest_clearing', east:'quiet_valley' },
+      items: ['smooth_stone'], npcs: [], riddle: null,
+      resources: [{ id:'stone', skill:'stone_knapping', verb:'gather', yield_qty:1, regenerates:true, regen_seconds:60 }],
+      spawn_table: [],
+      hazards: { wolves: { encounter_chance: 0.35, entity: 'wolf' } },
+      drink_source: null
+    },
+    quiet_valley: {
+      name: 'The Quiet Valley',
+      summary: 'A green valley with a stream running through it. To the west, the canyon. A dark cave gapes to the north.',
+      exits: { west:'red_canyon', north:'echoing_cave' },
+      items: ['silver_herb'], npcs: [], riddle: null,
+      resources: [{ id:'common_herb', skill:'foraging', verb:'forage', yield_qty:1, regenerates:true, regen_seconds:90 }],
+      spawn_table: [{ entity:'deer', weight:3 }, { entity:'rabbit', weight:2 }],
+      hazards: {}, drink_source: { restore_life: 5, cooldown_seconds: 30 }
+    },
+    echoing_cave: {
+      name: 'The Echoing Cave',
+      summary: 'Cool damp air. Symbols glow faintly along the walls. A voice speaks: "I am tall when young, short when old. What am I?"',
+      exits: { south:'quiet_valley' },
+      items: [], npcs: [], riddle: 'candle_riddle',
+      resources: [], spawn_table: [],
+      hazards: { wolves: { encounter_chance: 0.15, entity: 'wolf' } },
+      drink_source: null
+    },
+    greenmeadow_village: {
+      name: 'Greenmeadow Village',
+      summary: "A handful of cottages around a stone well. A weathered merchant's cart sits in the square. The forest is to the north.",
+      exits: { north:'forest_clearing' },
+      items: [], npcs: ['weathered_merchant'], riddle: null,
+      resources: [], spawn_table: [],
+      hazards: {}, drink_source: { restore_life: 4, cooldown_seconds: 60 }
+    }
+  },
+  items: {
+    rusty_dagger:  { display:'rusty dagger',  article:'a',         value:5,  weight:2, category:'good',       stackable:false, tags:['weapon','metal'] },
+    smooth_stone:  { display:'smooth stone',  article:'a',         value:1,  weight:1, category:'good',       stackable:false, tags:['trinket'] },
+    silver_herb:   { display:'silver herb',   article:'a',         value:12, weight:1, category:'good',       stackable:false, tags:['herb','rare'] },
+    wood:          { display:'wood log',      article:'a',         value:1,  weight:2, category:'resource',   stackable:true,  tags:['wood','raw'] },
+    stone:         { display:'stone chip',    article:'a',         value:1,  weight:1, category:'resource',   stackable:true,  tags:['stone','raw'] },
+    common_herb:   { display:'common herb',   article:'a',         value:2,  weight:1, category:'resource',   stackable:true,  tags:['herb','raw'] },
+    wooden_handle: { display:'wooden handle', article:'a',         value:4,  weight:1, category:'good',       stackable:false, tags:['crafted','wood'] },
+    stone_head:    { display:'stone head',    article:'a',         value:6,  weight:2, category:'good',       stackable:false, tags:['crafted','stone'] },
+    simple_chest:  { display:'simple chest',  article:'a',         value:15, weight:6, category:'good',       stackable:false, tags:['crafted','container'] },
+    healing_salve: { display:'healing salve', article:'a',         value:14, weight:1, category:'consumable', stackable:false, tags:['crafted','herb'], effects:{restore_life:25}, consumable_action:'eat' },
+    simple_axe:    { display:'simple axe',    article:'a',         value:25, weight:4, category:'tool',       stackable:false, tags:['crafted','tool','weapon'] },
+    raw_meat:      { display:'raw meat',      article:'some',      value:2,  weight:2, category:'resource',   stackable:true,  tags:['food','raw'],     effects:{restore_life:4},  consumable_action:'eat' },
+    cooked_meat:   { display:'cooked meat',   article:'some',      value:6,  weight:1, category:'consumable', stackable:false, tags:['food','cooked'],  effects:{restore_life:10}, consumable_action:'eat' },
+    smoked_meat:   { display:'smoked meat',   article:'some',      value:11, weight:1, category:'consumable', stackable:false, tags:['food','preserved'],effects:{restore_life:14}, consumable_action:'eat' },
+    cured_meat:    { display:'cured meat',    article:'some',      value:16, weight:1, category:'consumable', stackable:false, tags:['food','preserved'],effects:{restore_life:18}, consumable_action:'eat' },
+    hide:          { display:'hide',          article:'a',         value:3,  weight:3, category:'resource',   stackable:true,  tags:['leather','raw'] },
+    leather:       { display:'leather',       article:'a',         value:8,  weight:2, category:'resource',   stackable:true,  tags:['leather','crafted'] },
+    shoes:         { display:'leather shoes', article:'a pair of', value:24, weight:1, category:'good',       stackable:false, tags:['crafted','equipment'] },
+    leather_pack:  { display:'leather pack',  article:'a',         value:30, weight:2, category:'tool',       stackable:false, tags:['crafted','equipment','container'], effects:{carry_capacity_bonus:15} }
+  },
+  npcs: {
+    weathered_merchant: {
+      display:'a weathered merchant', location:'greenmeadow_village',
+      summary:'A trader with kind eyes.',
+      dialogue_seeds: ['Buying anything you don\'t need, traveler.', 'Wolves moving in the canyon. Best take care.', 'A traveler with a leather pack carries twice the world.'],
+      behaviors: ['buys_items','tells_rumors'],
+      buys_tags: ['weapon','metal','herb','trinket','wood','stone','crafted','leather','food'],
+      is_marketplace: true,
+      initial_stock: [
+        { item:'wood', price_gold:2, qty:5 },
+        { item:'silver_herb', price_gold:18, qty:1 },
+        { item:'cooked_meat', price_gold:8, qty:2 }
+      ]
+    }
+  },
+  riddles: {
+    candle_riddle: {
+      location:'echoing_cave', prompt:'I am tall when young, short when old. What am I?',
+      answers:['candle','a candle'], reward_sparks:50,
+      on_solve_message:'The voice murmurs in approval. The walls glow brighter.', repeatable:false
+    }
+  },
+  skills: {
+    woodcutting:    { display:'Woodcutting',    spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['chop'],   recipes:[]} },
+    foraging:       { display:'Foraging',       spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['forage'], recipes:[]} },
+    stone_knapping: { display:'Stone-knapping', spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['gather'], recipes:[]} },
+    hunting:        { display:'Hunting',        spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['hunt'],   recipes:[]} },
+    firemaking:     { display:'Firemaking',     spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['light'],  recipes:[]} },
+    carpentry:      { display:'Carpentry',      spark_cost:50,  prereqs:['woodcutting'],     tier:2, unlocks:{verbs:[], recipes:['wooden_handle','simple_chest']} },
+    masonry:        { display:'Masonry',        spark_cost:50,  prereqs:['stone_knapping'],  tier:2, unlocks:{verbs:[], recipes:['stone_head']} },
+    herbalism:      { display:'Herbalism',      spark_cost:50,  prereqs:['foraging'],        tier:2, unlocks:{verbs:[], recipes:['healing_salve']} },
+    skinning:       { display:'Skinning',       spark_cost:50,  prereqs:['hunting'],         tier:2, unlocks:{verbs:[], recipes:[], interactions:['passive_skinning']} },
+    cooking:        { display:'Cooking',        spark_cost:50,  prereqs:['firemaking'],      tier:2, unlocks:{verbs:[], recipes:['cook_meat']} },
+    tanning:        { display:'Tanning',        spark_cost:50,  prereqs:['skinning'],        tier:2, unlocks:{verbs:[], recipes:['tan_hide']} },
+    toolmaking:     { display:'Toolmaking',     spark_cost:150, prereqs:['carpentry','masonry'], tier:3, unlocks:{verbs:[], recipes:['simple_axe']} },
+    smoking:        { display:'Smoking',        spark_cost:100, prereqs:['cooking'],         tier:3, unlocks:{verbs:[], recipes:['smoke_meat']} },
+    curing:         { display:'Curing',         spark_cost:100, prereqs:['cooking'],         tier:3, unlocks:{verbs:[], recipes:['cure_meat']} },
+    shoemaking:     { display:'Shoemaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['make_shoes']} },
+    packmaking:     { display:'Packmaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['leather_pack']} }
+  },
+  recipes: {
+    wooden_handle: { display:'Wooden handle', skill:'carpentry',  inputs:[{item:'wood',qty:1}],                                  outputs:[{item:'wooden_handle',qty:2}], requires_fire:false },
+    simple_chest:  { display:'Simple chest',  skill:'carpentry',  inputs:[{item:'wood',qty:4}],                                  outputs:[{item:'simple_chest',qty:1}],  requires_fire:false },
+    stone_head:    { display:'Stone head',    skill:'masonry',    inputs:[{item:'stone',qty:2}],                                 outputs:[{item:'stone_head',qty:1}],    requires_fire:false },
+    healing_salve: { display:'Healing salve', skill:'herbalism',  inputs:[{item:'common_herb',qty:3}],                           outputs:[{item:'healing_salve',qty:1}], requires_fire:false },
+    simple_axe:    { display:'Simple axe',    skill:'toolmaking', inputs:[{item:'wooden_handle',qty:1},{item:'stone_head',qty:1}], outputs:[{item:'simple_axe',qty:1}],   requires_fire:false },
+    cook_meat:     { display:'Cooked meat',   skill:'cooking',    inputs:[{item:'raw_meat',qty:1}],                              outputs:[{item:'cooked_meat',qty:1}],   requires_fire:true  },
+    smoke_meat:    { display:'Smoked meat',   skill:'smoking',    inputs:[{item:'raw_meat',qty:2}],                              outputs:[{item:'smoked_meat',qty:1}],   requires_fire:true  },
+    cure_meat:     { display:'Cured meat',    skill:'curing',     inputs:[{item:'raw_meat',qty:2}],                              outputs:[{item:'cured_meat',qty:1}],    requires_fire:true  },
+    tan_hide:      { display:'Tanned leather',skill:'tanning',    inputs:[{item:'hide',qty:1}],                                  outputs:[{item:'leather',qty:2}],       requires_fire:true  },
+    make_shoes:    { display:'Leather shoes', skill:'shoemaking', inputs:[{item:'leather',qty:2}],                               outputs:[{item:'shoes',qty:1}],         requires_fire:false },
+    leather_pack:  { display:'Leather pack',  skill:'packmaking', inputs:[{item:'leather',qty:3}],                               outputs:[{item:'leather_pack',qty:1}],  requires_fire:false }
+  },
+  entities: {
+    deer:   { display:'deer',   summary:'A wary forest deer.',   hp:10, attack_damage_range:[1,3], evasion:0.1, hostile:false, base_drops:[{item:'raw_meat',qty:2}], skinning_drops:[{item:'hide',qty:1}] },
+    rabbit: { display:'rabbit', summary:'A small cottontail.',    hp:4,  attack_damage_range:[0,1], evasion:0.2, hostile:false, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[] },
+    wolf:   { display:'wolf',   summary:'A grey wolf, lean from the season. It does not run.', hp:20, attack_damage_range:[3,8], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[{item:'hide',qty:1}] }
+  }
+};
+
+// ============================================================
+//  CONFIG
+// ============================================================
+const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band'];
+const KIND_ACTION   = 30420;
+const KIND_LISTING  = 30421;
+const KIND_PURCHASE = 30422;
+const KIND_ITEMDROP = 30423;
+const KIND_LOOT     = 30424;
+const TOPIC = 'story:' + STORY.meta.id;
+const FIRE_DURATION_TURNS = 20;
+const WEAPON_BONUS = { rusty_dagger: 3, simple_axe: 6 };
+
+// ============================================================
+//  IDENTITY
+// ============================================================
+const sk = generateSecretKey();
+const pk = getPublicKey(sk);
+const npub = nip19.npubEncode(pk);
+const npubShort = npub.slice(0, 12) + '…' + npub.slice(-6);
+document.getElementById('pubkey').textContent = npubShort;
+document.getElementById('pubkey').title = npub;
+
+const pool = new SimplePool();
+let relayUp = false;
+const knownPlayers = new Map();
+
+// ============================================================
+//  PLAYER STATE
+// ============================================================
+const player = {
+  location: STORY.meta.starting_location,
+  inventory: [...STORY.meta.starting_inventory],
+  materials: { ...STORY.meta.starting_materials },
+  gold: STORY.meta.starting_gold,
+  sparks: STORY.meta.starting_sparks,
+  life: STORY.meta.starting_life,
+  life_max: STORY.meta.life_max,
+  base_capacity: STORY.meta.carry_capacity,
+  skills: new Set(STORY.meta.starting_skills),
+  riddles_solved: new Set(),
+  resource_cooldowns: new Map(),
+  drink_cooldowns: new Map(),
+  fires: new Map(),
+  combat_target: null,
+  turn: 0,
+  chests: new Map(),  // roomId -> { items: [], materials: {} }
+  rooms: structuredClone(STORY.rooms)
+};
+
+// ============================================================
+//  MARKETPLACE / DROPS STATE
+// ============================================================
+const marketplace = { listings: new Map(), purchased: new Map() };
+for (const [npcId, npc] of Object.entries(STORY.npcs)) {
+  if (!npc.is_marketplace) continue;
+  for (const stk of (npc.initial_stock || [])) {
+    for (let i = 0; i < (stk.qty || 1); i++) {
+      const lid = `system:${npcId}:${stk.item}:${i}`;
+      marketplace.listings.set(lid, {
+        merchant: npcId, item: stk.item, qty: 1,
+        price_gold: stk.price_gold, seller_pubkey: 'system',
+        listed_at: 0, source: 'system'
+      });
+    }
+  }
+}
+const drops = new Map();
+const looted = new Map();
+
+// ============================================================
+//  TERMINAL OUTPUT
+// ============================================================
+const out = document.getElementById('output');
+function write(text='', cls='') {
+  const div = document.createElement('div');
+  div.className = 'line ' + cls;
+  div.textContent = text;
+  out.appendChild(div);
+  out.scrollTop = out.scrollHeight;
+}
+
+function refreshSidebar() {
+  const cap = computeMaxCapacity();
+  const wt  = Math.round(computeWeight() * 10) / 10;
+  document.getElementById('life').textContent = `${Math.max(0, Math.floor(player.life))}/${player.life_max}`;
+  document.getElementById('gold').textContent = player.gold;
+  document.getElementById('sparks').textContent = player.sparks;
+  document.getElementById('load').textContent = `${wt}/${cap}`;
+  document.getElementById('turn').textContent = player.turn;
+  // mobile mirrors
+  document.getElementById('mh-life').textContent = Math.max(0, Math.floor(player.life));
+  document.getElementById('mh-gold').textContent = player.gold;
+  document.getElementById('mh-sparks').textContent = player.sparks;
+  document.getElementById('mh-load').textContent = `${wt}/${cap}`;
+  document.getElementById('mh-room').textContent = player.rooms[player.location].name;
+
+  const matEl = document.getElementById('materials');
+  const matEntries = Object.entries(player.materials).filter(([_, q]) => q > 0);
+  matEl.innerHTML = '';
+  if (matEntries.length === 0) matEl.innerHTML = '<div class="empty">no materials</div>';
+  else for (const [item, qty] of matEntries) {
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<span>${itemDisplay(item)}</span><span class="qty">×${qty}</span>`;
+    matEl.appendChild(row);
+  }
+
+  const sklEl = document.getElementById('skillsKnown');
+  sklEl.innerHTML = '';
+  if (player.skills.size === 0) sklEl.innerHTML = '<div class="empty">type "skills" to see what\'s available</div>';
+  else for (const sid of player.skills) {
+    const sk = STORY.skills[sid];
+    const row = document.createElement('div'); row.className = 'skl';
+    row.innerHTML = `<span class="name">${sk.display}</span><span class="cost">tier ${sk.tier}</span>`;
+    sklEl.appendChild(row);
+  }
+}
+
+// ============================================================
+//  WEIGHT / CAPACITY
+// ============================================================
+function computeWeight() {
+  let total = 0;
+  for (const it of player.inventory) total += STORY.items[it]?.weight ?? 1;
+  for (const [it, qty] of Object.entries(player.materials)) total += (STORY.items[it]?.weight ?? 1) * qty;
+  return total;
+}
+function computeMaxCapacity() {
+  let cap = player.base_capacity;
+  for (const it of player.inventory) cap += STORY.items[it]?.effects?.carry_capacity_bonus ?? 0;
+  return cap;
+}
+function canCarry(itemId, qty = 1) {
+  const w = (STORY.items[itemId]?.weight ?? 1) * qty;
+  return computeWeight() + w <= computeMaxCapacity();
+}
+
+// ============================================================
+//  NOSTR
+// ============================================================
+function uuid() {
+  return crypto.randomUUID ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0; const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+}
+function markRelayUp() {
+  if (relayUp) return;
+  relayUp = true;
+  document.getElementById('relayDot').classList.add('on');
+  document.getElementById('relays').textContent = RELAYS.length + ' relays · live';
+}
+async function publishAction(actionType, payload) {
+  const evt = finalizeEvent({
+    kind: KIND_ACTION, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['action', actionType], ['d', `${actionType}-${Date.now()}`]],
+    content: JSON.stringify(payload)
+  }, sk);
+  addToFeed('myEvents', `${actionType}: ${formatActionSummary(actionType, payload)}`, evt.id.slice(0, 8));
+  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  return evt;
+}
+async function publishListing(merchant, item, qty, price_gold) {
+  const lid = uuid();
+  const evt = finalizeEvent({
+    kind: KIND_LISTING, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['merchant', merchant], ['listing', lid]],
+    content: JSON.stringify({ item, qty, price_gold, seller: pk, listed_at: new Date().toISOString() })
+  }, sk);
+  marketplace.listings.set(lid, { merchant, item, qty, price_gold, seller_pubkey: pk, listed_at: Date.now(), source: 'self', event: evt });
+  addToFeed('myEvents', `list ${item} @ ${price_gold}g`, evt.id.slice(0, 8));
+  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  return lid;
+}
+async function publishPurchase(lid, listing) {
+  const evt = finalizeEvent({
+    kind: KIND_PURCHASE, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['merchant', listing.merchant], ['listing', lid]],
+    content: JSON.stringify({ buyer: pk, paid_gold: listing.price_gold, purchased_at: new Date().toISOString() })
+  }, sk);
+  addToFeed('myEvents', `buy listing ${lid.slice(0, 6)}…`, evt.id.slice(0, 8));
+  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  return evt;
+}
+async function publishItemDrop(items, cause = 'death') {
+  const did = uuid();
+  const evt = finalizeEvent({
+    kind: KIND_ITEMDROP, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['room', player.location], ['drop', did]],
+    content: JSON.stringify({ dropper: pk, items, dropped_at: new Date().toISOString(), cause })
+  }, sk);
+  drops.set(did, { roomId: player.location, dropper: pk, items, dropped_at: Date.now(), source: 'self' });
+  addToFeed('myEvents', `dropped ${items.length} items (${cause})`, evt.id.slice(0, 8));
+  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  return did;
+}
+async function publishLoot(did) {
+  const evt = finalizeEvent({
+    kind: KIND_LOOT, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['drop', did]],
+    content: JSON.stringify({ looter: pk, looted_at: new Date().toISOString() })
+  }, sk);
+  addToFeed('myEvents', `loot ${did.slice(0, 8)}…`, evt.id.slice(0, 8));
+  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  return evt;
+}
+
+function subscribe() {
+  pool.subscribeMany(RELAYS, [
+    { kinds: [KIND_ACTION],   '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 60 },
+    { kinds: [KIND_LISTING],  '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 },
+    { kinds: [KIND_PURCHASE], '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 },
+    { kinds: [KIND_ITEMDROP], '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 },
+    { kinds: [KIND_LOOT],     '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 }
+  ], {
+    onevent(event) {
+      if (event.pubkey === pk && event.kind === KIND_ACTION) return;
+      if (event.kind === KIND_ACTION)   handleRemoteAction(event);
+      if (event.kind === KIND_LISTING)  handleRemoteListing(event);
+      if (event.kind === KIND_PURCHASE) handleRemotePurchase(event);
+      if (event.kind === KIND_ITEMDROP) handleRemoteItemDrop(event);
+      if (event.kind === KIND_LOOT)     handleRemoteLoot(event);
+    }
+  });
+}
+
+function handleRemoteAction(event) {
+  const action = event.tags.find(t => t[0] === 'action')?.[1] || '?';
+  let p = {}; try { p = JSON.parse(event.content); } catch {}
+  const shortPk = event.pubkey.slice(0, 8);
+  if (!knownPlayers.has(event.pubkey)) {
+    knownPlayers.set(event.pubkey, { firstSeen: Date.now(), location: p.to || p.location });
+    write(`[network] New player detected: ${shortPk}…`, 'system');
+  } else if (action === 'move') {
+    knownPlayers.get(event.pubkey).location = p.to;
+  }
+  addToFeed('worldFeed', `${shortPk}…  ${formatActionSummary(action, p)}`, event.id.slice(0, 8));
+  if (action === 'move' && p.to === player.location)
+    write(`[network] ${shortPk}… enters ${player.rooms[p.to].name}.`, 'system');
+  if (action === 'whisper' && p.location === player.location)
+    write(`[${shortPk}…] "${p.text}"`, 'whisper');
+  if (action === 'died' && p.location === player.location)
+    write(`[network] ${shortPk}… died here. Look for their corpse with "corpses".`, 'system');
+}
+function handleRemoteListing(event) {
+  const lid = event.tags.find(t => t[0] === 'listing')?.[1];
+  const merchant = event.tags.find(t => t[0] === 'merchant')?.[1];
+  if (!lid || marketplace.listings.has(lid)) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch { return; }
+  marketplace.listings.set(lid, {
+    merchant, item: p.item, qty: p.qty, price_gold: p.price_gold,
+    seller_pubkey: event.pubkey, listed_at: event.created_at * 1000,
+    source: event.pubkey === pk ? 'self' : 'remote', event
+  });
+  if (event.pubkey !== pk)
+    addToFeed('worldFeed', `${event.pubkey.slice(0,8)}… listed ${p.item} @ ${p.price_gold}g`, event.id.slice(0, 8));
+}
+function handleRemotePurchase(event) {
+  const lid = event.tags.find(t => t[0] === 'listing')?.[1];
+  if (!lid) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch { return; }
+  const existing = marketplace.purchased.get(lid);
+  if (existing && existing.purchased_at <= event.created_at) return;
+  if (existing && existing.buyer_pubkey === pk && event.pubkey !== pk && event.created_at < existing.purchased_at) {
+    const listing = marketplace.listings.get(lid);
+    if (listing) {
+      player.gold += listing.price_gold;
+      removeFromInventoryOrMaterials(listing.item);
+      write(`[market] Conflict: ${event.pubkey.slice(0,8)}… bought first. Refunded ${listing.price_gold} gold.`, 'error');
+      refreshSidebar();
+    }
+  }
+  marketplace.purchased.set(lid, { buyer_pubkey: event.pubkey, paid_gold: p.paid_gold, purchased_at: event.created_at });
+  if (event.pubkey !== pk)
+    addToFeed('worldFeed', `${event.pubkey.slice(0,8)}… bought listing ${lid.slice(0,6)}…`, event.id.slice(0, 8));
+}
+function handleRemoteItemDrop(event) {
+  const did = event.tags.find(t => t[0] === 'drop')?.[1];
+  const room_id = event.tags.find(t => t[0] === 'room')?.[1];
+  if (!did || drops.has(did)) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch { return; }
+  drops.set(did, {
+    roomId: room_id, dropper: event.pubkey,
+    items: p.items, dropped_at: event.created_at * 1000,
+    source: event.pubkey === pk ? 'self' : 'remote'
+  });
+  if (event.pubkey !== pk && room_id === player.location)
+    write(`[network] You see signs of ${event.pubkey.slice(0,8)}…'s ${p.cause || 'drop'}. ("corpses")`, 'system');
+}
+function handleRemoteLoot(event) {
+  const did = event.tags.find(t => t[0] === 'drop')?.[1];
+  if (!did) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch { return; }
+  const existing = looted.get(did);
+  if (existing && existing.looted_at <= event.created_at) return;
+  if (existing && existing.looter === pk && event.pubkey !== pk && event.created_at < existing.looted_at) {
+    const drop = drops.get(did);
+    if (drop) {
+      for (const di of drop.items) removeFromInventoryOrMaterials(di.item);
+      write(`[loot] Conflict: ${event.pubkey.slice(0,8)}… looted that drop first.`, 'error');
+      refreshSidebar();
+    }
+  }
+  looted.set(did, { looter: event.pubkey, looted_at: event.created_at });
+  if (event.pubkey !== pk)
+    addToFeed('worldFeed', `${event.pubkey.slice(0,8)}… looted drop ${did.slice(0,6)}…`, event.id.slice(0, 8));
+}
+
+function formatActionSummary(action, p) {
+  switch (action) {
+    case 'move':           return `move ${p.from || '?'} → ${p.to || '?'}`;
+    case 'take':           return `take ${p.item}`;
+    case 'drop':           return `drop ${p.item}`;
+    case 'gather':         return `${p.verb} ${p.item} ×${p.qty}`;
+    case 'craft':          return `craft ${p.recipe}`;
+    case 'learn':          return `learn ${p.skill}`;
+    case 'talk':           return `talk to ${p.npc}`;
+    case 'whisper':        return `whisper "${(p.text || '').slice(0, 32)}"`;
+    case 'riddle_solved':  return `solved riddle (+${p.gained} sparks)`;
+    case 'killed':         return `killed ${p.entity}`;
+    case 'died':           return `died at ${p.location}`;
+    case 'lit_fire':       return `lit fire in ${p.location}`;
+    case 'placed_chest':   return `placed chest in ${p.location}`;
+    case 'eat':            return `ate ${p.item}`;
+    case 'drink':          return `drank from ${p.source || p.location}`;
+    case 'look':           return `look at ${p.location}`;
+    default:               return action;
+  }
+}
+
+function addToFeed(id, msg, sigPrefix) {
+  const feed = document.getElementById(id);
+  feed.querySelector('.empty')?.remove();
+  const div = document.createElement('div'); div.className = 'feed-item';
+  const sigEl = document.createElement('span'); sigEl.className = 'sig'; sigEl.textContent = sigPrefix;
+  const msgEl = document.createElement('span'); msgEl.className = 'msg'; msgEl.textContent = msg;
+  div.append(sigEl, msgEl);
+  feed.insertBefore(div, feed.firstChild);
+  while (feed.childElementCount > 25) feed.lastChild.remove();
+}
+
+// ============================================================
+//  HELPERS
+// ============================================================
+function itemDisplay(id, withArticle = false) {
+  const it = STORY.items[id];
+  if (!it) return id;
+  return withArticle ? `${it.article} ${it.display}` : it.display;
+}
+function findItemIn(list, query) {
+  return list.findIndex(i => {
+    const it = STORY.items[i];
+    if (!it) return i === query;
+    return i === query || it.display.includes(query) || it.display.split(' ').includes(query);
+  });
+}
+function findMaterialKey(query) {
+  for (const [id, qty] of Object.entries(player.materials)) {
+    if (qty <= 0) continue;
+    const it = STORY.items[id];
+    if (id === query || it?.display.includes(query)) return id;
+  }
+  return null;
+}
+function removeFromInventoryOrMaterials(itemId, qty = 1) {
+  for (let i = 0; i < qty; i++) {
+    const idx = player.inventory.indexOf(itemId);
+    if (idx !== -1) { player.inventory.splice(idx, 1); continue; }
+    if (player.materials[itemId] > 0) { player.materials[itemId]--; continue; }
+    return false;
+  }
+  return true;
+}
+function addItem(itemId, qty = 1) {
+  const it = STORY.items[itemId];
+  if (!it) return false;
+  if (!canCarry(itemId, qty)) return false;
+  if (it.stackable) player.materials[itemId] = (player.materials[itemId] || 0) + qty;
+  else for (let i = 0; i < qty; i++) player.inventory.push(itemId);
+  return true;
+}
+function getActiveListings(merchantId) {
+  const list = [];
+  for (const [lid, l] of marketplace.listings) {
+    if (l.merchant !== merchantId) continue;
+    if (marketplace.purchased.has(lid)) continue;
+    list.push({ id: lid, ...l });
+  }
+  list.sort((a, b) => a.listed_at - b.listed_at);
+  return list;
+}
+function getDropsInRoom(roomId) {
+  const list = [];
+  for (const [did, d] of drops) {
+    if (d.roomId !== roomId) continue;
+    if (looted.has(did)) continue;
+    list.push({ id: did, ...d });
+  }
+  list.sort((a, b) => a.dropped_at - b.dropped_at);
+  return list;
+}
+function fireActive(roomId) {
+  const exp = player.fires.get(roomId);
+  return exp != null && player.turn < exp;
+}
+function bestWeaponBonus() {
+  let best = 0;
+  for (const it of player.inventory) if (WEAPON_BONUS[it] > best) best = WEAPON_BONUS[it];
+  return best;
+}
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function pickWeighted(table) {
+  const total = table.reduce((s, e) => s + (e.weight || 1), 0);
+  let r = Math.random() * total;
+  for (const e of table) { r -= (e.weight || 1); if (r <= 0) return e; }
+  return table[table.length - 1];
+}
+
+const dynamicVerbs = new Map();
+for (const room of Object.values(STORY.rooms)) {
+  for (const res of (room.resources || [])) dynamicVerbs.set(res.verb, 'gather');
+}
+
+// ============================================================
+//  TURN / DEATH
+// ============================================================
+function tickTurn() {
+  player.turn++;
+  player.life -= STORY.meta.life_decay_per_turn;
+  const room = player.rooms[player.location];
+  if (!player.combat_target && room.hazards?.wolves) {
+    const w = room.hazards.wolves;
+    if (Math.random() < w.encounter_chance) {
+      const ent = STORY.entities[w.entity];
+      player.combat_target = { id: w.entity, ...structuredClone(ent) };
+      write('');
+      write(`A ${ent.display} appears, ears back, lips curling.`, 'combat');
+      write('Type "attack" to fight, "flee" to escape (you take a parting bite).', 'combat');
+    }
+  }
+  if (player.life <= 0) handleDeath('starvation');
+  refreshSidebar();
+}
+
+function handleDeath(cause) {
+  write('');
+  write(`=== You have died (${cause}). ===`, 'error');
+  const droppedItems = [];
+  for (const it of player.inventory) droppedItems.push({ item: it, qty: 1 });
+  for (const [it, qty] of Object.entries(player.materials)) if (qty > 0) droppedItems.push({ item: it, qty });
+  if (droppedItems.length) {
+    publishItemDrop(droppedItems, cause);
+    write(`Your possessions remain in ${player.rooms[player.location].name}.`, 'error');
+  }
+  publishAction('died', { location: player.location, cause });
+  player.inventory = [];
+  player.materials = {};
+  player.life = Math.floor(player.life_max / 2);
+  player.combat_target = null;
+  player.location = STORY.meta.starting_location;
+  write(`You wake at ${player.rooms[player.location].name}, lighter and aching. (${player.life}/${player.life_max} life)`, 'system');
+  describeRoom();
+  refreshSidebar();
+}
+
+// ============================================================
+//  COMMANDS
+// ============================================================
+function describeRoom() {
+  const room = player.rooms[player.location];
+  write('');
+  const adornments = (fireActive(player.location) ? '  🔥' : '') + (room.hazards?.wolves ? '  ⚠' : '') + (player.chests.has(player.location) ? '  📦' : '');
+  write(room.name + adornments, 'room-name');
+  write(room.summary, 'room-desc');
+  if (room.items?.length)
+    write('You see: ' + room.items.map(i => itemDisplay(i, true)).join(', '), 'items');
+  if (room.npcs?.length)
+    write('Here: ' + room.npcs.map(n => STORY.npcs[n].display).join(', '), 'items');
+  if (room.resources?.length) {
+    const verbs = room.resources.map(r => `${r.verb} (${itemDisplay(r.id)})`).join(', ');
+    write('Gatherable: ' + verbs, 'items');
+  }
+  if (room.spawn_table?.length)
+    write('Tracks here suggest ' + room.spawn_table.map(s => STORY.entities[s.entity]?.display).filter(Boolean).join(', ') + '. Try "hunt".', 'items');
+  if (room.drink_source) write('Fresh water here. Try "drink".', 'items');
+  if (player.chests.has(player.location)) write('Your chest sits here. Try "chest", "store <x>", "retrieve <x>".', 'items');
+  const others = [...knownPlayers.entries()].filter(([_, v]) => v.location === player.location);
+  if (others.length) write('Other travelers: ' + others.map(([pk]) => pk.slice(0,8) + '…').join(', '), 'system');
+  const localDrops = getDropsInRoom(player.location);
+  if (localDrops.length) write(`Dropped here: ${localDrops.length} cache${localDrops.length > 1 ? 's' : ''}. Use "corpses".`, 'system');
+  write('Exits: ' + Object.keys(room.exits).join(', '), 'exits');
+}
+
+function inCombat() { return player.combat_target != null; }
+function combatBlock(action) {
+  if (!inCombat()) return false;
+  const allowed = ['attack','flee','look','l','status','stats','inv','inventory','i','help','?','clear','eat','use','map','m'];
+  if (allowed.includes(action)) return false;
+  write(`The ${player.combat_target.display} blocks the path. Attack or flee.`, 'combat');
+  return true;
+}
+
+function move(dir) {
+  if (combatBlock('move')) return;
+  const room = player.rooms[player.location];
+  const target = room.exits[dir];
+  if (!target) { write("You can't go that way.", 'error'); return; }
+  const from = player.location; player.location = target;
+  publishAction('move', { from, to: target });
+  describeRoom();
+}
+
+function take(arg) {
+  if (combatBlock('take')) return;
+  const room = player.rooms[player.location];
+  if (!room.items?.length) { write('There is nothing to take.', 'error'); return; }
+  const idx = findItemIn(room.items, arg);
+  if (idx === -1) { write(`You don't see "${arg}" here.`, 'error'); return; }
+  const item = room.items[idx];
+  if (!canCarry(item, 1)) { write(`Too heavy. You can carry ${computeMaxCapacity() - computeWeight()} more weight; this needs ${STORY.items[item].weight}.`, 'error'); return; }
+  room.items.splice(idx, 1);
+  addItem(item, 1);
+  write(`You take ${itemDisplay(item, true)}.`);
+  publishAction('take', { item, location: player.location });
+}
+
+function drop(arg) {
+  if (combatBlock('drop')) return;
+  const idx = findItemIn(player.inventory, arg);
+  if (idx === -1) {
+    const matKey = findMaterialKey(arg);
+    if (matKey) {
+      player.materials[matKey]--;
+      (player.rooms[player.location].items ||= []).push(matKey);
+      write(`You drop ${itemDisplay(matKey, true)}.`);
+      publishAction('drop', { item: matKey, location: player.location });
+      return;
+    }
+    write(`You don't have "${arg}".`, 'error'); return;
+  }
+  const item = player.inventory.splice(idx, 1)[0];
+  (player.rooms[player.location].items ||= []).push(item);
+  write(`You drop ${itemDisplay(item, true)}.`);
+  publishAction('drop', { item, location: player.location });
+}
+
+function showInventory() {
+  if (!player.inventory.length) write('You carry no discrete items.');
+  else write('You carry: ' + player.inventory.map(i => itemDisplay(i, true)).join(', '));
+  const mats = Object.entries(player.materials).filter(([_, q]) => q > 0);
+  if (mats.length) write('Materials: ' + mats.map(([k, q]) => `${itemDisplay(k)} ×${q}`).join(', '), 'gold');
+  write(`Load: ${Math.round(computeWeight()*10)/10}/${computeMaxCapacity()}`, 'system');
+}
+
+function showStatus() {
+  write(`Location: ${player.rooms[player.location].name}`);
+  write(`Life: ${Math.floor(player.life)}/${player.life_max}  ·  Gold: ${player.gold}  ·  Sparks: ${player.sparks}  ·  Load: ${Math.round(computeWeight()*10)/10}/${computeMaxCapacity()}  ·  Turn: ${player.turn}`);
+  write(`Skills: ${player.skills.size === 0 ? 'none' : [...player.skills].map(s => STORY.skills[s].display).join(', ')}`);
+  if (inCombat()) write(`In combat with ${player.combat_target.display} (${player.combat_target.hp} HP).`, 'combat');
+}
+
+function showSkills() {
+  write('Skills:', 'system');
+  const tiers = {};
+  for (const [id, sk] of Object.entries(STORY.skills)) (tiers[sk.tier || 1] ||= []).push([id, sk]);
+  for (const t of Object.keys(tiers).sort()) {
+    write(`-- Tier ${t} --`, 'system');
+    for (const [id, sk] of tiers[t]) {
+      const known = player.skills.has(id);
+      const reqs = (sk.prereqs || []).filter(p => !player.skills.has(p));
+      const status = known ? '✓ known' : (reqs.length ? `requires: ${reqs.join(', ')}` : `${sk.spark_cost} sparks`);
+      write(`  ${id}  —  ${sk.display}  [${status}]`, known ? 'success' : 'system');
+    }
+  }
+  write('Type "learn <skill_id>" to learn one.', 'system');
+}
+
+function learn(arg) {
+  if (combatBlock('learn')) return;
+  const sk = STORY.skills[arg];
+  if (!sk) { write(`No such skill "${arg}".`, 'error'); return; }
+  if (player.skills.has(arg)) { write('You already know that skill.'); return; }
+  for (const p of (sk.prereqs || []))
+    if (!player.skills.has(p)) { write(`You need to learn "${p}" first.`, 'error'); return; }
+  if (player.sparks < sk.spark_cost) { write(`Not enough sparks. Need ${sk.spark_cost}, have ${player.sparks}.`, 'error'); return; }
+  player.sparks -= sk.spark_cost;
+  player.skills.add(arg);
+  write(`You learn ${sk.display}. (-${sk.spark_cost} sparks)`, 'spark');
+  if (sk.unlocks?.verbs?.length) write(`New verbs: ${sk.unlocks.verbs.join(', ')}`, 'success');
+  if (sk.unlocks?.recipes?.length) write(`New recipes: ${sk.unlocks.recipes.join(', ')}`, 'success');
+  if (!sk.unlocks?.verbs?.length && !sk.unlocks?.recipes?.length && sk.unlocks?.interactions?.length) {
+    const passiveHint = arg === 'skinning' ? 'kills now drop hide as well as meat' : 'effects apply automatically';
+    write(`Passive skill — ${passiveHint}.`, 'success');
+  }
+  publishAction('learn', { skill: arg });
+}
+
+function gather(verb) {
+  if (combatBlock('gather')) return;
+  const room = player.rooms[player.location];
+  const res = (room.resources || []).find(r => r.verb === verb);
+  if (!res) { write(`You can't ${verb} here.`, 'error'); return; }
+  if (!player.skills.has(res.skill)) { write(`You need ${STORY.skills[res.skill].display} to ${verb}.`, 'error'); return; }
+  const cdKey = `${player.location}:${verb}`;
+  const next = player.resource_cooldowns.get(cdKey) || 0;
+  if (Date.now() < next) { write(`Wait ${Math.ceil((next - Date.now()) / 1000)}s.`, 'error'); return; }
+  if (!canCarry(res.id, res.yield_qty)) { write(`Too heavy to carry the ${itemDisplay(res.id)}.`, 'error'); return; }
+  addItem(res.id, res.yield_qty);
+  if (res.regenerates) player.resource_cooldowns.set(cdKey, Date.now() + (res.regen_seconds || 0) * 1000);
+  write(`You ${verb} and gain ${res.yield_qty} ${itemDisplay(res.id)}.`, 'success');
+  publishAction('gather', { verb, item: res.id, qty: res.yield_qty, location: player.location });
+}
+
+function showRecipes() {
+  const known = [...player.skills].map(s => STORY.skills[s]);
+  const recipeIds = new Set();
+  for (const sk of known) for (const r of (sk.unlocks?.recipes || [])) recipeIds.add(r);
+  if (recipeIds.size === 0) { write('No recipes available. Learn a crafting skill first.'); return; }
+  write('Available recipes:', 'system');
+  for (const rid of recipeIds) {
+    const r = STORY.recipes[rid];
+    const ins = r.inputs.map(io => `${io.qty} ${itemDisplay(io.item)}`).join(' + ');
+    const outs = r.outputs.map(io => `${io.qty} ${itemDisplay(io.item)}`).join(' + ');
+    const fire = r.requires_fire ? '  🔥 (needs fire)' : '';
+    write(`  ${rid}  —  ${r.display}: ${ins} → ${outs}${fire}`);
+  }
+  write('Type "craft <recipe_id>" to craft. Each craft awards ' + STORY.meta.sparks_per_craft + ' sparks.', 'system');
+}
+
+function craft(arg) {
+  if (combatBlock('craft')) return;
+  const r = STORY.recipes[arg];
+  if (!r) { write(`No such recipe "${arg}".`, 'error'); return; }
+  if (!player.skills.has(r.skill)) { write(`You need ${STORY.skills[r.skill].display}.`, 'error'); return; }
+  if (r.requires_fire && !fireActive(player.location)) { write('You need an active fire here. Try "light fire".', 'error'); return; }
+  for (const io of r.inputs) {
+    const have = STORY.items[io.item].stackable ? (player.materials[io.item] || 0) : player.inventory.filter(i => i === io.item).length;
+    if (have < io.qty) { write(`Not enough ${itemDisplay(io.item)} (need ${io.qty}, have ${have}).`, 'error'); return; }
+  }
+  if (r.tool && !player.inventory.includes(r.tool)) { write(`You need ${itemDisplay(r.tool, true)}.`, 'error'); return; }
+  // Capacity check on outputs (after consuming inputs)
+  let inputWeight = 0;
+  for (const io of r.inputs) inputWeight += (STORY.items[io.item].weight ?? 1) * io.qty;
+  let outputWeight = 0;
+  for (const io of r.outputs) outputWeight += (STORY.items[io.item].weight ?? 1) * io.qty;
+  if (computeWeight() - inputWeight + outputWeight > computeMaxCapacity()) {
+    write(`Too heavy: the result would exceed your carry capacity. Drop or store something first.`, 'error'); return;
+  }
+  for (const io of r.inputs) removeFromInventoryOrMaterials(io.item, io.qty);
+  for (const io of r.outputs) addItem(io.item, io.qty);
+  const outStr = r.outputs.map(io => `${io.qty} ${itemDisplay(io.item)}`).join(', ');
+  write(`You craft: ${outStr}.`, 'success');
+  // craft reward
+  const reward = STORY.meta.sparks_per_craft || 0;
+  if (reward > 0) {
+    player.sparks += reward;
+    write(`(+${reward} sparks for crafting)`, 'spark');
+  }
+  publishAction('craft', { recipe: arg, location: player.location });
+}
+
+function talk(target) {
+  if (combatBlock('talk')) return;
+  const room = player.rooms[player.location];
+  if (!room.npcs?.includes(target)) { write(`There's no "${target}" here.`, 'error'); return; }
+  const npc = STORY.npcs[target];
+  const line = npc.dialogue_seeds[Math.floor(Math.random() * npc.dialogue_seeds.length)];
+  write(`${npc.display} says: "${line}"`, 'npc');
+  publishAction('talk', { npc: target, location: player.location });
+}
+
+function answer(text) {
+  if (combatBlock('answer')) return;
+  const room = player.rooms[player.location];
+  if (!room.riddle) { write('There is nothing to answer here.', 'error'); return; }
+  const r = STORY.riddles[room.riddle];
+  if (player.riddles_solved.has(room.riddle) && !r.repeatable) { write('You have already solved this riddle.'); return; }
+  const norm = text.toLowerCase().trim();
+  if (r.answers.includes(norm)) {
+    player.riddles_solved.add(room.riddle);
+    player.sparks += r.reward_sparks;
+    write(r.on_solve_message, 'success');
+    write(`(+${r.reward_sparks} sparks)`, 'spark');
+    publishAction('riddle_solved', { location: player.location, gained: r.reward_sparks });
+  } else {
+    write('The voice is silent. That is not the answer.', 'error');
+    publishAction('riddle_attempt', { location: player.location, text: norm });
+  }
+}
+
+// --- combat & survival ---
+function hunt() {
+  if (!player.skills.has('hunting')) { write('You need the Hunting skill to hunt.', 'error'); return; }
+  if (inCombat()) { write('You are already in a fight.', 'error'); return; }
+  const room = player.rooms[player.location];
+  if (!room.spawn_table?.length) { write('There is nothing to hunt here.', 'error'); return; }
+  const pick = pickWeighted(room.spawn_table);
+  const ent = STORY.entities[pick.entity];
+  player.combat_target = { id: pick.entity, ...structuredClone(ent) };
+  write(`You move quietly. A ${ent.display} steps into view.`, 'combat');
+  write(`(${ent.summary})`, 'system');
+  write('Type "attack" to engage, "flee" to back off.', 'combat');
+}
+
+function attack() {
+  if (!inCombat()) { write('There is nothing to attack.', 'error'); return; }
+  const t = player.combat_target;
+  const playerDmg = randInt(2, 5) + bestWeaponBonus() + (player.skills.has('hunting') ? 2 : 0);
+  if (Math.random() < (t.evasion || 0)) {
+    write(`You miss the ${t.display}.`, 'combat');
+  } else {
+    t.hp -= playerDmg;
+    write(`You strike the ${t.display} for ${playerDmg} damage. (${Math.max(0, t.hp)} HP left)`, 'success');
+  }
+  if (t.hp <= 0) {
+    write(`The ${t.display} falls.`, 'success');
+    const allDrops = [...t.base_drops];
+    if (player.skills.has('skinning')) allDrops.push(...t.skinning_drops);
+    let summary = [];
+    let leftBehind = [];
+    for (const d of allDrops) {
+      if (canCarry(d.item, d.qty)) { addItem(d.item, d.qty); summary.push(`${d.qty} ${itemDisplay(d.item)}`); }
+      else leftBehind.push(`${d.qty} ${itemDisplay(d.item)}`);
+    }
+    if (summary.length) write(`You gain: ${summary.join(', ')}.`, 'success');
+    if (leftBehind.length) {
+      // overflow becomes a drop in the room
+      const overflowItems = allDrops.filter((_, i) => leftBehind.length > 0).map(d => ({ item: d.item, qty: d.qty }));
+      publishItemDrop(overflowItems, 'overflow');
+      write(`Too heavy to carry: ${leftBehind.join(', ')} — left as a drop you can return for.`, 'error');
+    }
+    if (!player.skills.has('skinning') && t.skinning_drops.length)
+      write('(With Skinning, kills also yield hide.)', 'system');
+    publishAction('killed', { entity: t.id, location: player.location });
+    player.combat_target = null;
+    return;
+  }
+  const enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
+  player.life -= enemyDmg;
+  write(`The ${t.display} bites you for ${enemyDmg} damage. (${Math.max(0, Math.floor(player.life))}/${player.life_max} life)`, 'error');
+  if (player.life <= 0) handleDeath(`killed by ${t.display}`);
+}
+
+function flee() {
+  if (!inCombat()) { write('There is nothing to flee from.', 'error'); return; }
+  const t = player.combat_target;
+  const enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
+  player.life -= enemyDmg;
+  write(`You scramble away. The ${t.display} catches you for ${enemyDmg} parting damage.`, 'error');
+  player.combat_target = null;
+  if (player.life <= 0) handleDeath(`killed by ${t.display} while fleeing`);
+}
+
+function eat(arg) {
+  let itemId = null;
+  const idx = findItemIn(player.inventory, arg);
+  if (idx !== -1) itemId = player.inventory[idx];
+  else { const matKey = findMaterialKey(arg); if (matKey) itemId = matKey; }
+  if (!itemId) { write(`You don't have "${arg}".`, 'error'); return; }
+  const it = STORY.items[itemId];
+  if (it.consumable_action !== 'eat' && !it.tags?.includes('food')) { write(`You can't eat ${it.display}.`, 'error'); return; }
+  removeFromInventoryOrMaterials(itemId, 1);
+  const restore = it.effects?.restore_life ?? 0;
+  player.life = Math.min(player.life_max, player.life + restore);
+  write(`You eat ${itemDisplay(itemId, true)}. (+${restore} life)`, 'success');
+  publishAction('eat', { item: itemId, restore });
+}
+
+function drink(arg) {
+  const room = player.rooms[player.location];
+  if (room.drink_source && !arg) {
+    const cdKey = `drink:${player.location}`;
+    const next = player.drink_cooldowns.get(cdKey) || 0;
+    if (Date.now() < next) { write(`Wait ${Math.ceil((next - Date.now()) / 1000)}s.`, 'error'); return; }
+    const r = room.drink_source.restore_life;
+    player.life = Math.min(player.life_max, player.life + r);
+    if (room.drink_source.cooldown_seconds) player.drink_cooldowns.set(cdKey, Date.now() + room.drink_source.cooldown_seconds * 1000);
+    write(`You drink. (+${r} life)`, 'success');
+    publishAction('drink', { location: player.location, restore: r });
+    return;
+  }
+  if (!arg) { write('There is no water here.', 'error'); return; }
+  let itemId = null;
+  const idx = findItemIn(player.inventory, arg);
+  if (idx !== -1) itemId = player.inventory[idx];
+  else { const matKey = findMaterialKey(arg); if (matKey) itemId = matKey; }
+  if (!itemId) { write(`You don't have "${arg}".`, 'error'); return; }
+  const it = STORY.items[itemId];
+  if (it.consumable_action !== 'drink') { write(`You can't drink ${it.display}.`, 'error'); return; }
+  removeFromInventoryOrMaterials(itemId, 1);
+  const restore = it.effects?.restore_life ?? 0;
+  player.life = Math.min(player.life_max, player.life + restore);
+  write(`You drink ${itemDisplay(itemId, true)}. (+${restore} life)`, 'success');
+  publishAction('drink', { item: itemId, restore });
+}
+
+function lightFire() {
+  if (!player.skills.has('firemaking')) { write('You need the Firemaking skill.', 'error'); return; }
+  if (fireActive(player.location)) { write('A fire is already burning here.'); return; }
+  player.fires.set(player.location, player.turn + FIRE_DURATION_TURNS);
+  write(`You light a fire. It will burn for ${FIRE_DURATION_TURNS} turns.`, 'fire');
+  publishAction('lit_fire', { location: player.location });
+}
+
+function rest() {
+  if (combatBlock('rest')) return;
+  write('You rest a moment.');
+}
+
+// --- chests (personal storage) ---
+function placeChest() {
+  if (combatBlock('place')) return;
+  const idx = player.inventory.indexOf('simple_chest');
+  if (idx === -1) { write('You have no simple chest to place.', 'error'); return; }
+  if (player.chests.has(player.location)) { write('You already have a chest here.', 'error'); return; }
+  player.inventory.splice(idx, 1);
+  player.chests.set(player.location, { items: [], materials: {} });
+  write(`You place a chest in ${player.rooms[player.location].name}. Items stored here don't count toward your carry weight.`, 'success');
+  publishAction('placed_chest', { location: player.location });
+}
+
+function showChest() {
+  const chest = player.chests.get(player.location);
+  if (!chest) { write('No chest here. (Try "place chest" if you have one.)', 'error'); return; }
+  write(`-- chest in ${player.rooms[player.location].name} --`, 'system');
+  if (chest.items.length === 0 && Object.values(chest.materials).every(q => q === 0))
+    write('  (empty)');
+  if (chest.items.length) write('  Items: ' + chest.items.map(i => itemDisplay(i, true)).join(', '));
+  const mats = Object.entries(chest.materials).filter(([_, q]) => q > 0);
+  if (mats.length) write('  Materials: ' + mats.map(([k, q]) => `${itemDisplay(k)} ×${q}`).join(', '));
+  write('"store <item>" to deposit, "retrieve <item>" to take.', 'system');
+}
+
+function storeItem(arg) {
+  if (combatBlock('store')) return;
+  const chest = player.chests.get(player.location);
+  if (!chest) { write('No chest here.', 'error'); return; }
+  const idx = findItemIn(player.inventory, arg);
+  if (idx !== -1) {
+    const item = player.inventory.splice(idx, 1)[0];
+    chest.items.push(item);
+    write(`You store ${itemDisplay(item, true)}.`, 'success');
+    return;
+  }
+  const matKey = findMaterialKey(arg);
+  if (matKey) {
+    player.materials[matKey]--;
+    chest.materials[matKey] = (chest.materials[matKey] || 0) + 1;
+    write(`You store ${itemDisplay(matKey)}.`, 'success');
+    return;
+  }
+  write(`You don't have "${arg}".`, 'error');
+}
+
+function retrieveItem(arg) {
+  if (combatBlock('retrieve')) return;
+  const chest = player.chests.get(player.location);
+  if (!chest) { write('No chest here.', 'error'); return; }
+  // Try items first
+  const idx = chest.items.findIndex(i => {
+    const it = STORY.items[i];
+    return i === arg || (it && it.display.includes(arg));
+  });
+  if (idx !== -1) {
+    const item = chest.items[idx];
+    if (!canCarry(item, 1)) { write(`Too heavy to take ${itemDisplay(item)} now.`, 'error'); return; }
+    chest.items.splice(idx, 1);
+    addItem(item, 1);
+    write(`You retrieve ${itemDisplay(item, true)}.`, 'success');
+    return;
+  }
+  // Try materials
+  for (const [id, qty] of Object.entries(chest.materials)) {
+    if (qty <= 0) continue;
+    if (id === arg || STORY.items[id]?.display.includes(arg)) {
+      if (!canCarry(id, 1)) { write(`Too heavy to take ${itemDisplay(id)} now.`, 'error'); return; }
+      chest.materials[id]--;
+      addItem(id, 1);
+      write(`You retrieve ${itemDisplay(id)}.`, 'success');
+      return;
+    }
+  }
+  write(`No "${arg}" in the chest.`, 'error');
+}
+
+function showCorpses() {
+  const localDrops = getDropsInRoom(player.location);
+  if (localDrops.length === 0) { write('No corpses or drops here.'); return; }
+  write('-- corpses & drops here --', 'system');
+  localDrops.forEach((d, i) => {
+    const who = d.dropper === pk ? 'YOU' : d.dropper.slice(0, 8) + '…';
+    const items = d.items.map(it => `${it.qty} ${itemDisplay(it.item)}`).join(', ');
+    write(`  [${i + 1}]  ${who}'s drop  —  ${items}`);
+  });
+  write(`Type "loot <#>" to take everything.`, 'system');
+}
+
+async function loot(arg) {
+  if (combatBlock('loot')) return;
+  const idx = parseInt(arg, 10) - 1;
+  if (Number.isNaN(idx)) { write('Specify a drop number.', 'error'); return; }
+  const localDrops = getDropsInRoom(player.location);
+  const drop = localDrops[idx];
+  if (!drop) { write('No such drop here.', 'error'); return; }
+  // Capacity check
+  let totalWeight = 0;
+  for (const di of drop.items) totalWeight += (STORY.items[di.item]?.weight ?? 1) * di.qty;
+  if (computeWeight() + totalWeight > computeMaxCapacity()) { write(`Too heavy. Need ${totalWeight} more capacity. Drop or store first.`, 'error'); return; }
+  for (const di of drop.items) addItem(di.item, di.qty);
+  looted.set(drop.id, { looter: pk, looted_at: Math.floor(Date.now() / 1000) });
+  const items = drop.items.map(it => `${it.qty} ${itemDisplay(it.item)}`).join(', ');
+  write(`You loot: ${items}.`, 'success');
+  await publishLoot(drop.id);
+}
+
+// --- marketplace ---
+function showMarket() {
+  if (combatBlock('market')) return;
+  const room = player.rooms[player.location];
+  const merchantId = (room.npcs || []).find(n => STORY.npcs[n].is_marketplace);
+  if (!merchantId) { write('No merchant here.', 'error'); return; }
+  const listings = getActiveListings(merchantId);
+  write(`-- ${STORY.npcs[merchantId].display}'s listings --`, 'system');
+  if (listings.length === 0) { write('  (nothing listed)'); return; }
+  listings.forEach((l, i) => {
+    const seller = l.source === 'system' ? 'house' : (l.seller_pubkey === pk ? 'YOU' : l.seller_pubkey.slice(0, 8) + '…');
+    write(`  [${i + 1}]  ${itemDisplay(l.item)}  —  ${l.price_gold} gold  (${seller})`);
+  });
+  write(`Type "buy <#>" to purchase.`, 'system');
+}
+
+async function buy(arg) {
+  if (combatBlock('buy')) return;
+  const room = player.rooms[player.location];
+  const merchantId = (room.npcs || []).find(n => STORY.npcs[n].is_marketplace);
+  if (!merchantId) { write('No merchant here.', 'error'); return; }
+  const idx = parseInt(arg, 10) - 1;
+  if (Number.isNaN(idx)) { write('Specify a listing number.', 'error'); return; }
+  const listings = getActiveListings(merchantId);
+  const listing = listings[idx];
+  if (!listing) { write('No such listing.', 'error'); return; }
+  if (player.gold < listing.price_gold) { write(`Not enough gold (need ${listing.price_gold}).`, 'error'); return; }
+  if (listing.seller_pubkey === pk) { write("You can't buy your own listing.", 'error'); return; }
+  if (!canCarry(listing.item, listing.qty)) { write(`Too heavy. ${itemDisplay(listing.item)} weighs ${(STORY.items[listing.item]?.weight ?? 1) * listing.qty}; you have ${computeMaxCapacity() - computeWeight()} room.`, 'error'); return; }
+  player.gold -= listing.price_gold;
+  addItem(listing.item, listing.qty);
+  marketplace.purchased.set(listing.id, { buyer_pubkey: pk, paid_gold: listing.price_gold, purchased_at: Math.floor(Date.now() / 1000) });
+  write(`You buy ${itemDisplay(listing.item, true)} for ${listing.price_gold} gold.`, 'success');
+  if (listing.source !== 'system') await publishPurchase(listing.id, listing);
+}
+
+async function sell(args) {
+  if (combatBlock('sell')) return;
+  const room = player.rooms[player.location];
+  const merchantId = (room.npcs || []).find(n => STORY.npcs[n].is_marketplace);
+  const directNpc  = (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('buys_items') && !STORY.npcs[n].is_marketplace);
+  const parts = args.trim().split(/\s+/);
+  const itemQuery = parts[0];
+  const price = parts[1] ? Number(parts[1]) : null;
+  if (!itemQuery) { write('Sell what? Usage: sell <item> [price]', 'error'); return; }
+  const idx = findItemIn(player.inventory, itemQuery);
+  let itemId;
+  if (idx !== -1) itemId = player.inventory[idx];
+  else { const matKey = findMaterialKey(itemQuery); if (!matKey) { write(`You don't have "${itemQuery}".`, 'error'); return; } itemId = matKey; }
+  if (merchantId) {
+    const finalPrice = price ?? STORY.items[itemId].value;
+    if (finalPrice <= 0) { write('Price must be > 0.', 'error'); return; }
+    if (idx !== -1) player.inventory.splice(idx, 1); else player.materials[itemId]--;
+    await publishListing(merchantId, itemId, 1, finalPrice);
+    write(`You list ${itemDisplay(itemId, true)} for ${finalPrice} gold.`, 'success');
+  } else if (directNpc) {
+    const value = STORY.items[itemId].value;
+    if (idx !== -1) player.inventory.splice(idx, 1); else player.materials[itemId]--;
+    player.gold += value;
+    write(`${STORY.npcs[directNpc].display} takes ${itemDisplay(itemId, true)} for ${value} gold.`, 'success');
+  } else {
+    write('There is no one here to sell to.', 'error'); return;
+  }
+}
+
+function showListings() {
+  const mine = [];
+  for (const [lid, l] of marketplace.listings) {
+    if (l.seller_pubkey !== pk) continue;
+    mine.push({ lid, l, sold: marketplace.purchased.has(lid) });
+  }
+  if (mine.length === 0) { write('You have no active listings.'); return; }
+  write('Your listings:', 'system');
+  for (const { lid, l, sold } of mine)
+    write(`  ${lid.slice(0,8)}…  ${itemDisplay(l.item)} @ ${l.price_gold}g  [${sold ? 'SOLD' : 'active'}]`);
+}
+
+function whisper(text) {
+  if (combatBlock('whisper')) return;
+  if (!text) { write('Whisper what?', 'error'); return; }
+  write(`You whisper: "${text}"`, 'whisper');
+  publishAction('whisper', { text, location: player.location });
+}
+
+function who() {
+  if (knownPlayers.size === 0) { write('No other players seen yet.'); return; }
+  write(`Known players: ${knownPlayers.size}`);
+  for (const [pkOther, info] of knownPlayers) {
+    const ago = Math.round((Date.now() - info.firstSeen) / 1000);
+    write(`  ${pkOther.slice(0, 16)}…  loc=${info.location || '?'}  (seen ${ago}s ago)`);
+  }
+}
+
+function showMap() {
+  const rooms = player.rooms;
+  const positions = new Map();
+  positions.set(player.location, [0, 0]);
+  const queue = [player.location];
+  const dirOffset = { north:[0,-1], south:[0,1], east:[1,0], west:[-1,0] };
+  while (queue.length) {
+    const cur = queue.shift();
+    const [cx, cy] = positions.get(cur);
+    for (const [dir, target] of Object.entries(rooms[cur].exits || {})) {
+      if (positions.has(target)) continue;
+      const off = dirOffset[dir];
+      if (!off) continue;
+      positions.set(target, [cx + off[0], cy + off[1]]);
+      queue.push(target);
+    }
+  }
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  for (const [x, y] of positions.values()) { minX=Math.min(minX,x); maxX=Math.max(maxX,x); minY=Math.min(minY,y); maxY=Math.max(maxY,y); }
+  const cellW = 14, cellH = 4;
+  const cols = (maxX - minX + 1) * cellW;
+  const rows = (maxY - minY + 1) * cellH;
+  const grid = Array(rows).fill(null).map(() => Array(cols).fill(' '));
+  function put(y, x, s) { for (let i = 0; i < s.length; i++) if (x+i>=0 && x+i<cols && y>=0 && y<rows) grid[y][x+i] = s[i]; }
+  for (const [room, [x, y]] of positions) {
+    const cx = (x - minX) * cellW, cy = (y - minY) * cellH;
+    const here = room === player.location;
+    let mark = ' ';
+    if (rooms[room].hazards?.wolves) mark = '⚠';
+    else if (player.chests.has(room)) mark = '📦';
+    else if (fireActive(room)) mark = '🔥';
+    const labelMax = 10;
+    const name = room.length > labelMax ? room.slice(0, labelMax-1) + '…' : room;
+    const inner = (here ? '*' : ' ') + name.padEnd(labelMax) + mark;
+    put(cy + 0, cx, '┌' + '─'.repeat(labelMax + 2) + '┐');
+    put(cy + 1, cx, '│' + inner + '│');
+    put(cy + 2, cx, '└' + '─'.repeat(labelMax + 2) + '┘');
+  }
+  for (const [room, [x, y]] of positions) {
+    const cx = (x - minX) * cellW, cy = (y - minY) * cellH;
+    for (const [dir, target] of Object.entries(rooms[room].exits || {})) {
+      if (!positions.has(target)) continue;
+      const [tx, ty] = positions.get(target);
+      const dx = tx - x, dy = ty - y;
+      if (dx === 1 && dy === 0)      put(cy + 1, cx + cellW - 1, '──');
+      else if (dx === 0 && dy === 1) put(cy + 3, cx + Math.floor(cellW/2), '│');
+    }
+  }
+  write('');
+  write('-- map (* = you, ⚠ = wolves, 📦 = your chest, 🔥 = fire) --', 'system');
+  for (const row of grid) write(row.join('').replace(/\s+$/, ''));
+  write('');
+}
+
+function help() {
+  const lines = [
+    'Movement:        n/s/e/w · go <dir> · look · map',
+    'Items:           take <x> · drop <x> · inv · status',
+    'World:           talk <npc> · answer <text>',
+    'Skills:          skills · learn <skill>',
+    'Gathering:       chop / forage / gather (needs skill)',
+    'Crafting:        recipes · craft <recipe>  (each craft awards sparks)',
+    'Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest',
+    'Storage:         place chest · chest · store <x> · retrieve <x>',
+    'Market:          market · sell <item> [price] · buy <#> · listings',
+    'Drops:           corpses · loot <#>',
+    'Network:         whisper <text> · who',
+    'Misc:            clear · help'
+  ];
+  for (const l of lines) write(l, 'system');
+}
+
+// ============================================================
+//  PARSER
+// ============================================================
+function handleCommand(input) {
+  const raw = input.trim();
+  if (!raw) return;
+  write('> ' + raw, 'echo');
+  const parts = raw.split(/\s+/);
+  const cmd = parts[0].toLowerCase();
+  const argRaw = parts.slice(1).join(' ');
+  const arg = argRaw.toLowerCase();
+  const dirAlias = { n:'north', s:'south', e:'east', w:'west' };
+
+  if (dynamicVerbs.has(cmd) && dynamicVerbs.get(cmd) === 'gather') {
+    gather(cmd); tickTurn(); return;
+  }
+
+  let consumesTurn = true;
+  switch (cmd) {
+    case 'look': case 'l':       describeRoom(); consumesTurn = false; break;
+    case 'go': case 'move':      move(dirAlias[arg] || arg); break;
+    case 'n': case 'north':      move('north'); break;
+    case 's': case 'south':      move('south'); break;
+    case 'e': case 'east':       move('east'); break;
+    case 'w': case 'west':       move('west'); break;
+    case 'take': case 'get':     take(arg); break;
+    case 'drop':                 drop(arg); break;
+    case 'inv': case 'inventory': case 'i': showInventory(); consumesTurn = false; break;
+    case 'status': case 'stats': showStatus(); consumesTurn = false; break;
+    case 'skills': case 'sk':    showSkills(); consumesTurn = false; break;
+    case 'learn':                learn(arg); break;
+    case 'recipes': case 'rec':  showRecipes(); consumesTurn = false; break;
+    case 'craft':                craft(arg); break;
+    case 'market': case 'mkt':   showMarket(); consumesTurn = false; break;
+    case 'sell':                 sell(argRaw); break;
+    case 'buy':                  buy(arg); break;
+    case 'listings':             showListings(); consumesTurn = false; break;
+    case 'talk':                 talk(arg); break;
+    case 'answer': case 'say':   answer(argRaw); break;
+    case 'hunt':                 hunt(); break;
+    case 'attack':               attack(); break;
+    case 'flee':                 flee(); break;
+    case 'eat':                  eat(arg); break;
+    case 'drink':                drink(arg); break;
+    case 'light':                if (arg === 'fire' || arg === '') lightFire(); else write(`Light what?`, 'error'); break;
+    case 'rest':                 rest(); break;
+    case 'place':                if (arg === 'chest') placeChest(); else write('Place what? Try "place chest".', 'error'); break;
+    case 'chest':                showChest(); consumesTurn = false; break;
+    case 'store':                storeItem(arg); break;
+    case 'retrieve': case 'unstore': retrieveItem(arg); break;
+    case 'corpses':              showCorpses(); consumesTurn = false; break;
+    case 'loot':                 loot(arg); break;
+    case 'whisper': case 'shout':whisper(argRaw); break;
+    case 'who':                  who(); consumesTurn = false; break;
+    case 'map': case 'm':        showMap(); consumesTurn = false; break;
+    case 'help': case '?':       help(); consumesTurn = false; break;
+    case 'clear':                out.innerHTML = ''; consumesTurn = false; break;
+    default:
+      if (STORY.skills[cmd]) {
+        const sk = STORY.skills[cmd];
+        const isActive = sk.unlocks?.verbs?.length || sk.unlocks?.recipes?.length;
+        if (player.skills.has(cmd)) {
+          write(`${sk.display}: known. ${isActive ? 'Active — see "skills" / "recipes".' : 'Passive — effects apply automatically.'}`, 'system');
+        } else {
+          write(`${sk.display} is a skill. Use "learn ${cmd}" (${sk.spark_cost} sparks).`, 'system');
+        }
+      } else {
+        write(`Unknown command: ${cmd}. Type "help".`, 'error');
+      }
+      consumesTurn = false;
+  }
+  if (consumesTurn) tickTurn();
+  refreshSidebar();
+}
+
+// ============================================================
+//  MOBILE DRAWER
+// ============================================================
+const drawer = document.getElementById('side');
+const backdrop = document.getElementById('drawer-backdrop');
+function openDrawer() { drawer.classList.add('open'); backdrop.classList.add('show'); }
+function closeDrawer() { drawer.classList.remove('open'); backdrop.classList.remove('show'); }
+document.getElementById('drawer-toggle').addEventListener('click', openDrawer);
+document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+backdrop.addEventListener('click', closeDrawer);
+
+// ============================================================
+//  BOOTSTRAP
+// ============================================================
+const cmdInput = document.getElementById('cmd');
+cmdInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
+});
+
+write(`=== ${STORY.meta.title} — Nostr PoC v0.4 ===`, 'title');
+write(`developed by AWB_ 🇨🇭`, 'system');
+write('');
+write(`Identity: ${npubShort}`, 'system');
+write(`${Object.keys(STORY.rooms).length} rooms · ${Object.keys(STORY.skills).length} skills · ${Object.keys(STORY.recipes).length} recipes · ${Object.keys(STORY.entities).length} entities`, 'system');
+write(`Connecting to ${RELAYS.length} Nostr relays…`, 'system');
+write('');
+write('Carry capacity 40 weight. Crafting awards sparks. Place chests for storage.', 'system');
+write('On phone? Tap ☰ at top right for the side panel.', 'system');
+write('Type "help" for commands.', 'system');
+write('');
+describeRoom();
+refreshSidebar();
+subscribe();
+publishAction('look', { location: player.location });
+</script>
+</body>
+</html>
