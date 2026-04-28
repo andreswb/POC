@@ -56,6 +56,8 @@
   .kv .v.spark { color: var(--spark); font-weight: 600; }
   .kv .v.life  { color: var(--life); font-weight: 600; }
   .kv .v.load  { color: var(--load); font-weight: 600; }
+  .kv .g { font-size: 16px; line-height: 1; margin-right: 3px; vertical-align: middle; }
+  #mobile-header .glyph { font-size: 16px; }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
          background: var(--muted); margin-right: 6px; vertical-align: middle; }
   .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
@@ -92,8 +94,8 @@
       font-size: 12px; line-height: 1; flex-wrap: nowrap;
       overflow-x: auto; white-space: nowrap;
     }
-    #mobile-header .stat { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
-    #mobile-header .glyph { font-size: 13px; }
+    #mobile-header .stat { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-size: 13px; }
+    #mobile-header .glyph { font-size: 17px; line-height: 1; }
     #mobile-header .stat.life  { color: var(--life); }
     #mobile-header .stat.gold  { color: var(--gold); }
     #mobile-header .stat.spark { color: var(--spark); }
@@ -138,9 +140,9 @@
 <div id="layout">
   <div id="terminal-wrap">
     <div id="mobile-header">
-      <span class="stat life"><span class="glyph">❤</span><span id="mh-life">100</span></span>
-      <span class="stat gold"><span class="glyph">◆</span><span id="mh-gold">0</span></span>
-      <span class="stat spark"><span class="glyph">✦</span><span id="mh-sparks">0</span></span>
+      <span class="stat life"><span class="glyph">❤️</span><span id="mh-life">100</span></span>
+      <span class="stat gold"><span class="glyph">🪙</span><span id="mh-gold">0</span></span>
+      <span class="stat spark"><span class="glyph">✨</span><span id="mh-sparks">0</span></span>
       <span class="stat load"><span class="glyph">📦</span><span id="mh-load">0/40</span></span>
       <span class="room" id="mh-room">…</span>
       <button id="drawer-toggle" aria-label="Open panel">☰</button>
@@ -157,14 +159,14 @@
     <section>
       <h3>Identity</h3>
       <div class="kv"><span class="k">npub</span><span class="v" id="pubkey">…</span></div>
-      <div class="kv"><span class="k">⚡ relays</span><span class="v"><span class="dot" id="relayDot"></span><span id="relays">connecting…</span></span></div>
+      <div class="kv"><span class="k"><span class="g">⚡</span> relays</span><span class="v"><span class="dot" id="relayDot"></span><span id="relays">connecting…</span></span></div>
     </section>
     <section>
       <h3>Vitals</h3>
-      <div class="kv"><span class="k">❤ life</span><span class="v life" id="life">100/100</span></div>
-      <div class="kv"><span class="k">◆ gold</span><span class="v gold" id="gold">0</span></div>
-      <div class="kv"><span class="k">✦ sparks</span><span class="v spark" id="sparks">0</span></div>
-      <div class="kv"><span class="k">📦 load</span><span class="v load" id="load">0/40</span></div>
+      <div class="kv"><span class="k"><span class="g">❤️</span> life</span><span class="v life" id="life">100/100</span></div>
+      <div class="kv"><span class="k"><span class="g">🪙</span> gold</span><span class="v gold" id="gold">0</span></div>
+      <div class="kv"><span class="k"><span class="g">✨</span> sparks</span><span class="v spark" id="sparks">0</span></div>
+      <div class="kv"><span class="k"><span class="g">📦</span> load</span><span class="v load" id="load">0/40</span></div>
       <div class="kv"><span class="k">turn</span><span class="v" id="turn">0</span></div>
     </section>
     <section>
@@ -191,7 +193,7 @@
 
 <script type="module">
 import {
-  generateSecretKey, getPublicKey, finalizeEvent, SimplePool, nip19
+  generateSecretKey, getPublicKey, finalizeEvent, SimplePool, nip19, nip04
 } from 'https://esm.sh/nostr-tools@2.7.2';
 
 // ============================================================
@@ -210,17 +212,44 @@ const STORY = {
   rooms: {
     forest_clearing: {
       name: 'A Clearing in the Forest',
-      summary: 'A small clearing ringed by pines. Old moss-covered stones in the center. A path winds east toward a canyon, and south to a village.',
-      exits: { east: 'red_canyon', south: 'greenmeadow_village' },
+      summary: 'A small clearing ringed by pines. Old moss-covered stones in the center. Paths wind north into deeper forest, east toward a canyon, and south to a village.',
+      exits: { north: 'deep_forest', east: 'red_canyon', south: 'greenmeadow_village' },
       items: ['rusty_dagger'], npcs: [], riddle: null,
       resources: [{ id:'wood', skill:'woodcutting', verb:'chop', yield_qty:1, regenerates:true, regen_seconds:60 }],
       spawn_table: [{ entity:'deer', weight:2 }, { entity:'rabbit', weight:3 }],
       hazards: {}, drink_source: null
     },
+    deep_forest: {
+      name: 'The Deep Forest',
+      summary: 'The pines crowd close, taller and older. The path narrows to a track. Eyes catch the light between the trunks. South leads back to the clearing.',
+      exits: { south: 'forest_clearing' },
+      items: [], npcs: [], riddle: null,
+      resources: [{ id:'wood', skill:'woodcutting', verb:'chop', yield_qty:2, regenerates:true, regen_seconds:50 }],
+      spawn_table: [{ entity:'deer', weight:3 }, { entity:'rabbit', weight:2 }],
+      hazards: { wolves: { encounter_chance: 0.20, entity: 'wolf' } },
+      drink_source: null
+    },
+    hilltop_ruins: {
+      name: 'The Hilltop Ruins',
+      summary: 'Stone columns lean against an empty sky. An old altar at the center catches the wind, and the wind catches it back. A voice in the stones whispers a question.',
+      exits: { down: 'red_canyon' },
+      items: [], npcs: [], riddle: 'echo_riddle',
+      resources: [{ id:'stone', skill:'stone_knapping', verb:'gather', yield_qty:2, regenerates:true, regen_seconds:50 }],
+      spawn_table: [],
+      hazards: {}, drink_source: null
+    },
+    riverside_camp: {
+      name: 'Riverside Camp',
+      summary: 'A small camp by the river\'s bend. Drying racks of fish and meat. A trader\'s lean-to with a steady fire. The valley is to the west.',
+      exits: { west: 'quiet_valley' },
+      items: [], npcs: ['riverside_trader'], riddle: null,
+      resources: [], spawn_table: [],
+      hazards: {}, drink_source: { restore_life: 5, cooldown_seconds: 60 }
+    },
     red_canyon: {
       name: 'The Red Canyon',
-      summary: 'A wide canyon glowing in late-afternoon light. Walls layered ochre and rust. The path continues east into a valley, or back west to the forest. You hear distant howling.',
-      exits: { west:'forest_clearing', east:'quiet_valley' },
+      summary: 'A wide canyon glowing in late-afternoon light. Walls layered ochre and rust. The path continues east into a valley, west to the forest, or up a narrow trail to old ruins on the rim. You hear distant howling.',
+      exits: { west:'forest_clearing', east:'quiet_valley', up:'hilltop_ruins' },
       items: ['smooth_stone'], npcs: [], riddle: null,
       resources: [{ id:'stone', skill:'stone_knapping', verb:'gather', yield_qty:1, regenerates:true, regen_seconds:60 }],
       spawn_table: [],
@@ -229,8 +258,8 @@ const STORY = {
     },
     quiet_valley: {
       name: 'The Quiet Valley',
-      summary: 'A green valley with a stream running through it. To the west, the canyon. A dark cave gapes to the north.',
-      exits: { west:'red_canyon', north:'echoing_cave' },
+      summary: 'A green valley with a stream running through it. To the west, the canyon. A dark cave gapes to the north. Smoke from a small camp rises east along the riverbank.',
+      exits: { west:'red_canyon', north:'echoing_cave', east:'riverside_camp' },
       items: ['silver_herb'], npcs: [], riddle: null,
       resources: [{ id:'common_herb', skill:'foraging', verb:'forage', yield_qty:1, regenerates:true, regen_seconds:90 }],
       spawn_table: [{ entity:'deer', weight:3 }, { entity:'rabbit', weight:2 }],
@@ -247,11 +276,19 @@ const STORY = {
     },
     greenmeadow_village: {
       name: 'Greenmeadow Village',
-      summary: "A handful of cottages around a stone well. A weathered merchant's cart sits in the square. The forest is to the north.",
-      exits: { north:'forest_clearing' },
+      summary: "A handful of cottages around a stone well. A weathered merchant's cart sits in the square. The forest is to the north. The well stones are unusually deep — a rope ladder leads down.",
+      exits: { north:'forest_clearing', down:'moss_grotto' },
       items: [], npcs: ['weathered_merchant'], riddle: null,
       resources: [], spawn_table: [],
       hazards: {}, drink_source: { restore_life: 4, cooldown_seconds: 60 }
+    },
+    moss_grotto: {
+      name: 'The Moss Grotto',
+      summary: 'Beneath the village, a vast grotto opens around a still black pool. Glow-moss lines the walls. A voice in the water hums: "What runs but never walks, has a mouth but never eats, has a head but never weeps?"',
+      exits: { up:'greenmeadow_village' },
+      items: [], npcs: [], riddle: 'river_riddle',
+      resources: [], spawn_table: [],
+      hazards: {}, drink_source: { restore_life: 6, cooldown_seconds: 60 }
     }
   },
   items: {
@@ -288,6 +325,19 @@ const STORY = {
         { item:'silver_herb', price_gold:18, qty:1 },
         { item:'cooked_meat', price_gold:8, qty:2 }
       ]
+    },
+    riverside_trader: {
+      display:'the riverside trader', location:'riverside_camp',
+      summary:'A weathered hunter-trader with a knife and a story for everyone.',
+      dialogue_seeds: ['Welcome to the camp. Skins, meat, and herbs of the river — that\'s our trade.', 'Saw three deer at the water this morning. Good hunting.', 'Bring me fresh meat and I\'ll pay better than the village. Need it for the stew pot.'],
+      behaviors: ['buys_items','tells_rumors'],
+      buys_tags: ['food','leather','herb','crafted'],
+      is_marketplace: true,
+      initial_stock: [
+        { item:'raw_meat', price_gold:3, qty:3 },
+        { item:'hide', price_gold:5, qty:2 },
+        { item:'leather', price_gold:12, qty:1 }
+      ]
     }
   },
   riddles: {
@@ -295,6 +345,18 @@ const STORY = {
       location:'echoing_cave', prompt:'I am tall when young, short when old. What am I?',
       answers:['candle','a candle'], reward_sparks:50,
       on_solve_message:'The voice murmurs in approval. The walls glow brighter.', repeatable:false
+    },
+    river_riddle: {
+      location:'moss_grotto',
+      prompt:'What runs but never walks, has a mouth but never eats, has a head but never weeps?',
+      answers:['river','a river'], reward_sparks:60,
+      on_solve_message:'The pool flares with a soft green light. The water seems to nod once and settle.', repeatable:false
+    },
+    echo_riddle: {
+      location:'hilltop_ruins',
+      prompt:'I speak without a mouth and hear without ears. I have nobody, but come alive with wind. What am I?',
+      answers:['echo','an echo'], reward_sparks:70,
+      on_solve_message:'The wind picks up. The columns hum once with your answer and let it go.', repeatable:false
     }
   },
   skills: {
@@ -349,11 +411,29 @@ const FIRE_DURATION_TURNS = 20;
 const WEAPON_BONUS = { rusty_dagger: 3, simple_axe: 6 };
 
 // ============================================================
-//  IDENTITY
+//  IDENTITY (localStorage-backed)
 // ============================================================
-const sk = generateSecretKey();
+const STORAGE_NSEC  = `nstadv:${STORY.meta.id}:nsec`;
+const STORAGE_STATE = `nstadv:${STORY.meta.id}:state`;
+const KIND_STATE    = 30425;
+
+let sk, isNewCharacter = false;
+try {
+  const stored = localStorage.getItem(STORAGE_NSEC);
+  if (stored) {
+    const decoded = nip19.decode(stored);
+    if (decoded.type === 'nsec') sk = decoded.data;
+  }
+} catch {}
+if (!sk) {
+  sk = generateSecretKey();
+  isNewCharacter = true;
+  try { localStorage.setItem(STORAGE_NSEC, nip19.nsecEncode(sk)); } catch {}
+}
+
 const pk = getPublicKey(sk);
 const npub = nip19.npubEncode(pk);
+const nsec = nip19.nsecEncode(sk);
 const npubShort = npub.slice(0, 12) + '…' + npub.slice(-6);
 document.getElementById('pubkey').textContent = npubShort;
 document.getElementById('pubkey').title = npub;
@@ -404,6 +484,80 @@ for (const [npcId, npc] of Object.entries(STORY.npcs)) {
 }
 const drops = new Map();
 const looted = new Map();
+
+// ============================================================
+//  PERSISTENCE (localStorage + Nostr-encrypted state events)
+// ============================================================
+function serializeState() {
+  return {
+    location: player.location,
+    inventory: [...player.inventory],
+    materials: { ...player.materials },
+    gold: player.gold,
+    sparks: player.sparks,
+    life: player.life,
+    skills: [...player.skills],
+    riddles_solved: [...player.riddles_solved],
+    fires: [...player.fires],
+    chests: [...player.chests].map(([k, v]) => [k, { items: [...v.items], materials: { ...v.materials } }]),
+    turn: player.turn,
+    rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
+  };
+}
+function applyState(s) {
+  if (!s) return;
+  player.location = s.location;
+  player.inventory = [...(s.inventory || [])];
+  player.materials = { ...(s.materials || {}) };
+  player.gold = s.gold ?? 0;
+  player.sparks = s.sparks ?? 0;
+  player.life = s.life ?? player.life_max;
+  player.skills = new Set(s.skills || []);
+  player.riddles_solved = new Set(s.riddles_solved || []);
+  player.fires = new Map(s.fires || []);
+  player.chests = new Map(s.chests || []);
+  player.turn = s.turn ?? 0;
+  if (s.rooms_state) {
+    for (const [rid, rs] of Object.entries(s.rooms_state)) {
+      if (player.rooms[rid] && rs.items) player.rooms[rid].items = [...rs.items];
+    }
+  }
+}
+function saveLocal() {
+  try { localStorage.setItem(STORAGE_STATE, JSON.stringify(serializeState())); } catch {}
+}
+let lastPublishedTurn = -10;
+async function maybePublishState(force = false) {
+  if (!force && player.turn - lastPublishedTurn < 5) return;
+  lastPublishedTurn = player.turn;
+  try {
+    const ciphertext = await nip04.encrypt(sk, pk, JSON.stringify(serializeState()));
+    const evt = finalizeEvent({
+      kind: KIND_STATE, created_at: Math.floor(Date.now() / 1000),
+      tags: [['d', `character:${STORY.meta.id}`]],
+      content: ciphertext
+    }, sk);
+    Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+  } catch (e) { console.warn('publish state failed', e); }
+}
+async function fetchAndRestoreState(timeoutMs = 5000) {
+  return new Promise(resolve => {
+    let resolved = false;
+    const finish = (v) => { if (!resolved) { resolved = true; resolve(v); } };
+    pool.subscribeMany(RELAYS, [
+      { kinds: [KIND_STATE], authors: [pk], '#d': [`character:${STORY.meta.id}`], limit: 1 }
+    ], {
+      async onevent(event) {
+        try {
+          const plain = await nip04.decrypt(sk, pk, event.content);
+          finish(JSON.parse(plain));
+        } catch {}
+      },
+      oneose() { setTimeout(() => finish(null), 500); }
+    });
+    setTimeout(() => finish(null), timeoutMs);
+  });
+}
 
 // ============================================================
 //  TERMINAL OUTPUT
@@ -1145,6 +1299,68 @@ function rest() {
   write('You rest a moment.');
 }
 
+function sleep() {
+  if (combatBlock('sleep')) return;
+  const room = player.rooms[player.location];
+  const isVillage = (room.tags || []).includes('safe') || (room.tags || []).includes('settlement');
+  const ownChestHere = player.chests.has(player.location);
+  const fire = fireActive(player.location);
+  const isHazard = !!room.hazards?.wolves;
+
+  let restoreFraction, danger, label;
+  if (isHazard) { restoreFraction = 0.10; danger = 0.85; label = 'restless and exposed'; }
+  else if (isVillage || (ownChestHere && fire)) { restoreFraction = 1.0; danger = 0; label = 'deeply, safe and warm'; }
+  else if (fire) { restoreFraction = 0.5; danger = 0.05; label = 'by the fire'; }
+  else { restoreFraction = 0.25; danger = 0.20; label = 'fitfully, unsheltered'; }
+
+  if (danger > 0 && Math.random() < danger) {
+    if (isHazard) {
+      const w = room.hazards.wolves;
+      const ent = STORY.entities[w.entity];
+      const sneakDmg = randInt(ent.attack_damage_range[0], ent.attack_damage_range[1]) * 2;
+      player.life -= sneakDmg;
+      write(`You sleep. A ${ent.display} catches you in the dark — ${sneakDmg} damage before you wake.`, 'combat');
+      if (player.life <= 0) { handleDeath(`mauled by ${ent.display} while sleeping`); return; }
+      player.combat_target = { id: w.entity, ...structuredClone(ent) };
+      write(`You scramble up; the ${ent.display} circles. Attack or flee.`, 'combat');
+      publishAction('slept', { location: player.location, restored: 0, interrupted: true });
+      return;
+    } else {
+      const dmg = randInt(2, 6);
+      player.life -= dmg;
+      write(`Your rest is broken by cold and bad dreams. You take ${dmg} damage from exposure.`, 'error');
+      if (player.life <= 0) { handleDeath('exposure'); return; }
+      publishAction('slept', { location: player.location, restored: 0, interrupted: true });
+      return;
+    }
+  }
+  player.turn += 24;
+  const restore = Math.floor((player.life_max - player.life) * restoreFraction);
+  player.life = Math.min(player.life_max, player.life + restore);
+  write(`You sleep ${label}. (+${restore} life · 8 hours pass)`, 'success');
+  publishAction('slept', { location: player.location, restored: restore });
+}
+
+function showSoul() {
+  write('Your soul (nsec — your character\'s only key):', 'spark');
+  write(`  ${nsec}`, 'spark');
+  write('Save this. Without it, this character cannot be recovered.', 'system');
+}
+
+function importSoul(arg) {
+  if (!arg) { write('Usage: import <nsec1...>', 'error'); return; }
+  try {
+    const decoded = nip19.decode(arg.trim());
+    if (decoded.type !== 'nsec') { write('Not a valid nsec.', 'error'); return; }
+    localStorage.setItem(STORAGE_NSEC, arg.trim());
+    localStorage.removeItem(STORAGE_STATE);
+    write('Imported. Reloading…', 'system');
+    setTimeout(() => location.reload(), 600);
+  } catch {
+    write('Invalid nsec format.', 'error');
+  }
+}
+
 // --- chests (personal storage) ---
 function placeChest() {
   if (combatBlock('place')) return;
@@ -1291,7 +1507,9 @@ async function sell(args) {
   if (combatBlock('sell')) return;
   const room = player.rooms[player.location];
   const merchantId = (room.npcs || []).find(n => STORY.npcs[n].is_marketplace);
-  const directNpc  = (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('buys_items') && !STORY.npcs[n].is_marketplace);
+  const directNpc  = (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('buys_items'));
+  const buyer = merchantId || directNpc;
+  if (!buyer) { write('There is no one here to sell to.', 'error'); return; }
   const parts = args.trim().split(/\s+/);
   const itemQuery = parts[0];
   const price = parts[1] ? Number(parts[1]) : null;
@@ -1300,20 +1518,20 @@ async function sell(args) {
   let itemId;
   if (idx !== -1) itemId = player.inventory[idx];
   else { const matKey = findMaterialKey(itemQuery); if (!matKey) { write(`You don't have "${itemQuery}".`, 'error'); return; } itemId = matKey; }
-  if (merchantId) {
-    const finalPrice = price ?? STORY.items[itemId].value;
-    if (finalPrice <= 0) { write('Price must be > 0.', 'error'); return; }
+  // With explicit price AND a marketplace merchant: list for player-to-player sale
+  if (price !== null && merchantId) {
+    if (price <= 0) { write('Price must be > 0.', 'error'); return; }
     if (idx !== -1) player.inventory.splice(idx, 1); else player.materials[itemId]--;
-    await publishListing(merchantId, itemId, 1, finalPrice);
-    write(`You list ${itemDisplay(itemId, true)} for ${finalPrice} gold.`, 'success');
-  } else if (directNpc) {
-    const value = STORY.items[itemId].value;
-    if (idx !== -1) player.inventory.splice(idx, 1); else player.materials[itemId]--;
-    player.gold += value;
-    write(`${STORY.npcs[directNpc].display} takes ${itemDisplay(itemId, true)} for ${value} gold.`, 'success');
-  } else {
-    write('There is no one here to sell to.', 'error'); return;
+    await publishListing(merchantId, itemId, 1, price);
+    write(`You list ${itemDisplay(itemId, true)} on the market for ${price} gold.`, 'success');
+    write(`(You'll receive gold when another player buys it.)`, 'system');
+    return;
   }
+  // Otherwise: direct sale to the merchant for immediate gold at base value
+  const value = STORY.items[itemId].value;
+  if (idx !== -1) player.inventory.splice(idx, 1); else player.materials[itemId]--;
+  player.gold += value;
+  write(`${STORY.npcs[buyer].display} takes ${itemDisplay(itemId, true)} for ${value} gold.`, 'success');
 }
 
 function showListings() {
@@ -1349,7 +1567,7 @@ function showMap() {
   const positions = new Map();
   positions.set(player.location, [0, 0]);
   const queue = [player.location];
-  const dirOffset = { north:[0,-1], south:[0,1], east:[1,0], west:[-1,0] };
+  const dirOffset = { north:[0,-1], south:[0,1], east:[1,0], west:[-1,0], up:[0,-3], down:[0,3] };
   while (queue.length) {
     const cur = queue.shift();
     const [cx, cy] = positions.get(cur);
@@ -1406,11 +1624,14 @@ function help() {
     'Skills:          skills · learn <skill>',
     'Gathering:       chop / forage / gather (needs skill)',
     'Crafting:        recipes · craft <recipe>  (each craft awards sparks)',
-    'Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest',
+    'Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest · sleep',
     'Storage:         place chest · chest · store <x> · retrieve <x>',
-    'Market:          market · sell <item> [price] · buy <#> · listings',
+    'Market:          sell <item>     (direct sale to merchant, instant gold)',
+    '                 sell <item> <price>  (list on player marketplace)',
+    '                 buy <#> · market · listings',
     'Drops:           corpses · loot <#>',
     'Network:         whisper <text> · who',
+    'Identity:        soul (show your nsec) · import <nsec> (load another character)',
     'Misc:            clear · help'
   ];
   for (const l of lines) write(l, 'system');
@@ -1462,6 +1683,9 @@ function handleCommand(input) {
     case 'drink':                drink(arg); break;
     case 'light':                if (arg === 'fire' || arg === '') lightFire(); else write(`Light what?`, 'error'); break;
     case 'rest':                 rest(); break;
+    case 'sleep':                sleep(); break;
+    case 'soul':                 showSoul(); consumesTurn = false; break;
+    case 'import':               importSoul(argRaw); consumesTurn = false; break;
     case 'place':                if (arg === 'chest') placeChest(); else write('Place what? Try "place chest".', 'error'); break;
     case 'chest':                showChest(); consumesTurn = false; break;
     case 'store':                storeItem(arg); break;
@@ -1489,6 +1713,8 @@ function handleCommand(input) {
   }
   if (consumesTurn) tickTurn();
   refreshSidebar();
+  saveLocal();
+  maybePublishState();
 }
 
 // ============================================================
@@ -1510,14 +1736,35 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${STORY.meta.title} — Nostr PoC v0.4 ===`, 'title');
+write(`=== ${STORY.meta.title} — Nostr PoC v0.5 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
+
+if (isNewCharacter) {
+  write('=== WELCOME, NEW TRAVELER ===', 'title');
+  write('This is your soul:', 'system');
+  write(`  ${nsec}`, 'spark');
+  write('Save this nsec. With it you can return to this character on any device, anywhere.', 'system');
+  write('Without it, this character is lost forever. Type "soul" any time to see it again.', 'error');
+  write('');
+} else {
+  write(`Welcome back. Type "soul" to see your nsec, "import <nsec>" to switch characters.`, 'system');
+}
+
+// Restore from localStorage immediately for fast boot
+try {
+  const saved = localStorage.getItem(STORAGE_STATE);
+  if (saved) {
+    applyState(JSON.parse(saved));
+    write('[restored from local storage]', 'system');
+  }
+} catch {}
+
 write(`Identity: ${npubShort}`, 'system');
 write(`${Object.keys(STORY.rooms).length} rooms · ${Object.keys(STORY.skills).length} skills · ${Object.keys(STORY.recipes).length} recipes · ${Object.keys(STORY.entities).length} entities`, 'system');
 write(`Connecting to ${RELAYS.length} Nostr relays…`, 'system');
 write('');
-write('Carry capacity 40 weight. Crafting awards sparks. Place chests for storage.', 'system');
+write('Carry capacity 40 weight. Crafting awards sparks. Place chests for storage. Sleep to recover life.', 'system');
 write('On phone? Tap ☰ at top right for the side panel.', 'system');
 write('Type "help" for commands.', 'system');
 write('');
@@ -1525,6 +1772,18 @@ describeRoom();
 refreshSidebar();
 subscribe();
 publishAction('look', { location: player.location });
+
+// Async: try to restore newer state from Nostr relays
+fetchAndRestoreState().then(remoteState => {
+  if (remoteState && (remoteState.turn ?? 0) > player.turn) {
+    applyState(remoteState);
+    refreshSidebar();
+    write('');
+    write(`[synced] character state restored from relays (turn ${remoteState.turn}).`, 'system');
+    describeRoom();
+    saveLocal();
+  }
+});
 </script>
 </body>
 </html>
