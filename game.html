@@ -214,9 +214,9 @@ import {
 } from 'https://esm.sh/nostr-tools@2.7.2';
 
 // ============================================================
-//  STORY (inlined v0.4)
+//  STORY (inlined v0.4 — Whispering Forest, the bundled default)
 // ============================================================
-const STORY = {
+const STORY_WHISPERING_FOREST = {
   schema_version: '0.4',
   meta: {
     id: 'whispering-forest-v1', title: 'The Whispering Forest', author: 'Andres',
@@ -249,8 +249,8 @@ const STORY = {
     },
     frozen_north: {
       name: 'The Frozen North',
-      summary: 'A grey cold ground, half-snow even in the mild months. Gnarled birches lean from the wind. South leads back to the deep forest.',
-      exits: { south: 'deep_forest' },
+      summary: 'A grey cold ground, half-snow even in the mild months. Gnarled birches lean from the wind. South leads back to the deep forest; north, the wind carries faint smoke and the sound of voices.',
+      exits: { south: 'deep_forest', north: 'greycliffs_hamlet' },
       items: [], npcs: [], riddle: null,
       resources: [{ id:'wood', skill:'woodcutting', verb:'chop', yield_qty:1, regenerates:true, regen_seconds:80 }],
       spawn_table: [{ entity:'boar', weight:3 }, { entity:'rabbit', weight:1 }],
@@ -306,11 +306,11 @@ const STORY = {
     },
     mountain_peak: {
       name: 'The Mountain Peak',
-      summary: 'Wind, blue sky, and three full quarters of the world below you. A cairn of stones at the summit. A voice in the wind asks a question. Down leads back to the ruins.',
+      summary: 'Wind, blue sky, and three full quarters of the world below you. A cairn of stones at the summit. A voice in the wind asks a question. Down leads back to the ruins. Above, the slow circle of a great bird.',
       exits: { down: 'hilltop_ruins' },
       items: [], npcs: [], riddle: 'peak_riddle',
       resources: [{ id:'stone', skill:'stone_knapping', verb:'gather', yield_qty:2, regenerates:true, regen_seconds:60 }],
-      spawn_table: [],
+      spawn_table: [{ entity:'eagle', weight:1 }],
       hazards: {}, drink_source: null
     },
     wave_cliffs: {
@@ -324,9 +324,9 @@ const STORY = {
     },
     red_canyon: {
       name: 'The Red Canyon',
-      summary: 'A wide canyon glowing in late-afternoon light. Walls layered ochre and rust. The path continues east into a valley, west to the forest, or up a narrow trail to old ruins on the rim. You hear distant howling.',
-      exits: { west:'forest_clearing', east:'quiet_valley', up:'hilltop_ruins' },
-      items: ['smooth_stone'], npcs: [], riddle: null,
+      summary: 'A wide canyon glowing in late-afternoon light. Walls layered ochre and rust. The path continues east into a valley, west to the forest, up a narrow trail to old ruins on the rim, or in through a black slot in the canyon wall. You hear distant howling.',
+      exits: { west:'forest_clearing', east:'quiet_valley', up:'hilltop_ruins', in:'forge_ruins' },
+      items: ['smooth_stone','cartwheel'], npcs: [], riddle: null,
       resources: [{ id:'stone', skill:'stone_knapping', verb:'gather', yield_qty:1, regenerates:true, regen_seconds:60 }],
       spawn_table: [],
       hazards: { wolves: { encounter_chance: 0.35, entity: 'wolf' } },
@@ -365,6 +365,33 @@ const STORY = {
       items: [], npcs: [], riddle: 'river_riddle',
       resources: [], spawn_table: [],
       hazards: {}, drink_source: { restore_life: 6, cooldown_seconds: 60 }
+    },
+    greycliffs_hamlet: {
+      name: 'Greycliffs Hamlet',
+      summary: "A windswept settlement of stone-roofed huts huddled against the cliffs. Smoke curls from a low forge. A fletcher's stall stands open to the wind. South leads back to the frozen north.",
+      exits: { south:'frozen_north' },
+      items: [], npcs: ['greycliffs_fletcher'], riddle: null,
+      resources: [],
+      spawn_table: [],
+      hazards: {}, drink_source: { restore_life: 4, cooldown_seconds: 60 }
+    },
+    forge_ruins: {
+      name: 'The Old Forge Ruins',
+      summary: 'A cavernous chamber half-collapsed into the canyon wall. An ancient forge sits cold at its center, a dry husk of stone and iron. Scorched walls bear an inscription that asks a question. A heavy iron door at the far end stands ajar. Out leads back to the canyon; in, deeper.',
+      exits: { out:'red_canyon', in:'grand_hall' },
+      items: [], npcs: [], riddle: 'forge_riddle',
+      resources: [{ id:'iron_ore', skill:'stone_knapping', verb:'mine', yield_qty:1, regenerates:true, regen_seconds:90 }],
+      spawn_table: [],
+      hazards: {}, drink_source: null
+    },
+    grand_hall: {
+      name: 'The Grand Hall',
+      summary: 'A high vaulted chamber, perfectly preserved. Light comes from no source you can name. A figure of polished stone stands at the far wall — and turns its head, slowly, when you enter. Out leads back to the forge ruins.',
+      exits: { out:'forge_ruins' },
+      items: [], npcs: [], riddle: null,
+      resources: [],
+      spawn_table: [{ entity:'stone_wraith', weight:1 }],
+      hazards: {}, drink_source: null
     }
   },
   items: {
@@ -396,7 +423,14 @@ const STORY = {
     leather_pack:  { display:'leather pack',  article:'a',         value:30, weight:2, category:'tool',       stackable:false, tags:['crafted','equipment','container'], effects:{carry_capacity_bonus:15} },
     rope:          { display:'rope',          article:'a',         value:5,  weight:1, category:'good',       stackable:true,  tags:['crafted','rope'] },
     iron_ore:      { display:'iron ore',      article:'an',        value:4,  weight:2, category:'resource',   stackable:true,  tags:['ore','raw'] },
-    marsh_reed:    { display:'marsh reed',    article:'a',         value:2,  weight:1, category:'resource',   stackable:true,  tags:['herb','raw','rope'] }
+    marsh_reed:    { display:'marsh reed',    article:'a',         value:2,  weight:1, category:'resource',   stackable:true,  tags:['herb','raw','rope'] },
+    feather:       { display:'feather',       article:'a',         value:3,  weight:1, category:'resource',   stackable:true,  tags:['raw','feather'] },
+    iron_ingot:    { display:'iron ingot',    article:'an',        value:18, weight:2, category:'resource',   stackable:true,  tags:['ore','crafted','metal'] },
+    bow:           { display:'longbow',       article:'a',         value:55, weight:2, category:'good',       stackable:false, tags:['weapon','wood','crafted','ranged'], slot:'hand', effects:{attack_bonus:7, damage_type:'pierce'} },
+    arrow:         { display:'arrow',         article:'an',        value:1,  weight:0, category:'resource',   stackable:true,  tags:['weapon','ammo'] },
+    torch:         { display:'torch',         article:'a',         value:6,  weight:1, category:'tool',       stackable:false, tags:['crafted','light','weapon'], slot:'hand', effects:{attack_bonus:2, damage_type:'blunt'} },
+    cartwheel:     { display:'cartwheel',     article:'a',         value:8,  weight:5, category:'good',       stackable:false, tags:['quest','wood'] },
+    spirit_glass:  { display:'spirit glass',  article:'a',         value:120,weight:1, category:'good',       stackable:false, tags:['rare','mythic'], effects:{life_max_bonus:25} }
   },
   npcs: {
     weathered_merchant: {
@@ -437,6 +471,24 @@ const STORY = {
         { item:'raw_meat', price_gold:3, qty:3 },
         { item:'hide', price_gold:5, qty:2 },
         { item:'leather', price_gold:12, qty:1 }
+      ]
+    },
+    greycliffs_fletcher: {
+      display:'the Greycliffs fletcher', location:'greycliffs_hamlet',
+      summary:'A wiry artisan with calloused fingers and a quiver of half-finished arrows. Speaks little, watches a lot.',
+      dialogue_seeds: [
+        'Bows from the wood of the deep forest. Arrows from feathers if you bring them.',
+        'A bow is patient. A blade is angry. Choose by your temper.',
+        'I take 3 leather for a wheel I can fix; that gets a cart back on the road.'
+      ],
+      behaviors: ['buys_items','tells_rumors','teaches_skill'],
+      buys_tags: ['feather','wood','leather','crafted'],
+      is_marketplace: true,
+      teaches: ['fletching'],
+      initial_stock: [
+        { item:'bow',         price_gold:60, qty:1 },
+        { item:'arrow',       price_gold:2,  qty:20 },
+        { item:'feather',     price_gold:5,  qty:3 }
       ]
     },
     hermit: {
@@ -500,6 +552,13 @@ const STORY = {
       prompt:'I have a head, a tail, but no body. I shine without a heart. What am I?',
       answers:['a coin','coin'], reward_sparks:80,
       on_solve_message:'A wave breaks below. Salt-light glints across the rock at your feet.', repeatable:false
+    },
+    forge_riddle: {
+      location:'forge_ruins',
+      prompt:'I am shaped from earth, hardened by fire, used in war and used in peace. What am I?',
+      answers:['iron','steel','metal'], reward_sparks:120,
+      reward_items:[{ item:'iron_ingot', qty:1 }],
+      on_solve_message:'The inscription glows once, then fades. The cold forge breathes a small warm draft. A single ingot of iron rests on the anvil.', repeatable:false
     }
   },
   skills: {
@@ -519,7 +578,9 @@ const STORY = {
     curing:         { display:'Curing',         spark_cost:100, prereqs:['cooking'],         tier:3, unlocks:{verbs:[], recipes:['cure_meat']} },
     shoemaking:     { display:'Shoemaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['make_shoes','make_hat','make_clothes']} },
     packmaking:     { display:'Packmaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['leather_pack','make_belt']} },
-    taming:         { display:'Taming',         spark_cost:120, prereqs:['hunting','skinning'], tier:3, unlocks:{verbs:['tame'], recipes:[]}, tags:['survival'] }
+    taming:         { display:'Taming',         spark_cost:120, prereqs:['hunting','skinning'], tier:3, unlocks:{verbs:['tame'], recipes:[]}, tags:['survival'] },
+    fletching:      { display:'Fletching',      spark_cost:100, prereqs:['carpentry'],       tier:3, unlocks:{verbs:[], recipes:['craft_bow','craft_arrows']}, tags:['crafting'] },
+    smelting:       { display:'Smelting',       spark_cost:120, prereqs:['stone_knapping','firemaking'], tier:3, unlocks:{verbs:[], recipes:['smelt_iron','craft_torch']}, tags:['crafting'] }
   },
   recipes: {
     wooden_handle: { display:'Wooden handle', skill:'carpentry',  inputs:[{item:'wood',qty:1}],                                  outputs:[{item:'wooden_handle',qty:2}], requires_fire:false, sparks_reward:2 },
@@ -536,7 +597,11 @@ const STORY = {
     make_clothes:  { display:'Leather tunic', skill:'shoemaking', inputs:[{item:'leather',qty:4}],                               outputs:[{item:'leather_clothes',qty:1}], requires_fire:false, sparks_reward:6 },
     leather_pack:  { display:'Leather pack',  skill:'packmaking', inputs:[{item:'leather',qty:3}],                               outputs:[{item:'leather_pack',qty:1}],  requires_fire:false, sparks_reward:5 },
     make_belt:     { display:'Leather belt',  skill:'packmaking', inputs:[{item:'leather',qty:2}],                               outputs:[{item:'leather_belt',qty:1}],  requires_fire:false, sparks_reward:4 },
-    weave_rope:    { display:'Rope',          skill:'foraging',   inputs:[{item:'marsh_reed',qty:2}],                            outputs:[{item:'rope',qty:1}],          requires_fire:false, sparks_reward:2 }
+    weave_rope:    { display:'Rope',          skill:'foraging',   inputs:[{item:'marsh_reed',qty:2}],                            outputs:[{item:'rope',qty:1}],          requires_fire:false, sparks_reward:2 },
+    craft_bow:     { display:'Longbow',       skill:'fletching',  inputs:[{item:'wood',qty:2},{item:'wooden_handle',qty:1}],     outputs:[{item:'bow',qty:1}],           requires_fire:false, sparks_reward:8 },
+    craft_arrows:  { display:'Arrows (×5)',   skill:'fletching',  inputs:[{item:'wood',qty:1},{item:'feather',qty:1}],           outputs:[{item:'arrow',qty:5}],         requires_fire:false, sparks_reward:3 },
+    smelt_iron:    { display:'Iron ingot',    skill:'smelting',   inputs:[{item:'iron_ore',qty:2}],                              outputs:[{item:'iron_ingot',qty:1}],    requires_fire:true,  sparks_reward:6 },
+    craft_torch:   { display:'Torch',         skill:'smelting',   inputs:[{item:'wood',qty:1},{item:'hide',qty:1}],              outputs:[{item:'torch',qty:1}],         requires_fire:true,  sparks_reward:3 }
   },
   entities: {
     deer:   { display:'deer',   summary:'A wary forest deer.',   hp:10, attack_damage_range:[1,3], evasion:0.1, hostile:false, base_drops:[{item:'raw_meat',qty:2}], skinning_drops:[{item:'hide',qty:1}], rare_drops:[{item:'bone_knife',qty:1,chance:0.15}], weaknesses:['pierce'] },
@@ -544,7 +609,9 @@ const STORY = {
     wolf:   { display:'wolf',   summary:'A grey wolf, lean from the season. It does not run.', hp:20, attack_damage_range:[3,8], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[{item:'hide',qty:1}], weaknesses:['slash'], resistances:['pierce'], tameable:true },
     boar:   { display:'wild boar', summary:'Heavy-bodied, low-slung, tusks the colour of old bone.', hp:16, attack_damage_range:[2,5], evasion:0.05, hostile:false, base_drops:[{item:'raw_meat',qty:3}], skinning_drops:[{item:'hide',qty:1}], rare_drops:[], weaknesses:['blunt'], resistances:[] },
     fox:    { display:'fox',    summary:'Russet, quick, eyes that miss nothing.', hp:6, attack_damage_range:[1,2], evasion:0.3, hostile:false, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[{item:'hide',qty:1}], rare_drops:[{item:'bone_knife',qty:1,chance:0.20}], weaknesses:['pierce'] },
-    bear:   { display:'bear',   summary:'A great brown shape, slow and unhurried. Eyes calm.', hp:35, attack_damage_range:[5,12], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:4}], skinning_drops:[{item:'hide',qty:2}], weaknesses:['slash','pierce'], resistances:[], tameable:false }
+    bear:   { display:'bear',   summary:'A great brown shape, slow and unhurried. Eyes calm.', hp:35, attack_damage_range:[5,12], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:4}], skinning_drops:[{item:'hide',qty:2}], weaknesses:['slash','pierce'], resistances:[], tameable:false },
+    eagle:  { display:'eagle',  summary:'A wide-winged shadow, talons the colour of bone.', hp:8, attack_damage_range:[1,3], evasion:0.4, hostile:false, base_drops:[{item:'feather',qty:3},{item:'raw_meat',qty:1}], skinning_drops:[], rare_drops:[{item:'feather',qty:2,chance:0.30}], weaknesses:['pierce'], resistances:['blunt'] },
+    stone_wraith: { display:'stone wraith', summary:'A figure of polished stone with empty eyes and a slow, deliberate gait.', hp:60, attack_damage_range:[6,14], evasion:0.10, hostile:true, base_drops:[{item:'spirit_glass',qty:1}], skinning_drops:[], rare_drops:[], weaknesses:['pierce'], resistances:['slash','blunt'], tameable:false }
   },
   events: {
     first_kill_rumor: {
@@ -657,9 +724,220 @@ const STORY = {
       ],
       rewards: { gold: 60, sparks: 15, items: [] },
       completion_message: 'The merchant counts gold into your hand. "The road sleeps easier tonight."'
+    },
+    lost_cart_wheel: {
+      title: "The Merchant's Lost Cart (1/3)",
+      description: "The weathered merchant's cart lost a wheel days ago, somewhere in the Red Canyon. Find the cartwheel and bring it back.",
+      giver: 'weathered_merchant',
+      auto_accept: false,
+      objectives: [
+        { type:'have_item', item:'cartwheel', qty:1 }
+      ],
+      rewards: { gold: 15, sparks: 5, items: [] },
+      completion_message: 'The merchant turns the wheel over in their hands. "Good. Now to fix it. The Greycliffs fletcher knows wheels — take this one to them with three leather, will you?"'
+    },
+    lost_cart_repair: {
+      title: "The Merchant's Lost Cart (2/3)",
+      description: "Bring 3 leather to the Greycliffs fletcher in the hamlet north of the frozen forest, to repair the cart.",
+      giver: 'greycliffs_fletcher',
+      auto_accept: false,
+      requires: ['lost_cart_wheel'],
+      objectives: [
+        { type:'have_item', item:'leather', qty:3 }
+      ],
+      rewards: { gold: 25, sparks: 10, items: [] },
+      completion_message: 'The fletcher works the leather into the wheel hub with quiet, precise hands. "Tell the merchant the cart will roll again. They owe me — and you. Go collect."'
+    },
+    lost_cart_payment: {
+      title: "The Merchant's Lost Cart (3/3)",
+      description: "Return to the weathered merchant in Greenmeadow to collect payment for the cart's repair.",
+      giver: 'weathered_merchant',
+      auto_accept: false,
+      requires: ['lost_cart_repair'],
+      objectives: [
+        { type:'visited', room:'greenmeadow_village' }
+      ],
+      rewards: { gold: 50, sparks: 30, items: [{ item:'simple_axe', qty:1 }] },
+      completion_message: 'The merchant beams. "I owe you twice over. Take this axe — and my thanks. The road is yours, traveler."'
     }
   }
 };
+
+// ============================================================
+//  MULTI-STORY CLIENT (3.5) — pick / load / switch worlds
+// ============================================================
+const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
+const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
+
+const BUILTIN_STORIES = {
+  'whispering-forest-v1': STORY_WHISPERING_FOREST
+};
+
+function listAllStoryOptions() {
+  // Returns [{ id, label, source: 'builtin'|'custom', story }]
+  const out = [];
+  for (const [id, s] of Object.entries(BUILTIN_STORIES)) {
+    out.push({ id, label: (s.meta?.title || id) + ' (built-in)', source: 'builtin', story: s });
+  }
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(CUSTOM_STORY_PREFIX)) continue;
+      try {
+        const raw = localStorage.getItem(k);
+        const s = JSON.parse(raw);
+        if (s?.meta?.id) out.push({ id: s.meta.id, label: (s.meta.title || s.meta.id) + ' (yours)', source: 'custom', story: s });
+      } catch {}
+    }
+  } catch {}
+  return out;
+}
+
+function loadStoryById(id) {
+  if (!id) return null;
+  if (BUILTIN_STORIES[id]) return BUILTIN_STORIES[id];
+  try {
+    const raw = localStorage.getItem(CUSTOM_STORY_PREFIX + id);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function saveCustomStory(story) {
+  const id = story?.meta?.id;
+  if (!id) throw new Error('story is missing meta.id');
+  if (BUILTIN_STORIES[id]) throw new Error(`id "${id}" collides with a built-in story; rename it`);
+  localStorage.setItem(CUSTOM_STORY_PREFIX + id, JSON.stringify(story));
+  return id;
+}
+
+function validateStoryShape(s) {
+  if (!s || typeof s !== 'object') return 'not an object';
+  if (!s.meta || typeof s.meta !== 'object') return 'missing meta';
+  if (!s.meta.id) return 'missing meta.id';
+  if (!s.meta.title) return 'missing meta.title';
+  if (!s.rooms || typeof s.rooms !== 'object') return 'missing rooms';
+  if (!s.meta.starting_location) return 'missing meta.starting_location';
+  if (!s.rooms[s.meta.starting_location]) return `meta.starting_location "${s.meta.starting_location}" is not a defined room`;
+  return null;
+}
+
+function showStoryPicker(currentId = null) {
+  return new Promise(resolve => {
+    // Build overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+    const panel = document.createElement('div');
+    panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:24px;';
+    panel.innerHTML = `
+      <div style="font-size:20px;font-weight:bold;margin-bottom:6px;">Pick a story</div>
+      <div style="color:#9c9388;font-size:13px;margin-bottom:16px;">Each story is its own world with its own character. You can switch any time with the <code>switch story</code> command.</div>
+      <div id="story-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;"></div>
+      <div style="border-top:1px solid #3a352e;padding-top:16px;">
+        <div style="font-weight:bold;margin-bottom:8px;font-size:14px;">Or load your own</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="btn-paste" style="padding:8px 14px;background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;cursor:pointer;">Paste JSON</button>
+          <button id="btn-upload" style="padding:8px 14px;background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;cursor:pointer;">Upload .json file</button>
+          <input type="file" id="file-input" accept=".json,application/json" style="display:none;" />
+        </div>
+        <div id="picker-msg" style="margin-top:10px;color:#f0b54a;font-size:13px;min-height:16px;"></div>
+      </div>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    function pick(id) {
+      try { localStorage.setItem(ACTIVE_STORY_KEY, id); } catch {}
+      overlay.remove();
+      resolve(id);
+    }
+
+    const listEl = panel.querySelector('#story-list');
+    function renderList() {
+      listEl.innerHTML = '';
+      for (const opt of listAllStoryOptions()) {
+        const row = document.createElement('button');
+        row.style.cssText = 'text-align:left;padding:12px 14px;background:' + (opt.id === currentId ? '#2a3528' : '#23201c') + ';border:1px solid ' + (opt.id === currentId ? '#4a6a3a' : '#3a352e') + ';color:#e8e6e3;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;gap:2px;font:inherit;';
+        const titleSpan = document.createElement('span');
+        titleSpan.style.cssText = 'font-weight:bold;';
+        titleSpan.textContent = opt.label + (opt.id === currentId ? '  ✓ (currently playing)' : '');
+        const sub = document.createElement('span');
+        sub.style.cssText = 'font-size:12px;color:#9c9388;';
+        sub.textContent = `${Object.keys(opt.story.rooms || {}).length} rooms · ${Object.keys(opt.story.entities || {}).length} entities · author: ${opt.story.meta?.author || '—'}`;
+        row.append(titleSpan, sub);
+        if (opt.source === 'custom') {
+          const del = document.createElement('span');
+          del.textContent = 'remove';
+          del.style.cssText = 'align-self:flex-start;color:#c66;font-size:11px;margin-top:4px;cursor:pointer;';
+          del.onclick = (ev) => {
+            ev.stopPropagation();
+            if (!confirm(`Remove "${opt.story.meta?.title || opt.id}" from your library? Character state stays on the relays.`)) return;
+            try { localStorage.removeItem(CUSTOM_STORY_PREFIX + opt.id); } catch {}
+            renderList();
+          };
+          row.appendChild(del);
+        }
+        row.onclick = () => pick(opt.id);
+        listEl.appendChild(row);
+      }
+    }
+    renderList();
+
+    const msgEl = panel.querySelector('#picker-msg');
+    panel.querySelector('#btn-paste').onclick = () => {
+      const raw = prompt('Paste the story JSON:');
+      if (!raw) return;
+      try {
+        const obj = JSON.parse(raw);
+        const err = validateStoryShape(obj);
+        if (err) { msgEl.textContent = 'Story rejected: ' + err; return; }
+        const id = saveCustomStory(obj);
+        msgEl.textContent = `Added "${obj.meta.title}". Click it below to play.`;
+        renderList();
+      } catch (e) {
+        msgEl.textContent = 'Could not parse JSON: ' + e.message;
+      }
+    };
+    panel.querySelector('#btn-upload').onclick = () => panel.querySelector('#file-input').click();
+    panel.querySelector('#file-input').onchange = (ev) => {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const obj = JSON.parse(reader.result);
+          const err = validateStoryShape(obj);
+          if (err) { msgEl.textContent = 'Story rejected: ' + err; return; }
+          const id = saveCustomStory(obj);
+          msgEl.textContent = `Added "${obj.meta.title}". Click it below to play.`;
+          renderList();
+        } catch (e) {
+          msgEl.textContent = 'Could not load file: ' + e.message;
+        }
+      };
+      reader.readAsText(file);
+    };
+  });
+}
+
+async function resolveActiveStory() {
+  // Try the saved active id first
+  let id = null;
+  try { id = localStorage.getItem(ACTIVE_STORY_KEY); } catch {}
+  let s = id ? loadStoryById(id) : null;
+  if (s) return s;
+  // No valid saved choice — show picker. Picker writes the id; we return the resolved story.
+  const picked = await showStoryPicker(id);
+  s = loadStoryById(picked);
+  if (!s) {
+    // Should never happen, but fall back to the bundled default rather than crash
+    s = STORY_WHISPERING_FOREST;
+    try { localStorage.setItem(ACTIVE_STORY_KEY, s.meta.id); } catch {}
+  }
+  return s;
+}
+
+const STORY = await resolveActiveStory();
 
 // ============================================================
 //  CONFIG
@@ -676,6 +954,7 @@ const KIND_GIFT_OFFER   = 30428;
 const KIND_GIFT_ACCEPT  = 30429;
 const KIND_GIFT_DECLINE = 30430;
 const KIND_HEAL         = 30431;
+const KIND_CARVE        = 30432;  // 4.11: persistent player marks tagged to a room
 const TOPIC = 'story:' + STORY.meta.id;
 const FIRE_DURATION_TURNS = 20;
 
@@ -753,7 +1032,11 @@ const player = {
   rooms: structuredClone(STORY.rooms),
   weather: null,    // current weather; rolled at dawn
   weather_day: -1,  // last day a weather was rolled
-  name: null   // set on first launch by askName()
+  name: null,  // set on first launch by askName()
+  login_streak: 0,        // consecutive days logged in
+  last_login_date: null,  // ISO yyyy-mm-dd of the last login boot
+  total_logins: 0,        // total distinct days ever logged in
+  carvings_left: 0        // number of `carve` actions this character has placed (stat only)
 };
 
 // Auto-accept quests at start
@@ -783,7 +1066,58 @@ for (const [npcId, npc] of Object.entries(STORY.npcs)) {
 const drops = new Map();
 const looted = new Map();
 const notices = new Map();   // notice_id -> { roomId, author, name, text, posted_at }
+const carvings = new Map();  // carving_id -> { roomId, author, name, title, text, posted_at }
 const dmInbox = [];          // received DMs (most recent first), { from_pubkey, from_name, text, received_at }
+
+// ============================================================
+//  LOGIN STREAKS + TITLES (4.8)
+// ============================================================
+function todayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function daysBetweenISO(a, b) {
+  // Returns whole-day difference (b - a), 0 if same day. ISO strings yyyy-mm-dd.
+  if (!a || !b) return null;
+  const ma = new Date(a + 'T00:00:00Z').getTime();
+  const mb = new Date(b + 'T00:00:00Z').getTime();
+  return Math.round((mb - ma) / 86400000);
+}
+function streakTitle(n) {
+  if (n >= 365) return 'the Eternal';
+  if (n >= 100) return 'the Unwavering';
+  if (n >= 30)  return 'the Steadfast';
+  if (n >= 14)  return 'the Faithful';
+  if (n >= 7)   return 'the Persistent';
+  if (n >= 3)   return 'the Returning';
+  return null;
+}
+function playerTitle() {
+  return streakTitle(player.login_streak);
+}
+function playerDisplayName() {
+  const t = playerTitle();
+  if (!player.name) return '—';
+  return t ? `${player.name} ${t}` : player.name;
+}
+function rollLoginStreak() {
+  const today = todayISO();
+  if (player.last_login_date === today) {
+    // already counted today
+    return { firstToday: false, streak: player.login_streak, title: playerTitle() };
+  }
+  const gap = daysBetweenISO(player.last_login_date, today);
+  let firstToday = true;
+  if (gap === 1) {
+    player.login_streak = (player.login_streak || 0) + 1;
+  } else {
+    // first ever, or broken chain
+    player.login_streak = 1;
+  }
+  player.last_login_date = today;
+  player.total_logins = (player.total_logins || 0) + 1;
+  return { firstToday, streak: player.login_streak, title: playerTitle() };
+}
 
 // ============================================================
 //  PERSISTENCE (localStorage + Nostr-encrypted state events)
@@ -815,6 +1149,10 @@ function serializeState() {
     weather: player.weather,
     weather_day: player.weather_day,
     turn: player.turn,
+    login_streak: player.login_streak,
+    last_login_date: player.last_login_date,
+    total_logins: player.total_logins,
+    carvings_left: player.carvings_left,
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
 }
@@ -849,6 +1187,10 @@ function applyState(s) {
   if (s.weather !== undefined) player.weather = s.weather;
   if (s.weather_day !== undefined) player.weather_day = s.weather_day;
   player.turn = s.turn ?? 0;
+  player.login_streak = s.login_streak ?? 0;
+  player.last_login_date = s.last_login_date ?? null;
+  player.total_logins = s.total_logins ?? 0;
+  player.carvings_left = s.carvings_left ?? 0;
   if (s.rooms_state) {
     for (const [rid, rs] of Object.entries(s.rooms_state)) {
       if (player.rooms[rid] && rs.items) player.rooms[rid].items = [...rs.items];
@@ -927,7 +1269,13 @@ function refreshSidebar() {
   document.getElementById('mh-load').textContent = `${wt}/${cap}`;
   document.getElementById('mh-room').textContent = player.rooms[player.location].name;
   const nameEl = document.getElementById('player-name');
-  if (nameEl) nameEl.textContent = player.name || '—';
+  if (nameEl) {
+    const t = playerTitle();
+    nameEl.textContent = t ? `${player.name || '—'} ${t}` : (player.name || '—');
+    nameEl.title = player.login_streak >= 1
+      ? `Streak: ${player.login_streak} day${player.login_streak === 1 ? '' : 's'} · ${player.total_logins} total logins`
+      : '';
+  }
   // Equipment
   const eqEl = document.getElementById('equipment');
   if (eqEl) {
@@ -1008,7 +1356,7 @@ async function publishAction(actionType, payload) {
   const evt = finalizeEvent({
     kind: KIND_ACTION, created_at: Math.floor(Date.now() / 1000),
     tags: [['t', TOPIC], ['action', actionType], ['d', `${actionType}-${Date.now()}`]],
-    content: JSON.stringify({ ...payload, name: player.name })
+    content: JSON.stringify({ ...payload, name: player.name, title: playerTitle() })
   }, sk);
   addToFeed('myEvents', `${actionType}: ${formatActionSummary(actionType, payload)}`, evt.id.slice(0, 8));
   try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
@@ -1130,6 +1478,23 @@ async function publishNotice(text) {
   return notice_id;
 }
 
+async function publishCarve(text) {
+  const carving_id = uuid();
+  const evt = finalizeEvent({
+    kind: KIND_CARVE, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['room', player.location], ['carving', carving_id]],
+    content: JSON.stringify({ name: player.name, title: playerTitle(), text, room: player.location })
+  }, sk);
+  carvings.set(carving_id, {
+    roomId: player.location, author: pk, name: player.name, title: playerTitle(),
+    text, posted_at: Date.now()
+  });
+  player.carvings_left = (player.carvings_left || 0) + 1;
+  addToFeed('myEvents', `carve "${text.slice(0, 24)}${text.length > 24 ? '…' : ''}" in ${player.location}`, evt.id.slice(0, 8));
+  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  return carving_id;
+}
+
 function subscribe() {
   pool.subscribeMany(RELAYS, [
     { kinds: [KIND_ACTION],   '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 60 },
@@ -1138,6 +1503,7 @@ function subscribe() {
     { kinds: [KIND_ITEMDROP], '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 },
     { kinds: [KIND_LOOT],     '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 },
     { kinds: [KIND_NOTICE],   '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 30 * 24 * 3600 },
+    { kinds: [KIND_CARVE],    '#t': [TOPIC] },  // carvings are forever (no since filter)
     { kinds: [KIND_DM],       '#p': [pk],    since: Math.floor(Date.now() / 1000) - 7 * 24 * 3600 },
     { kinds: [KIND_GIFT_OFFER, KIND_GIFT_ACCEPT, KIND_GIFT_DECLINE, KIND_HEAL], '#p': [pk], since: Math.floor(Date.now() / 1000) - 7 * 24 * 3600 }
   ], {
@@ -1149,6 +1515,7 @@ function subscribe() {
       if (event.kind === KIND_ITEMDROP) handleRemoteItemDrop(event);
       if (event.kind === KIND_LOOT)     handleRemoteLoot(event);
       if (event.kind === KIND_NOTICE)   handleRemoteNotice(event);
+      if (event.kind === KIND_CARVE)    handleRemoteCarve(event);
       if (event.kind === KIND_DM)       handleRemoteDM(event);
       if (event.kind === KIND_GIFT_OFFER)   handleRemoteGiftOffer(event);
       if (event.kind === KIND_GIFT_ACCEPT)  handleRemoteGiftAccept(event);
@@ -1222,6 +1589,33 @@ function handleRemoteNotice(event) {
   if (event.pubkey !== pk && room_id === player.location) {
     write(`[notice] ${p.name || event.pubkey.slice(0,8) + '…'} pinned a note here. ("notices" to read)`, 'system');
   }
+}
+
+function handleRemoteCarve(event) {
+  const carving_id = event.tags.find(t => t[0] === 'carving')?.[1];
+  const room_id = event.tags.find(t => t[0] === 'room')?.[1];
+  if (!carving_id || carvings.has(carving_id)) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch { return; }
+  carvings.set(carving_id, {
+    roomId: room_id, author: event.pubkey,
+    name: p.name, title: p.title || null, text: p.text,
+    posted_at: event.created_at * 1000
+  });
+  // Quiet — discovered when entering or running `look` / `carvings`.
+}
+
+function carvingsAt(roomId) {
+  return [...carvings.values()].filter(c => c.roomId === roomId).sort((a,b) => a.posted_at - b.posted_at);
+}
+function describeCarvingsHere() {
+  const here = carvingsAt(player.location);
+  if (here.length === 0) return false;
+  if (here.length === 1) {
+    write(`There is a carving here: "${here[0].text}" — ${here[0].name || here[0].author.slice(0,8)+'…'}${here[0].title ? ' ' + here[0].title : ''}`, 'system');
+  } else {
+    write(`Carvings on the walls and stones here (${here.length}). Type "carvings" to read.`, 'system');
+  }
+  return true;
 }
 
 async function handleRemoteDM(event) {
@@ -1578,6 +1972,8 @@ function describeRoom() {
   let noticeCount = 0;
   for (const n of notices.values()) if (n.roomId === player.location) noticeCount++;
   if (noticeCount > 0) write(`A bulletin board holds ${noticeCount} note${noticeCount === 1 ? '' : 's'}. Use "notices".`, 'system');
+  // Carvings here (4.11)
+  describeCarvingsHere();
   write('Exits: ' + Object.keys(room.exits).join(', '), 'exits');
 }
 
@@ -2427,6 +2823,9 @@ function checkAchievements() {
 function showStats() {
   const day = Math.floor(player.turn / (STORY.meta.turns_per_day || 96)) + 1;
   write('-- Stats --', 'system');
+  const ttl = playerTitle();
+  write(`  ${player.name || '—'}${ttl ? ' ' + ttl : ''}`);
+  write(`  Login streak: ${player.login_streak} day${player.login_streak === 1 ? '' : 's'} (lifetime logins: ${player.total_logins})`);
   write(`  Day ${day} · Turn ${player.turn}`);
   write(`  Total kills: ${totalKills()}`);
   if (Object.keys(player.stats.kills).length) {
@@ -2435,6 +2834,7 @@ function showStats() {
   write(`  Riddles solved: ${player.stats.riddles_solved}`);
   write(`  Quests completed: ${player.stats.quests_completed}`);
   write(`  Crafts made: ${player.stats.crafts}`);
+  write(`  Carvings left: ${player.carvings_left || 0}`);
   write(`  Gold earned (lifetime): ${player.stats.gold_earned}`);
   write(`  Sparks earned (lifetime): ${player.stats.sparks_earned}`);
   write(`  Deaths: ${player.stats.deaths}`);
@@ -3079,6 +3479,56 @@ function showNotices() {
   if (localNotices.length > 10) write(`  ...and ${localNotices.length - 10} older notices.`);
 }
 
+function switchStoryCommand() {
+  showStoryPicker(STORY.meta.id).then(id => {
+    if (id && id !== STORY.meta.id) {
+      // Save state of current story before swap
+      try { saveLocal(); } catch {}
+      write('Switching to "' + (loadStoryById(id)?.meta?.title || id) + '"... (reloading)', 'system');
+      setTimeout(() => location.reload(), 400);
+    } else {
+      write('Continuing in "' + STORY.meta.title + '".', 'system');
+    }
+  });
+}
+function listStoriesCommand() {
+  write('-- Stories in your library --', 'system');
+  const here = STORY.meta.id;
+  for (const opt of listAllStoryOptions()) {
+    const mark = opt.id === here ? '✓' : ' ';
+    write(`  ${mark} ${opt.label}  ·  ${Object.keys(opt.story.rooms||{}).length} rooms`);
+  }
+  write('Use "switch story" to change worlds.', 'system');
+}
+
+const CARVE_MAX_LEN = 80;
+function carveCommand(text) {
+  if (combatBlock('carve')) return;
+  text = (text || '').trim();
+  if (!text) { write('Usage: carve <text>  (leaves a permanent mark on this room, visible to all future visitors)', 'error'); return; }
+  if (text.length > CARVE_MAX_LEN) { write(`Carvings are at most ${CARVE_MAX_LEN} characters. Carve few words.`, 'error'); return; }
+  publishCarve(text);
+  write(`You score the words into stone (or wood, or what stands here). "${text}"`, 'success');
+  write('They will outlast your visit.', 'system');
+}
+
+function showCarvings() {
+  const here = carvingsAt(player.location);
+  if (here.length === 0) { write('No carvings here. Yet.'); return; }
+  write(`-- Carvings in ${player.rooms[player.location].name} --`, 'system');
+  for (const c of here) {
+    const ago = Math.round((Date.now() - c.posted_at) / 60000);
+    const author = c.name || c.author.slice(0, 8) + '…';
+    const ttl = c.title ? ' ' + c.title : '';
+    let when;
+    if (ago < 60) when = `${ago}m ago`;
+    else if (ago < 60*24) when = `${Math.round(ago/60)}h ago`;
+    else when = `${Math.round(ago/(60*24))}d ago`;
+    write(`  "${c.text}"`);
+    write(`    — ${author}${ttl} (${when})`, 'system');
+  }
+}
+
 function who() {
   if (knownPlayers.size === 0) { write('No other players seen yet.'); return; }
   write(`Known travelers: ${knownPlayers.size}`);
@@ -3104,7 +3554,10 @@ const SHORT_NAMES = {
   salt_marsh: 'Marsh',
   mountain_peak: 'Peak',
   frozen_north: 'North',
-  wave_cliffs: 'Cliffs'
+  wave_cliffs: 'Cliffs',
+  greycliffs_hamlet: 'Hamlet',
+  forge_ruins: 'Forge',
+  grand_hall: 'Hall'
 };
 function shortRoomName(rid) {
   if (SHORT_NAMES[rid]) return SHORT_NAMES[rid];
@@ -3219,12 +3672,14 @@ function help() {
     'Network:         whisper <text>  (broadcast to your room)',
     '                 dm <name|npub> <text>  · messages / inbox',
     '                 pin <text>  · notices / board (settlement bulletin)',
+    '                 carve <text>  · carvings / marks (permanent room marks, all visitors see)',
     '                 who',
     'Cooperation:     give <item> to <name> [message]',
     '                 gifts / offers · claim <id> · decline <id>',
     '                 heal <name>  (uses one healing salve from your inventory)',
     'Identity:        soul (show your nsec) · import <nsec> · new character (fresh start)',
     '                 rename <new_name>  (change your visible name)',
+    'Worlds:          switch story · stories  (list/switch story files)',
     'Misc:            clear · help'
   ];
   for (const l of lines) write(l, 'system');
@@ -3302,6 +3757,8 @@ function handleCommand(input) {
     case 'new':                  if (arg === 'character' || arg === '') newCharacter(); else write('Did you mean "new character"?', 'error'); consumesTurn = false; break;
     case 'reset':                newCharacter(); consumesTurn = false; break;
     case 'rename':               renameCharacter(argRaw); consumesTurn = false; break;
+    case 'switch':               if (arg === 'story' || arg === '') switchStoryCommand(); else write('Did you mean "switch story"?', 'error'); consumesTurn = false; break;
+    case 'stories':              listStoriesCommand(); consumesTurn = false; break;
     case 'place':                if (arg === 'chest') placeChest(); else write('Place what? Try "place chest".', 'error'); break;
     case 'chest':                showChest(); consumesTurn = false; break;
     case 'store':                storeItem(arg); break;
@@ -3313,6 +3770,8 @@ function handleCommand(input) {
     case 'messages': case 'inbox': case 'msg': showInbox(); consumesTurn = false; break;
     case 'pin':                  pinNotice(argRaw); break;
     case 'notices': case 'board':showNotices(); consumesTurn = false; break;
+    case 'carve':                carveCommand(argRaw); break;
+    case 'carvings': case 'marks': showCarvings(); consumesTurn = false; break;
     case 'give':                 giveCommand(argRaw); break;
     case 'claim':                claimGift(arg); break;
     case 'decline':              declineGift(arg); break;
@@ -3388,7 +3847,29 @@ try {
 
 // If we don't have a name yet (new character or legacy save), ask now
 if (!player.name) askName();
-write(`You are ${player.name}.`, 'system');
+
+// Roll the daily login streak (idempotent — same calendar day = no change)
+{
+  const before = player.login_streak;
+  const lastDate = player.last_login_date;
+  const r = rollLoginStreak();
+  if (r.firstToday) {
+    if (player.total_logins === 1) {
+      write(`Welcome, ${player.name}.`, 'system');
+    } else if (lastDate && daysBetweenISO(lastDate, todayISO()) === 1) {
+      write(`Day ${player.login_streak} on the streak. Welcome back, ${player.name}.`, 'spark');
+      const newTitle = streakTitle(player.login_streak);
+      const oldTitle = streakTitle(before);
+      if (newTitle && newTitle !== oldTitle)
+        write(`>>> You earn the title "${newTitle}".`, 'success');
+    } else {
+      write(`The chain breaks. A new streak begins. Welcome back, ${player.name}.`, 'system');
+    }
+  }
+}
+
+const __ttl = playerTitle();
+write(`You are ${player.name}${__ttl ? ' ' + __ttl : ''}.`, 'system');
 
 // Initialize weather if not yet set
 if (!player.weather) {
