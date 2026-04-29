@@ -178,6 +178,7 @@
       <div class="kv"><span class="k"><span class="g">✨</span> sparks</span><span class="v spark" id="sparks">0</span></div>
       <div class="kv"><span class="k"><span class="g">📦</span> load</span><span class="v load" id="load">0/40</span></div>
       <div class="kv"><span class="k">turn</span><span class="v" id="turn">0</span></div>
+      <div class="kv"><span class="k">🕒 time</span><span class="v" id="time">Day 1, morning</span></div>
     </section>
     <section>
       <h3>Equipment</h3>
@@ -221,7 +222,8 @@ const STORY = {
     starting_inventory: [], starting_materials: {},
     starting_gold: 0, starting_sparks: 30, starting_skills: [],
     starting_life: 100, life_max: 100, life_decay_per_turn: 0.5,
-    carry_capacity: 40, sparks_per_craft: 2
+    carry_capacity: 40, sparks_per_craft: 2,
+    turns_per_day: 96
   },
   rooms: {
     forest_clearing: {
@@ -475,6 +477,64 @@ const STORY = {
     deer:   { display:'deer',   summary:'A wary forest deer.',   hp:10, attack_damage_range:[1,3], evasion:0.1, hostile:false, base_drops:[{item:'raw_meat',qty:2}], skinning_drops:[{item:'hide',qty:1}] },
     rabbit: { display:'rabbit', summary:'A small cottontail.',    hp:4,  attack_damage_range:[0,1], evasion:0.2, hostile:false, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[] },
     wolf:   { display:'wolf',   summary:'A grey wolf, lean from the season. It does not run.', hp:20, attack_damage_range:[3,8], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[{item:'hide',qty:1}] }
+  },
+  quests: {
+    intro: {
+      title: 'First Steps',
+      description: 'Take the rusty dagger. Wield it. Walk south to the village and meet the merchant.',
+      giver: null,
+      auto_accept: true,
+      objectives: [
+        { type:'have_item', item:'rusty_dagger', qty:1 },
+        { type:'visited',   room:'greenmeadow_village' }
+      ],
+      rewards: { gold: 5, sparks: 10, items: [] },
+      completion_message: 'You have your bearings now. The forest is yours to explore.'
+    },
+    merchants_meat: {
+      title: 'The Stew Pot',
+      description: 'The village merchant wants 3 cured meat for the road.',
+      giver: 'weathered_merchant',
+      auto_accept: false,
+      objectives: [
+        { type:'have_item', item:'cured_meat', qty:3 }
+      ],
+      rewards: { gold: 30, sparks: 10, items: [] },
+      completion_message: 'The merchant tucks the cured meat away. "Bless you. Keep yourself fed too."'
+    },
+    hunters_pelts: {
+      title: 'Pelts for the Camp',
+      description: 'The riverside trader needs 2 hides for winter coats.',
+      giver: 'riverside_trader',
+      auto_accept: false,
+      objectives: [
+        { type:'have_item', item:'hide', qty:2 }
+      ],
+      rewards: { gold: 20, sparks: 8, items: [] },
+      completion_message: 'The trader runs a hand over the hides. "Good work. The camp will be warmer for it."'
+    },
+    hermits_silver: {
+      title: 'A Hermit\'s Need',
+      description: 'The hermit would like a silver herb for their salves.',
+      giver: 'hermit',
+      auto_accept: false,
+      objectives: [
+        { type:'have_item', item:'silver_herb', qty:1 }
+      ],
+      rewards: { gold: 0, sparks: 15, items: [{ item:'healing_salve', qty:1 }] },
+      completion_message: 'The hermit smells the herb, smiles, and presses a small jar of salve into your hand.'
+    },
+    wolf_culler: {
+      title: 'Quiet the Howling',
+      description: 'The village merchant offers a bounty for slaying 3 wolves.',
+      giver: 'weathered_merchant',
+      auto_accept: false,
+      objectives: [
+        { type:'kill', entity:'wolf', qty:3 }
+      ],
+      rewards: { gold: 60, sparks: 15, items: [] },
+      completion_message: 'The merchant counts gold into your hand. "The road sleeps easier tonight."'
+    }
   }
 };
 
@@ -544,8 +604,16 @@ const player = {
   chests: new Map(),  // roomId -> { items: [], materials: {} }
   equipment: {},      // slot -> item_id
   visited: new Set([STORY.meta.starting_location]),
+  quests: {},         // questId -> { state: 'active'|'completed', kills: {entity:N}, visited: [room,...] }
   rooms: structuredClone(STORY.rooms)
 };
+
+// Auto-accept quests at start
+for (const [qid, q] of Object.entries(STORY.quests || {})) {
+  if (q.auto_accept && !player.quests[qid]) {
+    player.quests[qid] = { state: 'active', kills: {}, visited: [] };
+  }
+}
 
 // ============================================================
 //  MARKETPLACE / DROPS STATE
@@ -584,6 +652,7 @@ function serializeState() {
     chests: [...player.chests].map(([k, v]) => [k, { items: [...v.items], materials: { ...v.materials } }]),
     equipment: { ...player.equipment },
     visited: [...player.visited],
+    quests: Object.fromEntries(Object.entries(player.quests).map(([k, v]) => [k, { state: v.state, kills: { ...v.kills }, visited: [...v.visited] }])),
     turn: player.turn,
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
@@ -602,6 +671,10 @@ function applyState(s) {
   player.chests = new Map(s.chests || []);
   player.equipment = { ...(s.equipment || {}) };
   player.visited = new Set(s.visited || [player.location]);
+  player.quests = {};
+  for (const [k, v] of Object.entries(s.quests || {})) {
+    player.quests[k] = { state: v.state, kills: { ...(v.kills || {}) }, visited: [...(v.visited || [])] };
+  }
   player.turn = s.turn ?? 0;
   if (s.rooms_state) {
     for (const [rid, rs] of Object.entries(s.rooms_state)) {
@@ -666,6 +739,8 @@ function refreshSidebar() {
   document.getElementById('sparks').textContent = player.sparks;
   document.getElementById('load').textContent = `${wt}/${cap}`;
   document.getElementById('turn').textContent = player.turn;
+  const dp = dayPart();
+  document.getElementById('time').textContent = `Day ${dp.day}, ${dp.period} (${String(dp.hour).padStart(2,'0')}h)`;
   // mobile mirrors
   document.getElementById('mh-life').textContent = Math.max(0, Math.floor(player.life));
   document.getElementById('mh-gold').textContent = player.gold;
@@ -1007,6 +1082,22 @@ function bestWeaponBonus() {
   return wielded ? (STORY.items[wielded]?.effects?.attack_bonus ?? 0) : 0;
 }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function dayPart() {
+  const tpd = STORY.meta.turns_per_day || 96;
+  const fraction = (player.turn % tpd) / tpd;
+  const hour = Math.floor(fraction * 24);
+  const day = Math.floor(player.turn / tpd) + 1;
+  let period;
+  if (hour < 5) period = 'night';
+  else if (hour < 7) period = 'dawn';
+  else if (hour < 11) period = 'morning';
+  else if (hour < 13) period = 'noon';
+  else if (hour < 17) period = 'afternoon';
+  else if (hour < 19) period = 'dusk';
+  else if (hour < 22) period = 'evening';
+  else period = 'night';
+  return { hour, day, period, isNight: period === 'night' || period === 'dusk' };
+}
 function pickWeighted(table) {
   const total = table.reduce((s, e) => s + (e.weight || 1), 0);
   let r = Math.random() * total;
@@ -1023,12 +1114,27 @@ for (const room of Object.values(STORY.rooms)) {
 //  TURN / DEATH
 // ============================================================
 function tickTurn() {
+  const prevPeriod = dayPart().period;
   player.turn++;
   player.life -= STORY.meta.life_decay_per_turn;
+  const newPeriod = dayPart().period;
+  if (newPeriod !== prevPeriod) {
+    const transitions = {
+      'dawn': 'Dawn breaks. The world brightens slowly.',
+      'morning': 'Morning settles in.',
+      'noon': 'The sun reaches its height.',
+      'afternoon': 'Afternoon shadows lengthen.',
+      'dusk': 'Dusk falls. Long shadows reach across the ground.',
+      'evening': 'Evening gathers. Lights come on in the village.',
+      'night': 'Night falls. Take care.'
+    };
+    if (transitions[newPeriod]) write(`[${transitions[newPeriod]}]`, 'system');
+  }
   const room = player.rooms[player.location];
   if (!player.combat_target && room.hazards?.wolves) {
     const w = room.hazards.wolves;
-    if (Math.random() < w.encounter_chance) {
+    const nightBoost = dayPart().isNight ? 1.5 : 1.0;
+    if (Math.random() < w.encounter_chance * nightBoost) {
       const ent = STORY.entities[w.entity];
       player.combat_target = { id: w.entity, ...structuredClone(ent) };
       write('');
@@ -1108,6 +1214,10 @@ function move(dir) {
   const from = player.location; player.location = target;
   const newRoom = !player.visited.has(target);
   player.visited.add(target);
+  // Track per-quest visited rooms
+  for (const ps of Object.values(player.quests)) {
+    if (ps.state === 'active' && !ps.visited.includes(target)) ps.visited.push(target);
+  }
   publishAction('move', { from, to: target });
   if (newRoom) write(`(new place — added to your map)`, 'system');
   describeRoom();
@@ -1269,6 +1379,17 @@ function talk(target) {
   const npc = STORY.npcs[target];
   const line = npc.dialogue_seeds[Math.floor(Math.random() * npc.dialogue_seeds.length)];
   write(`${npc.display} says: "${line}"`, 'npc');
+  // Mention any quests this NPC offers, plus any ready-to-turn-in
+  const offers = offerQuestsFor(target);
+  for (const [qid, q] of offers) {
+    write(`${npc.display} adds: "I have work, if you'd take it. ${q.description}" (accept ${qid})`, 'npc');
+  }
+  for (const [qid, ps] of Object.entries(player.quests)) {
+    const q = STORY.quests[qid];
+    if (q?.giver === target && ps.state === 'active' && questComplete(qid)) {
+      write(`${npc.display} eyes you. "Have you finished ${q.title}? — turn in ${qid}"`, 'npc');
+    }
+  }
   publishAction('talk', { npc: target, location: player.location });
 }
 
@@ -1345,6 +1466,10 @@ function attack() {
     if (!player.skills.has('skinning') && t.skinning_drops.length)
       write('(With Skinning, kills also yield hide.)', 'system');
     publishAction('killed', { entity: t.id, location: player.location });
+    // Track for active kill quests
+    for (const ps of Object.values(player.quests)) {
+      if (ps.state === 'active') ps.kills[t.id] = (ps.kills[t.id] || 0) + 1;
+    }
     player.combat_target = null;
     return;
   }
@@ -1466,6 +1591,128 @@ function showEquipment() {
   }
 }
 
+// --- Quests ---
+function questProgress(qid) {
+  const q = STORY.quests[qid];
+  const ps = player.quests[qid];
+  if (!q || !ps) return [];
+  return q.objectives.map(obj => {
+    let cur = 0, target = obj.qty || 1, label = '';
+    if (obj.type === 'have_item') {
+      cur = (player.materials[obj.item] || 0) + player.inventory.filter(i => i === obj.item).length;
+      label = `Have ${target} ${itemDisplay(obj.item)}`;
+    } else if (obj.type === 'kill') {
+      cur = ps.kills[obj.entity] || 0;
+      label = `Kill ${target} ${STORY.entities[obj.entity]?.display || obj.entity}`;
+    } else if (obj.type === 'visited') {
+      const rooms = obj.room ? [obj.room] : (obj.rooms || []);
+      cur = rooms.some(r => ps.visited.includes(r)) ? 1 : 0;
+      target = 1;
+      label = `Visit ${rooms.map(r => SHORT_NAMES[r] || r).join(' or ')}`;
+    }
+    return { obj, cur, target, done: cur >= target, label };
+  });
+}
+function questComplete(qid) {
+  const ps = player.quests[qid];
+  if (!ps || ps.state !== 'active') return false;
+  return questProgress(qid).every(p => p.done);
+}
+function showQuests() {
+  const active = [];
+  const completed = [];
+  for (const [qid, ps] of Object.entries(player.quests)) {
+    const q = STORY.quests[qid]; if (!q) continue;
+    if (ps.state === 'completed') completed.push([qid, q, ps]);
+    else active.push([qid, q, ps]);
+  }
+  if (active.length === 0 && completed.length === 0) {
+    write('No active quests. Talk to NPCs to find work.');
+    return;
+  }
+  if (active.length) {
+    write('-- Active quests --', 'system');
+    for (const [qid, q] of active) {
+      write(`  ${qid}  —  ${q.title}`, 'spark');
+      write(`    ${q.description}`);
+      const prog = questProgress(qid);
+      for (const p of prog) {
+        const mark = p.done ? '✓' : '·';
+        write(`    [${mark}] ${p.label}: ${Math.min(p.cur, p.target)}/${p.target}`);
+      }
+      if (questComplete(qid) && q.giver) {
+        write(`    → Ready! Find ${STORY.npcs[q.giver]?.display || q.giver} and "turn in ${qid}".`, 'success');
+      } else if (questComplete(qid) && !q.giver) {
+        write(`    → Ready! Type "turn in ${qid}".`, 'success');
+      }
+    }
+  }
+  if (completed.length) {
+    write('-- Completed --', 'system');
+    for (const [qid, q] of completed) write(`  ✓ ${qid}  —  ${q.title}`, 'success');
+  }
+}
+function acceptQuest(qid) {
+  if (combatBlock('accept')) return;
+  const q = STORY.quests[qid];
+  if (!q) { write(`No such quest "${qid}".`, 'error'); return; }
+  if (player.quests[qid]) { write('You already have that quest.'); return; }
+  if (q.giver) {
+    const room = player.rooms[player.location];
+    if (!(room.npcs || []).includes(q.giver)) {
+      write(`${STORY.npcs[q.giver]?.display || q.giver} would have to give you that quest.`, 'error');
+      return;
+    }
+  }
+  player.quests[qid] = { state: 'active', kills: {}, visited: [] };
+  write(`Quest accepted: ${q.title}`, 'spark');
+  write(`  ${q.description}`);
+  publishAction('quest_accept', { quest: qid });
+}
+function turnInQuest(qid) {
+  if (combatBlock('turn')) return;
+  const q = STORY.quests[qid];
+  const ps = player.quests[qid];
+  if (!q || !ps) { write(`You don't have that quest.`, 'error'); return; }
+  if (ps.state !== 'active') { write('Already turned in.'); return; }
+  if (q.giver) {
+    const room = player.rooms[player.location];
+    if (!(room.npcs || []).includes(q.giver)) {
+      write(`Bring this to ${STORY.npcs[q.giver]?.display || q.giver}.`, 'error');
+      return;
+    }
+  }
+  if (!questComplete(qid)) { write(`Objectives not yet met. Type "quests" to see progress.`, 'error'); return; }
+  // Consume have_item objectives
+  for (const obj of q.objectives) {
+    if (obj.type === 'have_item') removeFromInventoryOrMaterials(obj.item, obj.qty || 1);
+  }
+  // Apply rewards
+  const r = q.rewards || {};
+  if (r.gold)   player.gold   += r.gold;
+  if (r.sparks) player.sparks += r.sparks;
+  for (const ri of (r.items || [])) {
+    if (canCarry(ri.item, ri.qty)) addItem(ri.item, ri.qty);
+    else (player.rooms[player.location].items ||= []).push(ri.item);
+  }
+  ps.state = 'completed';
+  write(q.completion_message || `Quest complete: ${q.title}`, 'success');
+  const reward_parts = [];
+  if (r.gold)   reward_parts.push(`${r.gold} gold`);
+  if (r.sparks) reward_parts.push(`${r.sparks} sparks`);
+  for (const ri of (r.items || [])) reward_parts.push(`${ri.qty} ${itemDisplay(ri.item)}`);
+  if (reward_parts.length) write(`Rewards: ${reward_parts.join(', ')}`, 'spark');
+  publishAction('quest_complete', { quest: qid });
+}
+function offerQuestsFor(npcId) {
+  // Find quests this NPC gives that the player hasn't accepted/completed
+  const offers = [];
+  for (const [qid, q] of Object.entries(STORY.quests || {})) {
+    if (q.giver === npcId && !player.quests[qid]) offers.push([qid, q]);
+  }
+  return offers;
+}
+
 function lightFire() {
   if (!player.skills.has('firemaking')) { write('You need the Firemaking skill.', 'error'); return; }
   if (fireActive(player.location)) { write('A fire is already burning here.'); return; }
@@ -1568,7 +1815,8 @@ function sleep() {
       return;
     }
   }
-  player.turn += 24;
+  const sleepTurns = Math.floor((STORY.meta.turns_per_day || 96) / 3);  // 8 hours
+  player.turn += sleepTurns;
   const maxLife = computeMaxLife();
   const restore = Math.floor((maxLife - player.life) * restoreFraction);
   player.life = Math.min(maxLife, player.life + restore);
@@ -1908,6 +2156,7 @@ function help() {
     'Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest · sleep',
     'Equipment:       wear / wield <x> · unwear <slot> · equipment / eq',
     'Smithing:        sharpen <x> · repair <x>  (at any merchant)',
+    'Quests:          quests / q · accept <id> · turn in <id>',
     'Storage:         place chest · chest · store <x> · retrieve <x>',
     'Market:          sell <item>     (direct sale to merchant, instant gold)',
     '                 sell <item> <price>  (list on player marketplace)',
@@ -1969,6 +2218,14 @@ function handleCommand(input) {
     case 'equipment': case 'eq': showEquipment(); consumesTurn = false; break;
     case 'sharpen':              sharpen(arg); break;
     case 'repair':               repair(arg); break;
+    case 'quests': case 'q':     showQuests(); consumesTurn = false; break;
+    case 'accept':               acceptQuest(arg); break;
+    case 'turn':                 // "turn in <qid>" or "turnin <qid>"
+      if (parts[1] === 'in' && parts[2]) turnInQuest(parts[2].toLowerCase());
+      else if (arg) turnInQuest(arg);
+      else write('Usage: turn in <quest_id>', 'error');
+      break;
+    case 'turnin':               turnInQuest(arg); break;
     case 'light':                if (arg === 'fire' || arg === '') lightFire(); else write(`Light what?`, 'error'); break;
     case 'rest':                 rest(); break;
     case 'sleep':                sleep(); break;
@@ -2024,7 +2281,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${STORY.meta.title} — Nostr PoC v0.6 ===`, 'title');
+write(`=== ${STORY.meta.title} — Nostr PoC v0.7 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
@@ -2054,8 +2311,19 @@ write(`Connecting to ${RELAYS.length} Nostr relays…`, 'system');
 write('');
 write('Carry capacity 40 weight. Crafting awards sparks. Place chests for storage. Sleep to recover life.', 'system');
 write('On phone? Tap ☰ at top right for the side panel.', 'system');
-write('Type "help" for commands.', 'system');
+write('Type "help" for commands, "quests" to see your active goals.', 'system');
 write('');
+
+// Onboarding nudge: if intro quest is freshly active, show it
+if (player.quests.intro && player.quests.intro.state === 'active' && !player.quests.intro.announced_intro) {
+  player.quests.intro.announced_intro = true;
+  const q = STORY.quests.intro;
+  write(`>>> First quest: ${q.title}`, 'spark');
+  write(`    ${q.description}`);
+  write(`    (Type "quests" any time to see progress.)`, 'system');
+  write('');
+}
+
 describeRoom();
 refreshSidebar();
 subscribe();
