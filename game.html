@@ -5919,6 +5919,25 @@ const CHROME_STRINGS = {
   'The {0} falls.': { de: '{0} fällt.' },
   'You gain: {0}.': { de: 'Du erhältst: {0}.' },
   '(Shared kill credit goes to {0} other fighter{1} in this combat.)': { de: '(Geteilter Tötungserfolg geht an {0} anderen Kämpfer{1} in diesem Kampf.)' },
+  // Gathering / verb-specific narration (substantive-after-verb in DE, natural reading)
+  'You chop and gain {0} {1}.{2}':   { de: 'Du hackst und erhältst {0} {1}.{2}' },
+  'You forage and gain {0} {1}.{2}': { de: 'Du sammelst und erhältst {0} {1}.{2}' },
+  'You gather and gain {0} {1}.{2}': { de: 'Du sammelst und erhältst {0} {1}.{2}' },
+  'You mine and gain {0} {1}.{2}':   { de: 'Du schürfst und erhältst {0} {1}.{2}' },
+  'You fish and gain {0} {1}.{2}':   { de: 'Du angelst und erhältst {0} {1}.{2}' },
+  "You can't chop here.":   { de: 'Hier kannst du nicht hacken.' },
+  "You can't forage here.": { de: 'Hier kannst du nicht sammeln.' },
+  "You can't gather here.": { de: 'Hier kannst du nicht sammeln.' },
+  "You can't mine here.":   { de: 'Hier kannst du nicht schürfen.' },
+  "You can't fish here.":   { de: 'Hier kannst du nicht angeln.' },
+  'You need {0} to chop.':   { de: 'Du brauchst {0} zum Hacken.' },
+  'You need {0} to forage.': { de: 'Du brauchst {0} zum Sammeln.' },
+  'You need {0} to gather.': { de: 'Du brauchst {0} zum Sammeln.' },
+  'You need {0} to mine.':   { de: 'Du brauchst {0} zum Schürfen.' },
+  'You need {0} to fish.':   { de: 'Du brauchst {0} zum Angeln.' },
+  'Wait {0}s.':              { de: 'Warte {0}s.' },
+  'Too heavy to carry the {0}.': { de: 'Zu schwer, um {0} zu tragen.' },
+  ' (rain reduces the catch)': { de: ' (Regen vermindert den Ertrag)' },
   'The {0} bites you for {1} damage. ({2}/{3} life)': { de: '{0} beißt dich für {1} Schaden. ({2}/{3} Leben)' },
   'There is nothing to attack.': { de: 'Nichts zum Angreifen hier.' },
   'There is nothing to flee from.': { de: 'Nichts zum Fliehen hier.' },
@@ -6125,7 +6144,7 @@ const CHROME_STRINGS = {
   'Items:           take <x> · drop <x> · bury <x|qty x> · inv · status':                                    { de: 'Gegenstände:     nehmen <x> · ablegen <x> · vergraben <x|menge x> · inventar · status' },
   'World:           talk <npc> · answer <text>':                                                              { de: 'Welt:            sprechen <bewohner> · antworten <text>' },
   'Skills:          skills · learn <skill>':                                                                  { de: 'Fertigkeiten:    fertigkeiten · lernen <fertigkeit>' },
-  'Gathering:       chop / forage / gather (needs skill)':                                                    { de: 'Sammeln:         chop / sammeln / gather (Fertigkeit nötig)' },
+  'Gathering:       chop / forage / gather (needs skill)':                                                    { de: 'Sammeln:         hacken · sammeln · schürfen · angeln  (Fertigkeit nötig)' },
   'Crafting:        recipes · craft <recipe> · craft <qty> <recipe>  (batch; each craft awards sparks)':      { de: 'Fertigung:       rezepte · fertige <rezept> · fertige <menge> <rezept>  (Stapel; jede Fertigung gibt Funken)' },
   'Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest · sleep':                      { de: 'Überleben:       essen <x> · trinken · feuer machen · jagen · angreifen · fliehen · ruhen · schlafen' },
   '                 assist [<name>]  (join another player\'s fight in the same room)':                        { de: '                 helfen [<name>]  (einem anderen Spieler im selben Raum beistehen)' },
@@ -6256,7 +6275,15 @@ const COMMAND_ALIASES = {
   'schau': 'look', 'sieh': 'look',
   'ritze': 'carve', 'schlage': 'pin', 'schlag': 'pin',
   'verschenke': 'give', 'gebe': 'give',
-  'sammle': 'claim',
+  // gathering verbs (the actual EN verb is dispatched via dynamicVerbs;
+  // these aliases let DE players type their language)
+  'hacken': 'chop', 'hack': 'chop', 'hacke': 'chop', 'fälle': 'chop', 'fällen': 'chop',
+  'sammeln': 'forage', 'sammle': 'forage', 'pflücken': 'forage', 'pflücke': 'forage',
+  'aufsammeln': 'gather', 'aufnehmen': 'gather',
+  'schürfen': 'mine', 'schürfe': 'mine', 'abbauen': 'mine', 'abbaue': 'mine',
+  'angeln': 'fish', 'angle': 'fish', 'fischen': 'fish', 'fische': 'fish',
+  // gift commands keep their imperative
+  'einsammle': 'claim',
   'lehne': 'decline', 'verweigere': 'decline',
   'heile': 'heal',
   'taufe': 'rename', 'benenn': 'rename',
@@ -7871,23 +7898,34 @@ function learn(arg) {
   publishAction('learn', { skill: arg });
 }
 
+// Per-verb narration templates so each gathering action gets natural-feeling
+// language in every supported locale. Adventure-game style: in DE the
+// substantive comes second after the verb (verb-second word order).
+const VERB_NARRATION = {
+  chop:   { success: 'You chop and gain {0} {1}.{2}',   cant: "You can't chop here.",   need: 'You need {0} to chop.' },
+  forage: { success: 'You forage and gain {0} {1}.{2}', cant: "You can't forage here.", need: 'You need {0} to forage.' },
+  gather: { success: 'You gather and gain {0} {1}.{2}', cant: "You can't gather here.", need: 'You need {0} to gather.' },
+  mine:   { success: 'You mine and gain {0} {1}.{2}',   cant: "You can't mine here.",   need: 'You need {0} to mine.' },
+  fish:   { success: 'You fish and gain {0} {1}.{2}',   cant: "You can't fish here.",   need: 'You need {0} to fish.' }
+};
 function gather(verb) {
   if (combatBlock('gather')) return;
   const room = player.rooms[player.location];
   const res = (room.resources || []).find(r => r.verb === verb);
-  if (!res) { write(`You can't ${verb} here.`, 'error'); return; }
-  if (!player.skills.has(res.skill)) { write(`You need ${STORY.skills[res.skill].display} to ${verb}.`, 'error'); return; }
+  const tmpl = VERB_NARRATION[verb] || { success: `You ${verb} and gain {0} {1}.{2}`, cant: `You can't ${verb} here.`, need: `You need {0} to ${verb}.` };
+  if (!res) { write(T(tmpl.cant), 'error'); return; }
+  if (!player.skills.has(res.skill)) { write(T(tmpl.need, t(STORY.skills[res.skill].display)), 'error'); return; }
   const cdKey = `${player.location}:${verb}`;
   const next = player.resource_cooldowns.get(cdKey) || 0;
-  if (Date.now() < next) { write(`Wait ${Math.ceil((next - Date.now()) / 1000)}s.`, 'error'); return; }
-  if (!canCarry(res.id, res.yield_qty)) { write(`Too heavy to carry the ${itemDisplay(res.id)}.`, 'error'); return; }
+  if (Date.now() < next) { write(T('Wait {0}s.', Math.ceil((next - Date.now()) / 1000)), 'error'); return; }
+  if (!canCarry(res.id, res.yield_qty)) { write(T('Too heavy to carry the {0}.', itemDisplay(res.id)), 'error'); return; }
   // Weather modifier on yield
   let yield_qty = res.yield_qty;
   if (player.weather === 'rain') yield_qty = Math.max(1, Math.floor(yield_qty * 0.5));
   addItem(res.id, yield_qty);
   if (res.regenerates) player.resource_cooldowns.set(cdKey, Date.now() + (res.regen_seconds || 0) * 1000);
-  const note = (yield_qty < res.yield_qty) ? ' (rain reduces the catch)' : '';
-  write(`You ${verb} and gain ${yield_qty} ${itemDisplay(res.id)}.${note}`, 'success');
+  const note = (yield_qty < res.yield_qty) ? T(' (rain reduces the catch)') : '';
+  write(T(tmpl.success, yield_qty, itemDisplay(res.id), note), 'success');
   publishAction('gather', { verb, item: res.id, qty: yield_qty, location: player.location });
 }
 
