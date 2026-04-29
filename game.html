@@ -5928,6 +5928,32 @@ const CHROME_STRINGS = {
   'You join the fight against the {0}! ({1}/{2} hp)': { de: 'Du trittst dem Kampf gegen {0} bei! ({1}/{2} hp)' },
   'Type "attack" to strike. The kill is shared; drops go to whoever lands the killing blow.': { de: 'Tippe „attack" zum Schlag. Der Tötungserfolg wird geteilt; Beute geht an den, der den tödlichen Hieb landet.' },
   'No combat to assist with here. (When another player runs "hunt" in this room, you\'ll see them.)': { de: 'Kein Kampf zum Helfen hier. (Wenn ein anderer Spieler in diesem Raum „hunt" eingibt, siehst du ihn.)' },
+  '[{0} engages a {1} here. "assist" to join.]': { de: '[{0} greift hier {1} an. „assist" zum Helfen.]' },
+  '[network] {0} enters {1}.': { de: '[Netz] {0} betritt {1}.' },
+  '[network] {0} died here. Look for their corpse with "corpses".': { de: '[Netz] {0} starb hier. Suche die Leiche mit „corpses".' },
+  'You are already in a fight.': { de: 'Du bist bereits in einem Kampf.' },
+  'No combat by "{0}" here. Currently fighting: {1}.': { de: 'Kein Kampf von „{0}" hier. Aktuell kämpfen: {1}.' },
+  'Multiple combats here. Specify: {0}.': { de: 'Mehrere Kämpfe hier. Wähle: {0}.' },
+  'No companion to feed.': { de: 'Kein Gefährte zum Füttern.' },
+  'No raw meat to give.': { de: 'Kein rohes Fleisch zum Geben.' },
+  'No companion.': { de: 'Kein Gefährte.' },
+  'You travel alone.': { de: 'Du reist allein.' },
+  'Companion: {0}  ·  hp {1}/{2}  ·  {3} (fed {4} days ago)': { de: 'Gefährte: {0}  ·  hp {1}/{2}  ·  {3} (gefüttert vor {4} Tagen)' },
+  'You release your {0}. It looks at you once and is gone into the trees.': { de: 'Du lässt {0} frei. Er sieht dich einmal an und ist in den Bäumen verschwunden.' },
+  'Your {0} eats. Looks at you with loyal eyes.': { de: 'Dein {0} frisst. Schaut dich mit treuen Augen an.' },
+  'Your {0} has gone too long without food. It bares its teeth and circles. It is no longer yours.': { de: 'Dein {0} hat zu lange ohne Futter ausharren müssen. Er fletscht die Zähne und kreist. Er gehört dir nicht mehr.' },
+  'The {0} sniffs the meat, hesitates, and lowers its hackles. It follows you now.': { de: '{0} schnuppert am Fleisch, zögert und senkt die Nackenhaare. Er folgt dir nun.' },
+  '(Type "companion" any time to check on it. Feed it raw meat every {0} days or it\'ll go wild.)': { de: '(Tippe „companion" für seinen Zustand. Füttere ihn alle {0} Tage mit rohem Fleisch, sonst wird er wild.)' },
+  'The {0} snatches the meat and lunges anyway.': { de: '{0} schnappt das Fleisch und stürmt dennoch los.' },
+  'The {0} bites you for {1} damage.': { de: '{0} beißt dich für {1} Schaden.' },
+  'hungry — feed it soon': { de: 'hungrig — bald füttern' },
+  'You don\'t see "{0}" here.': { de: 'Du siehst „{0}" hier nicht.' },
+  'You take {0}.': { de: 'Du nimmst {0}.' },
+  'Your possessions remain in {0}.': { de: 'Deine Habe bleibt in {0}.' },
+  'You wake at {0}, lighter and aching. ({1}/{2} life)': { de: 'Du erwachst in {0}, leichter und schmerzend. ({1}/{2} Leben)' },
+  'You place a chest in {0}. Items stored here don\'t count toward your carry weight.': { de: 'Du stellst eine Truhe in {0} auf. Hier gelagerte Gegenstände zählen nicht zu deiner Last.' },
+  '-- chest in {0} --': { de: '-- Truhe in {0} --' },
+  '-- Notices in {0} --': { de: '-- Aushänge in {0} --' },
 
   // --- crafting / skills ---
   'You craft: {0}.': { de: 'Du fertigst: {0}.' },
@@ -6094,39 +6120,39 @@ const CHROME_STRINGS = {
   'no materials': { de: 'keine Materialien' },
 
   // --- help text (every line) ---
-  'Movement:        n/s/e/w · u/d · in · out · go <dir> · look · map':                                       { de: 'Bewegung:        n/s/o/w (norden/süden/osten/westen) · oben/unten · hinein · hinaus · go <r> · look/schauen · map' },
+  'Movement:        n/s/e/w · u/d · in · out · go <dir> · look · map':                                       { de: 'Bewegung:        n/s/o/w · oben/unten · hinein · hinaus · gehen <r> · schauen · karte' },
   'Items:           take <x> · drop <x> · bury <x|qty x> · inv · status':                                    { de: 'Gegenstände:     nehmen <x> · ablegen <x> · vergraben <x|menge x> · inventar · status' },
   'World:           talk <npc> · answer <text>':                                                              { de: 'Welt:            sprechen <bewohner> · antworten <text>' },
   'Skills:          skills · learn <skill>':                                                                  { de: 'Fertigkeiten:    fertigkeiten · lernen <fertigkeit>' },
   'Gathering:       chop / forage / gather (needs skill)':                                                    { de: 'Sammeln:         chop / sammeln / gather (Fertigkeit nötig)' },
-  'Crafting:        recipes · craft <recipe> · craft <qty> <recipe>  (batch; each craft awards sparks)':      { de: 'Fertigung:       rezepte · craft <rezept> · craft <menge> <rezept>  (Stapel; jede Fertigung gibt Funken)' },
+  'Crafting:        recipes · craft <recipe> · craft <qty> <recipe>  (batch; each craft awards sparks)':      { de: 'Fertigung:       rezepte · fertige <rezept> · fertige <menge> <rezept>  (Stapel; jede Fertigung gibt Funken)' },
   'Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest · sleep':                      { de: 'Überleben:       essen <x> · trinken · feuer machen · jagen · angreifen · fliehen · ruhen · schlafen' },
   '                 assist [<name>]  (join another player\'s fight in the same room)':                        { de: '                 helfen [<name>]  (einem anderen Spieler im selben Raum beistehen)' },
   'Equipment:       wear / wield <x> · unwear <slot> · equipment / eq':                                       { de: 'Ausrüstung:      anziehen / führen <x> · ausziehen <slot> · ausrüstung / eq' },
-  'Smithing:        sharpen <x> · repair <x>  (at the village blacksmith)':                                   { de: 'Schmiedekunst:   sharpen <x> · repair <x>  (beim Dorfschmied)' },
-  'Companion:       tame · feed · companion / pet · dismiss':                                                 { de: 'Gefährte:        zähmen · füttern · gefährte / pet · entlassen' },
-  'Progress:        quests / q · stats · achievements':                                                       { de: 'Fortschritt:     aufträge / q · stats · erfolge' },
-  '                 accept <id> · turn in <id>':                                                              { de: '                 accept <id> · turn in <id>' },
-  '                 (daily quests auto-rotate at dawn — turn in before dawn or they expire)':                 { de: '                 (Tagesaufträge wechseln bei Morgengrauen — vor Morgengrauen abliefern oder sie verfallen)' },
-  'Storage:         place chest · chest · store <x> · retrieve <x>':                                          { de: 'Lagerung:        place chest · chest · store <x> · retrieve <x>' },
-  'Market:          sell <item>          (direct sale, instant gold)':                                        { de: 'Markt:           verkaufen <item>             (Sofortverkauf, Gold direkt)' },
-  '                 sell <qty> <item>    (batch sell at base value)':                                         { de: '                 verkaufen <menge> <item>      (Stapelverkauf zum Grundwert)' },
-  '                 sell <item> <price>  (list on player marketplace)':                                       { de: '                 verkaufen <item> <preis>      (auf dem Spielermarkt anbieten)' },
-  '                 sell <qty> <item> <price>  (list batch)':                                                 { de: '                 verkaufen <menge> <item> <preis>  (Stapel anbieten)' },
+  'Smithing:        sharpen <x> · repair <x>  (at the village blacksmith)':                                   { de: 'Schmiedekunst:   schärfen <x> · reparieren <x>  (beim Dorfschmied)' },
+  'Companion:       tame · feed · companion / pet · dismiss':                                                 { de: 'Gefährte:        zähmen · füttern · gefährte · entlassen' },
+  'Progress:        quests / q · stats · achievements':                                                       { de: 'Fortschritt:     aufträge / q · werte · erfolge' },
+  '                 accept <id> · turn in <id>':                                                              { de: '                 annehmen <id> · abgeben <id>' },
+  '                 (daily quests auto-rotate at dawn — turn in before dawn or they expire)':                 { de: '                 (Tagesaufträge wechseln bei Morgengrauen — vor Morgengrauen abgeben oder sie verfallen)' },
+  'Storage:         place chest · chest · store <x> · retrieve <x>':                                          { de: 'Lagerung:        truhe aufstellen · truhe · einlagern <x> · entnehmen <x>' },
+  'Market:          sell <item>          (direct sale, instant gold)':                                        { de: 'Markt:           verkaufen <gegenstand>          (Sofortverkauf, Gold direkt)' },
+  '                 sell <qty> <item>    (batch sell at base value)':                                         { de: '                 verkaufen <menge> <gegenstand>  (Stapelverkauf zum Grundwert)' },
+  '                 sell <item> <price>  (list on player marketplace)':                                       { de: '                 verkaufen <gegenstand> <preis>  (auf dem Spielermarkt anbieten)' },
+  '                 sell <qty> <item> <price>  (list batch)':                                                 { de: '                 verkaufen <menge> <gegenstand> <preis>  (Stapel anbieten)' },
   '                 buy <#> · market · listings':                                                             { de: '                 kaufen <#> · markt · angebote' },
-  'Drops:           corpses · loot <#>':                                                                      { de: 'Beute:           corpses · loot <#>' },
+  'Drops:           corpses · loot <#>':                                                                      { de: 'Beute:           leichen · plündern <#>' },
   'Network:         whisper <text>  (broadcast to your room)':                                                { de: 'Netzwerk:        flüstern <text>  (Mitteilung an deinen Raum)' },
-  '                 dm <name|npub> <text>  · messages / inbox':                                               { de: '                 dm <name|npub> <text>  · messages / inbox' },
-  '                 pin <text>  · notices / board (settlement bulletin)':                                     { de: '                 anschlagen <text>  · aushänge / board (Aushang im Ort)' },
-  '                 carve <text>  · carvings / marks (permanent room marks, all visitors see)':               { de: '                 ritzen <text>  · inschriften / marks (dauerhafte Markierungen, von allen sichtbar)' },
-  '                 who':                                                                                     { de: '                 who' },
-  'Cooperation:     give <item> to <name> [message]':                                                         { de: 'Zusammenarbeit:  verschenken <item> an <name> [Nachricht]' },
-  '                 gifts / offers · claim <id> · decline <id>':                                              { de: '                 gifts / offers · einsammeln <id> · verweigern <id>' },
+  '                 dm <name|npub> <text>  · messages / inbox':                                               { de: '                 dm <name|npub> <text>  · nachrichten / posteingang' },
+  '                 pin <text>  · notices / board (settlement bulletin)':                                     { de: '                 anschlagen <text>  · aushänge / tafel (Aushang im Ort)' },
+  '                 carve <text>  · carvings / marks (permanent room marks, all visitors see)':               { de: '                 ritzen <text>  · inschriften / markierungen (dauerhafte Markierungen, von allen sichtbar)' },
+  '                 who':                                                                                     { de: '                 wer' },
+  'Cooperation:     give <item> to <name> [message]':                                                         { de: 'Zusammenarbeit:  verschenken <gegenstand> an <name> [Nachricht]' },
+  '                 gifts / offers · claim <id> · decline <id>':                                              { de: '                 geschenke / angebote · einsammeln <id> · verweigern <id>' },
   '                 heal <name>  (uses one healing salve from your inventory)':                               { de: '                 heilen <name>  (verbraucht eine Heilsalbe aus deinem Inventar)' },
-  'Identity:        soul (show your nsec) · import <nsec> · new character (fresh start)':                     { de: 'Identität:       soul (zeige nsec) · import <nsec> · new character (Neustart)' },
+  'Identity:        soul (show your nsec) · import <nsec> · new character (fresh start)':                     { de: 'Identität:       seele (zeige nsec) · import <nsec> · new character (Neustart)' },
   '                 rename <new_name>  (change your visible name)':                                           { de: '                 umbenennen <neuer_name>  (ändere deinen sichtbaren Namen)' },
-  'Worlds:          switch story · stories  (list/switch story files)':                                       { de: 'Welten:          switch story · stories  (Geschichten auflisten/wechseln)' },
-  'Relays:          relay list · relay add <wss://...> · relay remove <url> · relay reset':                   { de: 'Relays:          relay list · relay add <wss://...> · relay remove <url> · relay reset' },
+  'Worlds:          switch story · stories  (list/switch story files)':                                       { de: 'Welten:          geschichte wechseln · geschichten  (Geschichten auflisten/wechseln)' },
+  'Relays:          relay list · relay add <wss://...> · relay remove <url> · relay reset':                   { de: 'Relays:          relay liste · relay hinzufügen <wss://...> · relay entfernen <url> · relay zurücksetzen' },
   'Offline:         (no command — events queue automatically when offline, sync on reconnect)':               { de: 'Offline:         (kein Befehl — Ereignisse werden offline eingereiht und beim Verbinden synchronisiert)' },
   'Language:        lang  (show)  ·  lang <code>  (switch, e.g. "lang de")':                                  { de: 'Sprache:         lang  (zeige)  ·  lang <code>  (wechsle, z.B. „lang de")' },
   'Misc:            clear · help':                                                                            { de: 'Sonstiges:       leeren · hilfe' },
@@ -6211,7 +6237,77 @@ const COMMAND_ALIASES = {
   // kombat-name
   'kämpfen': 'attack',
   // companion
-  'zähmen': 'tame', 'füttern': 'feed', 'gefährte': 'companion', 'entlassen': 'dismiss'
+  'zähmen': 'tame', 'zähme': 'tame',
+  'füttern': 'feed', 'füttere': 'feed', 'futter': 'feed',
+  'gefährte': 'companion', 'pet': 'companion',
+  'entlassen': 'dismiss', 'entlasse': 'dismiss',
+  // German imperative-form duplicates for the most common commands
+  'nimm': 'take', 'gib': 'give', 'leg': 'drop', 'lege': 'drop',
+  'iss': 'eat', 'trink': 'drink', 'schlafe': 'sleep', 'ruhe': 'rest',
+  'jage': 'hunt', 'greife': 'attack', 'fliehe': 'flee', 'hilf': 'assist',
+  'sprich': 'talk', 'rede': 'talk', 'antworte': 'answer', 'sage': 'say',
+  'flüstere': 'whisper', 'rufe': 'shout',
+  'fertige': 'craft', 'craft': 'craft',
+  'lerne': 'learn', 'lern': 'learn',
+  'kaufe': 'buy', 'verkaufe': 'sell',
+  'ziehe': 'wear', 'zieh': 'wear',
+  'hilfe': 'help',
+  'schau': 'look', 'sieh': 'look',
+  'ritze': 'carve', 'schlage': 'pin', 'schlag': 'pin',
+  'verschenke': 'give', 'gebe': 'give',
+  'sammle': 'claim',
+  'lehne': 'decline', 'verweigere': 'decline',
+  'heile': 'heal',
+  'taufe': 'rename', 'benenn': 'rename',
+  'wechsle': 'switch', 'wechsel': 'switch',
+  'reset': 'reset',
+  // additional German keywords matching the help text
+  'karte': 'map',
+  'seele': 'soul',
+  'wer': 'who',
+  'werte': 'stats',
+  'geschichten': 'stories',
+  'posteingang': 'inbox', 'nachrichten': 'messages',
+  'erfolg': 'achievements', 'erfolge': 'achievements',
+  'aushang': 'pin', 'tafel': 'board',
+  'inschrift': 'carve', 'markierung': 'carve', 'markierungen': 'carvings',
+  'körper': 'corpses', 'leiche': 'corpses', 'leichen': 'corpses',
+  'plündern': 'loot', 'plündere': 'loot',
+  'sehen': 'look',
+  // common shorter forms
+  'i': 'inv',  // already, keep
+  'gepäck': 'inv',
+  'last': 'inv',
+  'feuer machen': 'light',
+  // alias bare DE words for the main verbs they're connected to
+  'wache': 'rest', 'pause': 'rest',
+  'angriff': 'attack',
+  'flucht': 'flee',
+  'stellung': 'stats',
+  'liste': 'listings',
+  'angebot': 'listings',
+  'hinabsteigen': 'down',
+  'hinaufsteigen': 'up',
+  // help-keyword aliases — every German word visible in help works as input
+  'fertige': 'craft', 'fertigen': 'craft',
+  'schärfen': 'sharpen', 'schärfe': 'sharpen',
+  'reparieren': 'repair', 'repariere': 'repair',
+  'annehmen': 'accept', 'nimm an': 'accept',
+  'abgeben': 'turn', 'liefere': 'turn',
+  'truhe': 'chest',
+  'aufstellen': 'place', 'stelle': 'place',
+  'einlagern': 'store', 'lagere': 'store',
+  'entnehmen': 'retrieve', 'entnimm': 'retrieve',
+  'geschenke': 'gifts', 'angebote': 'offers',
+  'tafel': 'board',
+  'liste': 'list',
+  'hinzufügen': 'add', 'hinzu': 'add',
+  'entfernen': 'remove', 'entferne': 'remove',
+  'zurücksetzen': 'reset',
+  'geschichte': 'story',
+  'kämpfen': 'attack',
+  'feueranzünden': 'light',
+  'spazieren': 'go'
 };
 
 // Resolve i18n prose fields IN PLACE on STORY. Stores the original on STORY.__raw so we can
@@ -6546,7 +6642,7 @@ function refreshSidebar() {
   document.getElementById('mh-gold').textContent = player.gold;
   document.getElementById('mh-sparks').textContent = player.sparks;
   document.getElementById('mh-load').textContent = `${wt}/${cap}`;
-  document.getElementById('mh-room').textContent = player.rooms[player.location].name;
+  document.getElementById('mh-room').textContent = t(player.rooms[player.location].name);
   const nameEl = document.getElementById('player-name');
   if (nameEl) {
     const t = playerTitle();
@@ -7000,6 +7096,36 @@ function handleRemoteCarve(event) {
 }
 
 // 4.5 — handle remote combat events (open / damage / end)
+// 4.5 — list combat sessions in a room that are still "fresh" enough to advertise.
+// A session goes stale when it hasn't seen a damage event in 10 minutes (player
+// fled, died offline, lost connection). Also dedupes by opener so one player
+// shows up at most once. Returns array of session objects (newest first).
+const COMBAT_STALE_MS = 10 * 60 * 1000;
+function freshCombatsForRoom(roomId, excludeSelf = false) {
+  const now = Date.now();
+  const live = [];
+  for (const s of combatSessions.values()) {
+    if (s.ended) continue;
+    if (s.room_id !== roomId) continue;
+    if (excludeSelf && s.opener_pubkey === pk) continue;
+    const lastActivity = s.last_activity_at || s.started_at || 0;
+    if (now - lastActivity > COMBAT_STALE_MS) continue;
+    live.push(s);
+  }
+  // Dedupe by opener — keep the most recent session per opener
+  const byOpener = new Map();
+  for (const s of live) {
+    const key = s.opener_pubkey;
+    const cur = byOpener.get(key);
+    if (!cur || (s.last_activity_at || s.started_at || 0) > (cur.last_activity_at || cur.started_at || 0)) {
+      byOpener.set(key, s);
+    }
+  }
+  return [...byOpener.values()].sort((a, b) =>
+    (b.last_activity_at || b.started_at || 0) - (a.last_activity_at || a.started_at || 0)
+  );
+}
+
 function handleRemoteCombat(event) {
   const phase = event.tags.find(t => t[0] === 'phase')?.[1];
   const combat_id = event.tags.find(t => t[0] === 'combat')?.[1];
@@ -7008,6 +7134,15 @@ function handleRemoteCombat(event) {
 
   if (phase === 'open') {
     if (combatSessions.has(combat_id)) return; // dedupe
+    // When this opener already has a recent (still-fresh) session in another room,
+    // mark the older one as ended — a player can only be in one combat at a time.
+    for (const [otherId, otherSess] of combatSessions) {
+      if (otherId === combat_id) continue;
+      if (otherSess.ended) continue;
+      if (otherSess.opener_pubkey === event.pubkey) {
+        otherSess.ended = true;
+      }
+    }
     const sess = {
       entity_id: p.entity_id,
       room_id: p.room_id,
@@ -7016,6 +7151,7 @@ function handleRemoteCombat(event) {
       opener_name: p.opener_name || '',
       participants: new Set([event.pubkey]),
       started_at: event.created_at * 1000,
+      last_activity_at: event.created_at * 1000,
       ended: false
     };
     combatSessions.set(combat_id, sess);
@@ -7023,7 +7159,7 @@ function handleRemoteCombat(event) {
     if (sess.room_id === player.location && event.pubkey !== pk) {
       const ent = STORY.entities[sess.entity_id];
       const name = sess.opener_name || event.pubkey.slice(0, 8) + '…';
-      write(`[${name} engages a ${ent?.display || sess.entity_id} here. "assist" to join.]`, 'combat');
+      write(T('[{0} engages a {1} here. "assist" to join.]', name, ent?.display || sess.entity_id), 'combat');
     }
   } else if (phase === 'damage') {
     let sess = combatSessions.get(combat_id);
@@ -7034,10 +7170,13 @@ function handleRemoteCombat(event) {
         hp: p.hp_after, max_hp: p.hp_after,
         opener_pubkey: event.pubkey, opener_name: '',
         participants: new Set([event.pubkey]),
-        started_at: event.created_at * 1000, ended: false
+        started_at: event.created_at * 1000,
+        last_activity_at: event.created_at * 1000,
+        ended: false
       };
       combatSessions.set(combat_id, sess);
     }
+    sess.last_activity_at = Math.max(sess.last_activity_at || 0, event.created_at * 1000);
     sess.hp = Math.min(sess.hp, p.hp_after ?? sess.hp);
     sess.participants.add(event.pubkey);
     // If WE'RE in this combat, mirror the HP onto our local target
@@ -7122,11 +7261,11 @@ function handleRemoteAction(event) {
   const who = displayName(event.pubkey, p);
   addToFeed('worldFeed', `${who}  ${formatActionSummary(action, p)}`, event.id.slice(0, 8));
   if (action === 'move' && p.to === player.location)
-    write(`[network] ${who} enters ${player.rooms[p.to].name}.`, 'system');
+    write(T('[network] {0} enters {1}.', who, t(player.rooms[p.to].name)), 'system');
   if (action === 'whisper' && p.location === player.location)
     write(`[${who}] "${p.text}"`, 'whisper');
   if (action === 'died' && p.location === player.location)
-    write(`[network] ${who} died here. Look for their corpse with "corpses".`, 'system');
+    write(T('[network] {0} died here. Look for their corpse with "corpses".', who), 'system');
 }
 function handleRemoteListing(event) {
   const lid = event.tags.find(t => t[0] === 'listing')?.[1];
@@ -7478,7 +7617,7 @@ function handleDeath(cause) {
   for (const it of Object.values(player.equipment)) droppedItems.push({ item: it, qty: 1 });
   if (droppedItems.length) {
     publishItemDrop(droppedItems, cause);
-    write(`Your possessions remain in ${player.rooms[player.location].name}.`, 'error');
+    write(T('Your possessions remain in {0}.', t(player.rooms[player.location].name)), 'error');
   }
   publishAction('died', { location: player.location, cause });
   player.stats.deaths++;
@@ -7488,7 +7627,7 @@ function handleDeath(cause) {
   player.life = Math.floor(player.life_max / 2);
   player.combat_target = null;
   player.location = STORY.meta.starting_location;
-  write(`You wake at ${player.rooms[player.location].name}, lighter and aching. (${player.life}/${player.life_max} life)`, 'system');
+  write(T('You wake at {0}, lighter and aching. ({1}/{2} life)', t(player.rooms[player.location].name), player.life, player.life_max), 'system');
   describeRoom();
   refreshSidebar();
 }
@@ -7546,10 +7685,13 @@ function describeRoom() {
   if (noticeCount > 0) write(T('A bulletin board holds {0} note{1}. Use "notices".', noticeCount, noticeCount === 1 ? '' : 's'), 'system');
   // Carvings here (4.11)
   describeCarvingsHere();
-  // 4.5: active combats here that we're not in — players can "assist"
-  const activeCombatsHere = [...combatSessions.values()].filter(s =>
-    !s.ended && s.room_id === player.location && s.opener_pubkey !== pk
-  );
+  // 4.5: active combats here that we're not in — players can "assist".
+  // Stale-session guard: a player who fled or disconnected leaves their
+  // 'open' broadcast in our local Map forever. We treat sessions as stale
+  // after 10 minutes of inactivity, and only show the most recent combat
+  // per opener (so one disconnected player can't fill the room with
+  // phantom hunts).
+  const activeCombatsHere = freshCombatsForRoom(player.location, /*excludeSelf*/ true);
   if (activeCombatsHere.length) {
     for (const s of activeCombatsHere) {
       const ent = STORY.entities[s.entity_id];
@@ -7592,12 +7734,12 @@ function take(arg) {
   const room = player.rooms[player.location];
   if (!room.items?.length) { write('There is nothing to take.', 'error'); return; }
   const idx = findItemIn(room.items, arg);
-  if (idx === -1) { write(`You don't see "${arg}" here.`, 'error'); return; }
+  if (idx === -1) { write(T('You don\'t see "{0}" here.', arg), 'error'); return; }
   const item = room.items[idx];
   if (!canCarry(item, 1)) { write(`Too heavy. You can carry ${computeMaxCapacity() - computeWeight()} more weight; this needs ${STORY.items[item].weight}.`, 'error'); return; }
   room.items.splice(idx, 1);
   addItem(item, 1);
-  write(`You take ${itemDisplay(item, true)}.`);
+  write(T('You take {0}.', itemDisplay(item, true)));
   publishAction('take', { item, location: player.location });
 }
 
@@ -7678,7 +7820,7 @@ function showInventory() {
 }
 
 function showStatus() {
-  write(T('Location: {0}', player.rooms[player.location].name));
+  write(T('Location: {0}', t(player.rooms[player.location].name)));
   write(T('Life: {0}/{1}  ·  Gold: {2}  ·  Sparks: {3}  ·  Load: {4}/{5}  ·  Turn: {6}',
     Math.floor(player.life), computeMaxLife(), player.gold, player.sparks,
     Math.round(computeWeight()*10)/10, computeMaxCapacity(), player.turn));
@@ -7939,12 +8081,16 @@ function hunt() {
   // 4.5: open a shared combat session so others in the room can assist
   const combat_id = uuid();
   player.combat_id = combat_id;
+  // End any prior un-ended sessions we opened (we can only fight one thing at a time).
+  for (const [otherId, otherSess] of combatSessions) {
+    if (otherSess.opener_pubkey === pk && !otherSess.ended) otherSess.ended = true;
+  }
   combatSessions.set(combat_id, {
     entity_id: pick.entity, room_id: player.location,
     hp: ent.hp, max_hp: ent.hp,
     opener_pubkey: pk, opener_name: player.name,
     participants: new Set([pk]),
-    started_at: Date.now(), ended: false
+    started_at: Date.now(), last_activity_at: Date.now(), ended: false
   });
   publishCombat('open', {
     combat_id, entity_id: pick.entity, room_id: player.location,
@@ -7959,31 +8105,36 @@ function hunt() {
 // `target` may be the opener's name, npub, or empty (auto-pick if only one available).
 function assist(target) {
   if (combatBlock('assist')) return;
-  if (inCombat()) { write('You are already in a fight.', 'error'); return; }
-  // Eligible: not ours, in this room, not ended
-  const eligible = [...combatSessions.entries()]
-    .filter(([_, s]) => !s.ended && s.room_id === player.location && s.opener_pubkey !== pk)
-    .map(([cid, s]) => [cid, s]);
+  if (inCombat()) { write(T('You are already in a fight.'), 'error'); return; }
+  // Use the freshness filter — skips stale sessions and dedupes by opener
+  // so a disconnected player can't expose 6 phantom combats here.
+  const fresh = freshCombatsForRoom(player.location, /*excludeSelf*/ true);
+  // Map back to [combat_id, session] so we can pick the right id when joining
+  const idByOpener = new Map();
+  for (const [cid, s] of combatSessions) {
+    if (fresh.includes(s)) idByOpener.set(s.opener_pubkey, cid);
+  }
+  const eligible = fresh.map(s => [idByOpener.get(s.opener_pubkey), s]).filter(([cid]) => cid);
   if (eligible.length === 0) {
-    write('No combat to assist with here. (When another player runs "hunt" in this room, you\'ll see them.)', 'error');
+    write(T('No combat to assist with here. (When another player runs "hunt" in this room, you\'ll see them.)'), 'error');
     return;
   }
   let picked = null;
   if (target && target.trim()) {
-    const t = target.toLowerCase().trim();
+    const t2 = target.toLowerCase().trim();
     picked = eligible.find(([_, s]) =>
-      (s.opener_name && s.opener_name.toLowerCase().includes(t)) ||
-      s.opener_pubkey.startsWith(t) ||
-      s.opener_pubkey === t
+      (s.opener_name && s.opener_name.toLowerCase().includes(t2)) ||
+      s.opener_pubkey.startsWith(t2) ||
+      s.opener_pubkey === t2
     );
     if (!picked) {
-      write(`No combat by "${target}" here. Currently fighting: ${eligible.map(([_,s]) => s.opener_name || s.opener_pubkey.slice(0,8)+'…').join(', ')}.`, 'error');
+      write(T('No combat by "{0}" here. Currently fighting: {1}.', target, eligible.map(([_,s]) => s.opener_name || s.opener_pubkey.slice(0,8)+'…').join(', ')), 'error');
       return;
     }
   } else if (eligible.length === 1) {
     picked = eligible[0];
   } else {
-    write(`Multiple combats here. Specify: ${eligible.map(([_,s]) => s.opener_name || s.opener_pubkey.slice(0,8)+'…').join(', ')}.`, 'error');
+    write(T('Multiple combats here. Specify: {0}.', eligible.map(([_,s]) => s.opener_name || s.opener_pubkey.slice(0,8)+'…').join(', ')), 'error');
     return;
   }
   const [combat_id, sess] = picked;
@@ -8704,43 +8855,43 @@ function tameAttempt() {
       attack_min: 2, attack_max: 5
     };
     player.combat_target = null;
-    write(`The ${t.display} sniffs the meat, hesitates, and lowers its hackles. It follows you now.`, 'success');
-    write(`(Type "companion" any time to check on it. Feed it raw meat every ${HUNGER_DAYS} days or it'll go wild.)`, 'system');
+    write(T('The {0} sniffs the meat, hesitates, and lowers its hackles. It follows you now.', t.display), 'success');
+    write(T('(Type "companion" any time to check on it. Feed it raw meat every {0} days or it\'ll go wild.)', HUNGER_DAYS), 'system');
     publishAction('tamed', { entity: t.id });
   } else {
-    write(`The ${t.display} snatches the meat and lunges anyway.`, 'error');
+    write(T('The {0} snatches the meat and lunges anyway.', t.display), 'error');
     // Counter-attack
     const enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
     player.life -= enemyDmg;
-    write(`The ${t.display} bites you for ${enemyDmg} damage.`, 'error');
+    write(T('The {0} bites you for {1} damage.', t.display, enemyDmg), 'error');
     if (player.life <= 0) handleDeath(`mauled by ${t.display} (taming failed)`);
   }
 }
 function feedCompanion() {
-  if (!player.companion) { write('No companion to feed.', 'error'); return; }
+  if (!player.companion) { write(T('No companion to feed.'), 'error'); return; }
   const meatIdx = findItemIn(player.inventory, 'raw_meat');
   const matMeat = (player.materials.raw_meat || 0) > 0;
-  if (meatIdx === -1 && !matMeat) { write('No raw meat to give.', 'error'); return; }
+  if (meatIdx === -1 && !matMeat) { write(T('No raw meat to give.'), 'error'); return; }
   removeFromInventoryOrMaterials('raw_meat', 1);
   player.companion.last_fed_turn = player.turn;
   // Some healing too
   player.companion.hp = Math.min(player.companion.max_hp, player.companion.hp + 5);
-  write(`Your ${STORY.entities[player.companion.entity].display} eats. Looks at you with loyal eyes.`, 'success');
+  write(T('Your {0} eats. Looks at you with loyal eyes.', STORY.entities[player.companion.entity].display), 'success');
 }
 function showCompanion() {
-  if (!player.companion) { write('You travel alone.'); return; }
+  if (!player.companion) { write(T('You travel alone.')); return; }
   const c = player.companion;
   const daysSinceFed = (player.turn - c.last_fed_turn) / (STORY.meta.turns_per_day || 96);
-  let mood = 'content';
-  if (daysSinceFed >= HUNGER_DAYS) mood = 'hungry — feed it soon';
-  else if (daysSinceFed >= HUNGER_DAYS * 0.66) mood = 'getting hungry';
-  write(`Companion: ${STORY.entities[c.entity].display}  ·  hp ${c.hp}/${c.max_hp}  ·  ${mood} (fed ${daysSinceFed.toFixed(1)} days ago)`);
+  let mood = T('content');
+  if (daysSinceFed >= HUNGER_DAYS) mood = T('hungry — feed it soon');
+  else if (daysSinceFed >= HUNGER_DAYS * 0.66) mood = T('getting hungry');
+  write(T('Companion: {0}  ·  hp {1}/{2}  ·  {3} (fed {4} days ago)', STORY.entities[c.entity].display, c.hp, c.max_hp, mood, daysSinceFed.toFixed(1)));
 }
 function dismissCompanion() {
-  if (!player.companion) { write('No companion.', 'error'); return; }
+  if (!player.companion) { write(T('No companion.'), 'error'); return; }
   const name = STORY.entities[player.companion.entity].display;
   player.companion = null;
-  write(`You release your ${name}. It looks at you once and is gone into the trees.`, 'system');
+  write(T('You release your {0}. It looks at you once and is gone into the trees.', name), 'system');
   publishAction('dismissed', { entity: name });
 }
 function checkCompanionHunger() {
@@ -8750,7 +8901,7 @@ function checkCompanionHunger() {
     // Turn wild
     const c = player.companion;
     const ent = STORY.entities[c.entity];
-    write(`Your ${ent.display} has gone too long without food. It bares its teeth and circles. It is no longer yours.`, 'error');
+    write(T('Your {0} has gone too long without food. It bares its teeth and circles. It is no longer yours.', ent.display), 'error');
     player.combat_target = { id: c.entity, ...structuredClone(ent), hp: c.hp };
     player.companion = null;
   }
@@ -8887,14 +9038,14 @@ function placeChest() {
   if (player.chests.has(player.location)) { write('You already have a chest here.', 'error'); return; }
   player.inventory.splice(idx, 1);
   player.chests.set(player.location, { items: [], materials: {} });
-  write(`You place a chest in ${player.rooms[player.location].name}. Items stored here don't count toward your carry weight.`, 'success');
+  write(T('You place a chest in {0}. Items stored here don\'t count toward your carry weight.', t(player.rooms[player.location].name)), 'success');
   publishAction('placed_chest', { location: player.location });
 }
 
 function showChest() {
   const chest = player.chests.get(player.location);
   if (!chest) { write('No chest here. (Try "place chest" if you have one.)', 'error'); return; }
-  write(`-- chest in ${player.rooms[player.location].name} --`, 'system');
+  write(T('-- chest in {0} --', t(player.rooms[player.location].name)), 'system');
   if (chest.items.length === 0 && Object.values(chest.materials).every(q => q === 0))
     write('  (empty)');
   if (chest.items.length) {
@@ -9313,7 +9464,7 @@ function showNotices() {
   }
   if (localNotices.length === 0) { write('No notices here.'); return; }
   localNotices.sort((a, b) => b.posted_at - a.posted_at);
-  write(`-- Notices in ${player.rooms[player.location].name} --`, 'system');
+  write(T('-- Notices in {0} --', t(player.rooms[player.location].name)), 'system');
   for (const n of localNotices.slice(0, 10)) {
     const ago = Math.round((Date.now() - n.posted_at) / 60000);
     const author = n.name || n.author.slice(0, 8) + '…';
