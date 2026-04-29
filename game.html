@@ -5843,6 +5843,41 @@ function tDisp(kind, id) {
   return t(obj.display) || id;
 }
 
+// Map of EN command name → DE display word used in narration text. The actual
+// engine commands are still EN (the dispatch keys), but the displayed quoted
+// hints in DE narration ("Versuche \"jagen\"") use the natural German verb that
+// the player would type via COMMAND_ALIASES.
+const CMD_DE_DISPLAY = {
+  hunt: 'jagen', assist: 'helfe', attack: 'angreife', flee: 'fliehe',
+  chop: 'hacken', forage: 'sammeln', gather: 'sammeln', mine: 'schürfen', fish: 'angeln',
+  take: 'nimm', drop: 'lege ab', bury: 'vergrabe',
+  eat: 'iss', drink: 'trinke', sleep: 'schlafe', rest: 'ruhe',
+  light: 'feuer machen',
+  wear: 'anziehen', unwear: 'ausziehen',
+  craft: 'fertige', recipes: 'rezepte', skills: 'fertigkeiten', learn: 'lerne',
+  talk: 'sprich', answer: 'antworte', say: 'sage', whisper: 'flüstere',
+  buy: 'kaufe', sell: 'verkaufe', market: 'markt', listings: 'angebote',
+  give: 'verschenke', claim: 'einsammeln', decline: 'verweigern', heal: 'heile',
+  pin: 'anschlagen', notices: 'aushänge', board: 'tafel',
+  carve: 'ritze', carvings: 'inschriften',
+  corpses: 'leichen', loot: 'plündere',
+  tame: 'zähme', feed: 'füttere', companion: 'gefährte', dismiss: 'entlasse',
+  quests: 'aufträge', stats: 'werte', achievements: 'erfolge',
+  accept: 'annehmen', 'turn in': 'abgeben',
+  rename: 'umbenennen', soul: 'seele', who: 'wer',
+  switch: 'wechsle', stories: 'geschichten',
+  map: 'karte', look: 'schauen',
+  inv: 'inventar', inventory: 'inventar', status: 'status',
+  help: 'hilfe', clear: 'leeren', lang: 'sprache',
+  messages: 'nachrichten', inbox: 'posteingang',
+  sharpen: 'schärfen', repair: 'reparieren',
+  chest: 'truhe', store: 'einlagern', retrieve: 'entnehmen', place: 'aufstellen'
+};
+function cmdT(cmd) {
+  if (currentLang() === 'de' && CMD_DE_DISPLAY[cmd]) return CMD_DE_DISPLAY[cmd];
+  return cmd;
+}
+
 // ============================================================
 //  ENGINE CHROME i18n (option 5.2)
 // ============================================================
@@ -5860,20 +5895,20 @@ const CHROME_STRINGS = {
   'You see: {0}': { de: 'Du siehst: {0}' },
   'Here: {0}': { de: 'Hier: {0}' },
   'Gatherable: {0}': { de: 'Sammelbar: {0}' },
-  'Tracks here suggest {0}. Try "hunt".': { de: 'Spuren deuten auf {0} hin. Versuche „hunt".' },
-  'Fresh water here. Try "drink".': { de: 'Frisches Wasser hier. Versuche „drink".' },
-  'Your chest sits here. Try "chest", "store <x>", "retrieve <x>".': { de: 'Deine Truhe steht hier. Versuche „chest", „store <x>", „retrieve <x>".' },
+  'Tracks here suggest {0}. Try "hunt".': { de: 'Spuren deuten auf {0} hin. Versuche „jagen".' },
+  'Fresh water here. Try "drink".': { de: 'Frisches Wasser hier. Versuche „trinke".' },
+  'Your chest sits here. Try "chest", "store <x>", "retrieve <x>".': { de: 'Deine Truhe steht hier. Versuche „truhe", „einlagern <x>", „entnehmen <x>".' },
   'Other travelers: {0}': { de: 'Andere Reisende: {0}' },
-  'Dropped here: {0} cache{1}. Use "corpses".': { de: 'Hier abgelegt: {0} Lager{1}. Nutze „corpses".' },
-  'A bulletin board holds {0} note{1}. Use "notices".': { de: 'Ein Anschlagbrett trägt {0} Nachricht{1}. Nutze „notices".' },
+  'Dropped here: {0} cache{1}. Use "corpses".': { de: 'Hier abgelegt: {0} Lager{1}. Nutze „leichen".' },
+  'A bulletin board holds {0} note{1}. Use "notices".': { de: 'Ein Anschlagbrett trägt {0} Nachricht{1}. Nutze „aushänge".' },
   'There is a carving here: "{0}" — {1}': { de: 'Hier ist eine Inschrift: „{0}" — {1}' },
-  'Carvings on the walls and stones here ({0}). Type "carvings" to read.': { de: 'Inschriften auf Wänden und Steinen hier ({0}). Tippe „carvings" zum Lesen.' },
+  'Carvings on the walls and stones here ({0}). Type "carvings" to read.': { de: 'Inschriften auf Wänden und Steinen hier ({0}). Tippe „inschriften" zum Lesen.' },
   'Exits: {0}': { de: 'Ausgänge: {0}' },
   '(You have already solved the riddle here.)': { de: '(Du hast das Rätsel hier bereits gelöst.)' },
   'A voice asks: "{0}"': { de: 'Eine Stimme fragt: „{0}"' },
-  '(Try "answer <text>" if you know it.)': { de: '(Versuche „answer <text>", wenn du es weißt.)' },
+  '(Try "answer <text>" if you know it.)': { de: '(Versuche „antworte <text>", wenn du es weißt.)' },
   'Your {0} pads alongside you ({1}/{2} hp).': { de: 'Dein {0} trottet an deiner Seite ({1}/{2} hp).' },
-  '>>> {0} is fighting a {1} here. Type "assist" to join.': { de: '>>> {0} kämpft hier gegen {1}. Tippe „assist" zum Helfen.' },
+  '>>> {0} is fighting a {1} here. Type "assist" to join.': { de: '>>> {0} kämpft hier gegen {1}. Tippe „helfe" zum Helfen.' },
 
   // --- inventory / items ---
   'You carry: {0}': { de: 'Du trägst: {0}' },
@@ -5898,7 +5933,7 @@ const CHROME_STRINGS = {
   'Life: {0}/{1}  ·  Gold: {2}  ·  Sparks: {3}  ·  Load: {4}/{5}  ·  Turn: {6}': { de: 'Leben: {0}/{1}  ·  Gold: {2}  ·  Funken: {3}  ·  Last: {4}/{5}  ·  Zug: {6}' },
   'Skills: {0}': { de: 'Fertigkeiten: {0}' },
   'none': { de: 'keine' },
-  'Companion: {0} ({1}/{2} hp). Type "companion" for status, "feed" for hunger.': { de: 'Gefährte: {0} ({1}/{2} hp). Tippe „companion" für Status, „feed" für Hunger.' },
+  'Companion: {0} ({1}/{2} hp). Type "companion" for status, "feed" for hunger.': { de: 'Gefährte: {0} ({1}/{2} hp). Tippe „gefährte" für Status, „füttere" für Hunger.' },
   'In combat with {0} ({1} HP).': { de: 'Im Kampf mit {0} ({1} HP).' },
   'You travel alone.': { de: 'Du reist allein.' },
   'You are {0}{1}.': { de: 'Du bist {0}{1}.' },
@@ -5910,7 +5945,7 @@ const CHROME_STRINGS = {
 
   // --- combat ---
   'You move quietly. A {0} steps into view.': { de: 'Du bewegst dich leise. Ein {0} tritt ins Sichtfeld.' },
-  'Type "attack" to engage, "flee" to back off. Other players here can "assist" you.': { de: 'Tippe „attack" zum Angriff, „flee" zum Rückzug. Andere Spieler hier können dir mit „assist" helfen.' },
+  'Type "attack" to engage, "flee" to back off. Other players here can "assist" you.': { de: 'Tippe „angreife" zum Angriff, „fliehe" zum Rückzug. Andere Spieler hier können dir mit „helfe" beistehen.' },
   'You miss the {0}.': { de: 'Du verfehlst {0}.' },
   'You strike the {0} for {1} damage{2}. ({3} HP left)': { de: 'Du triffst {0} für {1} Schaden{2}. ({3} HP verbleiben)' },
   ' (effective)': { de: ' (wirkungsvoll)' },
@@ -5938,6 +5973,8 @@ const CHROME_STRINGS = {
   'Wait {0}s.':              { de: 'Warte {0}s.' },
   'Too heavy to carry the {0}.': { de: 'Zu schwer, um {0} zu tragen.' },
   ' (rain reduces the catch)': { de: ' (Regen vermindert den Ertrag)' },
+  'tier {0}': { de: 'Stufe {0}' },
+  '-- Tier {0} --': { de: '-- Stufe {0} --' },
   'The {0} bites you for {1} damage. ({2}/{3} life)': { de: '{0} beißt dich für {1} Schaden. ({2}/{3} Leben)' },
   'There is nothing to attack.': { de: 'Nichts zum Angreifen hier.' },
   'There is nothing to flee from.': { de: 'Nichts zum Fliehen hier.' },
@@ -5946,9 +5983,9 @@ const CHROME_STRINGS = {
   'You need the Hunting skill to hunt.': { de: 'Du brauchst die Fertigkeit Jagd zum Jagen.' },
   'There is nothing to hunt here.': { de: 'Hier gibt es nichts zu jagen.' },
   'You join the fight against the {0}! ({1}/{2} hp)': { de: 'Du trittst dem Kampf gegen {0} bei! ({1}/{2} hp)' },
-  'Type "attack" to strike. The kill is shared; drops go to whoever lands the killing blow.': { de: 'Tippe „attack" zum Schlag. Der Tötungserfolg wird geteilt; Beute geht an den, der den tödlichen Hieb landet.' },
-  'No combat to assist with here. (When another player runs "hunt" in this room, you\'ll see them.)': { de: 'Kein Kampf zum Helfen hier. (Wenn ein anderer Spieler in diesem Raum „hunt" eingibt, siehst du ihn.)' },
-  '[{0} engages a {1} here. "assist" to join.]': { de: '[{0} greift hier {1} an. „assist" zum Helfen.]' },
+  'Type "attack" to strike. The kill is shared; drops go to whoever lands the killing blow.': { de: 'Tippe „angreife" zum Schlag. Der Tötungserfolg wird geteilt; Beute geht an den, der den tödlichen Hieb landet.' },
+  'No combat to assist with here. (When another player runs "hunt" in this room, you\'ll see them.)': { de: 'Kein Kampf zum Helfen hier. (Wenn ein anderer Spieler in diesem Raum „jagen" eingibt, siehst du ihn.)' },
+  '[{0} engages a {1} here. "assist" to join.]': { de: '[{0} greift hier {1} an. „helfe" zum Helfen.]' },
   '[network] {0} enters {1}.': { de: '[Netz] {0} betritt {1}.' },
   '[network] {0} died here. Look for their corpse with "corpses".': { de: '[Netz] {0} starb hier. Suche die Leiche mit „corpses".' },
   'You are already in a fight.': { de: 'Du bist bereits in einem Kampf.' },
@@ -5963,7 +6000,7 @@ const CHROME_STRINGS = {
   'Your {0} eats. Looks at you with loyal eyes.': { de: 'Dein {0} frisst. Schaut dich mit treuen Augen an.' },
   'Your {0} has gone too long without food. It bares its teeth and circles. It is no longer yours.': { de: 'Dein {0} hat zu lange ohne Futter ausharren müssen. Er fletscht die Zähne und kreist. Er gehört dir nicht mehr.' },
   'The {0} sniffs the meat, hesitates, and lowers its hackles. It follows you now.': { de: '{0} schnuppert am Fleisch, zögert und senkt die Nackenhaare. Er folgt dir nun.' },
-  '(Type "companion" any time to check on it. Feed it raw meat every {0} days or it\'ll go wild.)': { de: '(Tippe „companion" für seinen Zustand. Füttere ihn alle {0} Tage mit rohem Fleisch, sonst wird er wild.)' },
+  '(Type "companion" any time to check on it. Feed it raw meat every {0} days or it\'ll go wild.)': { de: '(Tippe „gefährte" für seinen Zustand. Füttere ihn alle {0} Tage mit rohem Fleisch, sonst wird er wild.)' },
   'The {0} snatches the meat and lunges anyway.': { de: '{0} schnappt das Fleisch und stürmt dennoch los.' },
   'The {0} bites you for {1} damage.': { de: '{0} beißt dich für {1} Schaden.' },
   'hungry — feed it soon': { de: 'hungrig — bald füttern' },
@@ -5982,7 +6019,7 @@ const CHROME_STRINGS = {
   '(+{0} sparks for {1} craft{2})': { de: '(+{0} Funken für {1} Fertigung{2})' },
   'No such recipe "{0}".': { de: 'Kein Rezept namens „{0}".' },
   'You need {0}.': { de: 'Du brauchst {0}.' },
-  'You need an active fire here. Try "light fire".': { de: 'Hier braucht es ein brennendes Feuer. Versuche „light fire".' },
+  'You need an active fire here. Try "light fire".': { de: 'Hier braucht es ein brennendes Feuer. Versuche „feuer machen".' },
   'Not enough {0} (need {1}, have {2}).': { de: 'Nicht genug {0} (gebraucht {1}, vorhanden {2}).' },
   'Not enough {0} for {1}× {2} (need {3}, have {4}).': { de: 'Nicht genug {0} für {1}× {2} (gebraucht {3}, vorhanden {4}).' },
   'Craft what? Usage: craft <recipe>  or  craft <qty> <recipe>': { de: 'Was fertigen? Verwendung: craft <Rezept>  oder  craft <Menge> <Rezept>' },
@@ -6740,7 +6777,7 @@ function refreshSidebar() {
   else for (const sid of player.skills) {
     const sk = STORY.skills[sid];
     const row = document.createElement('div'); row.className = 'skl';
-    row.innerHTML = `<span class="name">${sk.display}</span><span class="cost">tier ${sk.tier}</span>`;
+    row.innerHTML = `<span class="name">${sk.display}</span><span class="cost">${T('tier {0}', sk.tier)}</span>`;
     sklEl.appendChild(row);
   }
 }
@@ -7682,7 +7719,7 @@ function describeRoom() {
   if (room.npcs?.length)
     write(T('Here: {0}', room.npcs.map(n => t(STORY.npcs[n].display)).join(', ')), 'items');
   if (room.resources?.length) {
-    const verbs = room.resources.map(r => `${r.verb} (${itemDisplay(r.id)})`).join(', ');
+    const verbs = room.resources.map(r => `${cmdT(r.verb)} (${itemDisplay(r.id)})`).join(', ');
     write(T('Gatherable: {0}', verbs), 'items');
   }
   if (room.spawn_table?.length)
@@ -7867,7 +7904,7 @@ function showSkills() {
   const tiers = {};
   for (const [id, sk] of Object.entries(STORY.skills)) (tiers[sk.tier || 1] ||= []).push([id, sk]);
   for (const t of Object.keys(tiers).sort()) {
-    write(`-- Tier ${t} --`, 'system');
+    write(T('-- Tier {0} --', t), 'system');
     for (const [id, sk] of tiers[t]) {
       const known = player.skills.has(id);
       const reqs = (sk.prereqs || []).filter(p => !player.skills.has(p));
