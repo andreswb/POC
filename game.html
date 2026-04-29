@@ -73,6 +73,12 @@
   .skill-list .skl .name { color: var(--green); }
   .mat-list .row { display: flex; justify-content: space-between; padding: 1px 0; }
   .mat-list .row .qty { color: var(--gold); }
+  .mat-list .eq-row { display: flex; gap: 6px; padding: 1px 0; }
+  .map-wrap { background: var(--panel-2); border-radius: 4px; padding: 10px; margin: 8px 0; overflow-x: auto; max-width: 100%; }
+  .map-pre { white-space: pre; margin: 0; font-family: inherit; font-size: 12px; line-height: 1.2; color: var(--text); }
+  @media (max-width: 760px) {
+    .map-pre { font-size: 11px; }
+  }
 
   /* ---------------- MOBILE HEADER (hidden on desktop) ---------------- */
   #mobile-header { display: none; }
@@ -150,7 +156,11 @@
     <div id="output"></div>
     <div id="prompt-row">
       <span class="prompt">&gt;</span>
-      <input id="cmd" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+      <input id="cmd" type="text" name="cmd"
+        autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+        inputmode="text" enterkeyhint="send"
+        data-form-type="other" data-1p-ignore="true" data-lpignore="true"
+        aria-autocomplete="none" />
     </div>
   </div>
   <div id="drawer-backdrop"></div>
@@ -168,6 +178,10 @@
       <div class="kv"><span class="k"><span class="g">✨</span> sparks</span><span class="v spark" id="sparks">0</span></div>
       <div class="kv"><span class="k"><span class="g">📦</span> load</span><span class="v load" id="load">0/40</span></div>
       <div class="kv"><span class="k">turn</span><span class="v" id="turn">0</span></div>
+    </section>
+    <section>
+      <h3>Equipment</h3>
+      <div class="mat-list" id="equipment"></div>
     </section>
     <section>
       <h3>Materials</h3>
@@ -212,8 +226,8 @@ const STORY = {
   rooms: {
     forest_clearing: {
       name: 'A Clearing in the Forest',
-      summary: 'A small clearing ringed by pines. Old moss-covered stones in the center. Paths wind north into deeper forest, east toward a canyon, and south to a village.',
-      exits: { north: 'deep_forest', east: 'red_canyon', south: 'greenmeadow_village' },
+      summary: 'A small clearing ringed by pines. Old moss-covered stones in the center. Paths wind north into deeper forest, east toward a canyon, south to a village, and west toward a quiet glade.',
+      exits: { north: 'deep_forest', east: 'red_canyon', south: 'greenmeadow_village', west: 'hermits_glade' },
       items: ['rusty_dagger'], npcs: [], riddle: null,
       resources: [{ id:'wood', skill:'woodcutting', verb:'chop', yield_qty:1, regenerates:true, regen_seconds:60 }],
       spawn_table: [{ entity:'deer', weight:2 }, { entity:'rabbit', weight:3 }],
@@ -231,8 +245,8 @@ const STORY = {
     },
     hilltop_ruins: {
       name: 'The Hilltop Ruins',
-      summary: 'Stone columns lean against an empty sky. An old altar at the center catches the wind, and the wind catches it back. A voice in the stones whispers a question.',
-      exits: { down: 'red_canyon' },
+      summary: 'Stone columns lean against an empty sky. An old altar at the center catches the wind, and the wind catches it back. A voice in the stones whispers a question. A narrow path leads north into a hillside opening.',
+      exits: { down: 'red_canyon', north: 'old_mine' },
       items: [], npcs: [], riddle: 'echo_riddle',
       resources: [{ id:'stone', skill:'stone_knapping', verb:'gather', yield_qty:2, regenerates:true, regen_seconds:50 }],
       spawn_table: [],
@@ -240,11 +254,41 @@ const STORY = {
     },
     riverside_camp: {
       name: 'Riverside Camp',
-      summary: 'A small camp by the river\'s bend. Drying racks of fish and meat. A trader\'s lean-to with a steady fire. The valley is to the west.',
-      exits: { west: 'quiet_valley' },
+      summary: 'A small camp by the river\'s bend. Drying racks of fish and meat. A trader\'s lean-to with a steady fire. The valley is to the west. A muddy track leads south into reeds.',
+      exits: { west: 'quiet_valley', south: 'salt_marsh' },
       items: [], npcs: ['riverside_trader'], riddle: null,
       resources: [], spawn_table: [],
       hazards: {}, drink_source: { restore_life: 5, cooldown_seconds: 60 }
+    },
+    hermits_glade: {
+      name: 'The Hermit\'s Glade',
+      summary: 'A quiet glade carpeted in fern. A hermit\'s small fire smokes near a wall of stones. The glade feels held outside time. The clearing is east.',
+      exits: { east: 'forest_clearing' },
+      items: [], npcs: ['hermit'], riddle: null,
+      resources: [{ id:'common_herb', skill:'foraging', verb:'forage', yield_qty:1, regenerates:true, regen_seconds:120 }],
+      spawn_table: [],
+      hazards: {}, drink_source: { restore_life: 4, cooldown_seconds: 90 }
+    },
+    old_mine: {
+      name: 'The Old Mine',
+      summary: 'A cool tunnel cut into the hillside. Faint hammer-marks on the walls. Stones glint with old veins of iron. Something at the back of the chamber asks a question of every visitor.',
+      exits: { south: 'hilltop_ruins' },
+      items: [], npcs: [], riddle: 'mine_riddle',
+      resources: [
+        { id:'stone',    skill:'stone_knapping', verb:'gather', yield_qty:2, regenerates:true, regen_seconds:40 },
+        { id:'iron_ore', skill:'stone_knapping', verb:'mine',   yield_qty:1, regenerates:true, regen_seconds:120 }
+      ],
+      spawn_table: [],
+      hazards: {}, drink_source: null
+    },
+    salt_marsh: {
+      name: 'The Salt Marsh',
+      summary: 'Shallow brackish water and tall reeds. The smell of salt and mud. Birds rise in clouds when you step. North leads back to the river camp.',
+      exits: { north: 'riverside_camp' },
+      items: [], npcs: [], riddle: 'marsh_riddle',
+      resources: [{ id:'marsh_reed', skill:'foraging', verb:'forage', yield_qty:2, regenerates:true, regen_seconds:60 }],
+      spawn_table: [{ entity:'rabbit', weight:2 }],
+      hazards: {}, drink_source: null
     },
     red_canyon: {
       name: 'The Red Canyon',
@@ -292,7 +336,10 @@ const STORY = {
     }
   },
   items: {
-    rusty_dagger:  { display:'rusty dagger',  article:'a',         value:5,  weight:2, category:'good',       stackable:false, tags:['weapon','metal'] },
+    rusty_dagger:  { display:'rusty dagger',  article:'a',         value:5,  weight:2, category:'good',       stackable:false, tags:['weapon','metal'], slot:'hand', effects:{attack_bonus:3} },
+    sharpened_dagger:{ display:'sharpened dagger', article:'a',    value:18, weight:2, category:'good',       stackable:false, tags:['weapon','metal','crafted'], slot:'hand', effects:{attack_bonus:5} },
+    broken_sword:  { display:'broken sword',  article:'a',         value:3,  weight:3, category:'good',       stackable:false, tags:['weapon','metal','broken'] },
+    sword:         { display:'fine sword',    article:'a',         value:80, weight:3, category:'good',       stackable:false, tags:['weapon','metal','crafted','rare'], slot:'hand', effects:{attack_bonus:10} },
     smooth_stone:  { display:'smooth stone',  article:'a',         value:1,  weight:1, category:'good',       stackable:false, tags:['trinket'] },
     silver_herb:   { display:'silver herb',   article:'a',         value:12, weight:1, category:'good',       stackable:false, tags:['herb','rare'] },
     wood:          { display:'wood log',      article:'a',         value:1,  weight:2, category:'resource',   stackable:true,  tags:['wood','raw'] },
@@ -302,15 +349,20 @@ const STORY = {
     stone_head:    { display:'stone head',    article:'a',         value:6,  weight:2, category:'good',       stackable:false, tags:['crafted','stone'] },
     simple_chest:  { display:'simple chest',  article:'a',         value:15, weight:6, category:'good',       stackable:false, tags:['crafted','container'] },
     healing_salve: { display:'healing salve', article:'a',         value:14, weight:1, category:'consumable', stackable:false, tags:['crafted','herb'], effects:{restore_life:25}, consumable_action:'eat' },
-    simple_axe:    { display:'simple axe',    article:'a',         value:25, weight:4, category:'tool',       stackable:false, tags:['crafted','tool','weapon'] },
+    simple_axe:    { display:'simple axe',    article:'a',         value:25, weight:4, category:'tool',       stackable:false, tags:['crafted','tool','weapon'], slot:'hand', effects:{attack_bonus:6} },
     raw_meat:      { display:'raw meat',      article:'some',      value:2,  weight:2, category:'resource',   stackable:true,  tags:['food','raw'],     effects:{restore_life:4},  consumable_action:'eat' },
     cooked_meat:   { display:'cooked meat',   article:'some',      value:6,  weight:1, category:'consumable', stackable:false, tags:['food','cooked'],  effects:{restore_life:10}, consumable_action:'eat' },
     smoked_meat:   { display:'smoked meat',   article:'some',      value:11, weight:1, category:'consumable', stackable:false, tags:['food','preserved'],effects:{restore_life:14}, consumable_action:'eat' },
     cured_meat:    { display:'cured meat',    article:'some',      value:16, weight:1, category:'consumable', stackable:false, tags:['food','preserved'],effects:{restore_life:18}, consumable_action:'eat' },
     hide:          { display:'hide',          article:'a',         value:3,  weight:3, category:'resource',   stackable:true,  tags:['leather','raw'] },
     leather:       { display:'leather',       article:'a',         value:8,  weight:2, category:'resource',   stackable:true,  tags:['leather','crafted'] },
-    shoes:         { display:'leather shoes', article:'a pair of', value:24, weight:1, category:'good',       stackable:false, tags:['crafted','equipment'] },
-    leather_pack:  { display:'leather pack',  article:'a',         value:30, weight:2, category:'tool',       stackable:false, tags:['crafted','equipment','container'], effects:{carry_capacity_bonus:15} }
+    shoes:         { display:'leather shoes', article:'a pair of', value:24, weight:1, category:'good',       stackable:false, tags:['crafted','equipment'], slot:'feet',  effects:{life_max_bonus:10} },
+    leather_hat:   { display:'leather hat',   article:'a',         value:14, weight:1, category:'good',       stackable:false, tags:['crafted','equipment'], slot:'head',  effects:{life_max_bonus:5} },
+    leather_clothes:{ display:'leather tunic',article:'a',         value:36, weight:2, category:'good',       stackable:false, tags:['crafted','equipment'], slot:'torso', effects:{life_max_bonus:15} },
+    leather_belt:  { display:'leather belt',  article:'a',         value:18, weight:1, category:'good',       stackable:false, tags:['crafted','equipment'], slot:'belt',  effects:{carry_capacity_bonus:10} },
+    leather_pack:  { display:'leather pack',  article:'a',         value:30, weight:2, category:'tool',       stackable:false, tags:['crafted','equipment','container'], effects:{carry_capacity_bonus:15} },
+    iron_ore:      { display:'iron ore',      article:'an',        value:4,  weight:2, category:'resource',   stackable:true,  tags:['ore','raw'] },
+    marsh_reed:    { display:'marsh reed',    article:'a',         value:2,  weight:1, category:'resource',   stackable:true,  tags:['herb','raw','rope'] }
   },
   npcs: {
     weathered_merchant: {
@@ -338,6 +390,19 @@ const STORY = {
         { item:'hide', price_gold:5, qty:2 },
         { item:'leather', price_gold:12, qty:1 }
       ]
+    },
+    hermit: {
+      display:'the hermit', location:'hermits_glade',
+      summary:'A small wiry person with kind, watchful eyes. Robes patched many times. Speaks slowly and looks at you a long time.',
+      dialogue_seeds: ['The forest brings what the forest brings.', 'Few wander this way. Fewer return.', 'I keep what I do not need for those who do.', 'The mine to the north is very old. The questions in there are older.'],
+      behaviors: ['buys_items','tells_rumors'],
+      buys_tags: ['herb','rare','crafted','ore'],
+      is_marketplace: true,
+      initial_stock: [
+        { item:'silver_herb',  price_gold:22, qty:1 },
+        { item:'healing_salve',price_gold:18, qty:1 },
+        { item:'leather_pack', price_gold:60, qty:1 }
+      ]
     }
   },
   riddles: {
@@ -357,6 +422,19 @@ const STORY = {
       prompt:'I speak without a mouth and hear without ears. I have nobody, but come alive with wind. What am I?',
       answers:['echo','an echo'], reward_sparks:70,
       on_solve_message:'The wind picks up. The columns hum once with your answer and let it go.', repeatable:false
+    },
+    mine_riddle: {
+      location:'old_mine',
+      prompt:'I am light as a feather, yet the strongest cannot hold me for long. What am I?',
+      answers:['breath','a breath'], reward_sparks:80,
+      reward_items:[{ item:'broken_sword', qty:1 }],
+      on_solve_message:'The stone walls seem to inhale once with you, then let go. A small vein of iron glints brighter — and at the floor, half-buried in dust, a broken sword.', repeatable:false
+    },
+    marsh_riddle: {
+      location:'salt_marsh',
+      prompt:'What is so fragile that saying its name breaks it?',
+      answers:['silence'], reward_sparks:90,
+      on_solve_message:'The marsh goes still. Even the birds hold for a moment. The reeds bow once toward you.', repeatable:false
     }
   },
   skills: {
@@ -374,21 +452,24 @@ const STORY = {
     toolmaking:     { display:'Toolmaking',     spark_cost:150, prereqs:['carpentry','masonry'], tier:3, unlocks:{verbs:[], recipes:['simple_axe']} },
     smoking:        { display:'Smoking',        spark_cost:100, prereqs:['cooking'],         tier:3, unlocks:{verbs:[], recipes:['smoke_meat']} },
     curing:         { display:'Curing',         spark_cost:100, prereqs:['cooking'],         tier:3, unlocks:{verbs:[], recipes:['cure_meat']} },
-    shoemaking:     { display:'Shoemaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['make_shoes']} },
-    packmaking:     { display:'Packmaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['leather_pack']} }
+    shoemaking:     { display:'Shoemaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['make_shoes','make_hat','make_clothes']} },
+    packmaking:     { display:'Packmaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['leather_pack','make_belt']} }
   },
   recipes: {
-    wooden_handle: { display:'Wooden handle', skill:'carpentry',  inputs:[{item:'wood',qty:1}],                                  outputs:[{item:'wooden_handle',qty:2}], requires_fire:false },
-    simple_chest:  { display:'Simple chest',  skill:'carpentry',  inputs:[{item:'wood',qty:4}],                                  outputs:[{item:'simple_chest',qty:1}],  requires_fire:false },
-    stone_head:    { display:'Stone head',    skill:'masonry',    inputs:[{item:'stone',qty:2}],                                 outputs:[{item:'stone_head',qty:1}],    requires_fire:false },
-    healing_salve: { display:'Healing salve', skill:'herbalism',  inputs:[{item:'common_herb',qty:3}],                           outputs:[{item:'healing_salve',qty:1}], requires_fire:false },
-    simple_axe:    { display:'Simple axe',    skill:'toolmaking', inputs:[{item:'wooden_handle',qty:1},{item:'stone_head',qty:1}], outputs:[{item:'simple_axe',qty:1}],   requires_fire:false },
-    cook_meat:     { display:'Cooked meat',   skill:'cooking',    inputs:[{item:'raw_meat',qty:1}],                              outputs:[{item:'cooked_meat',qty:1}],   requires_fire:true  },
-    smoke_meat:    { display:'Smoked meat',   skill:'smoking',    inputs:[{item:'raw_meat',qty:2}],                              outputs:[{item:'smoked_meat',qty:1}],   requires_fire:true  },
-    cure_meat:     { display:'Cured meat',    skill:'curing',     inputs:[{item:'raw_meat',qty:2}],                              outputs:[{item:'cured_meat',qty:1}],    requires_fire:true  },
-    tan_hide:      { display:'Tanned leather',skill:'tanning',    inputs:[{item:'hide',qty:1}],                                  outputs:[{item:'leather',qty:2}],       requires_fire:true  },
-    make_shoes:    { display:'Leather shoes', skill:'shoemaking', inputs:[{item:'leather',qty:2}],                               outputs:[{item:'shoes',qty:1}],         requires_fire:false },
-    leather_pack:  { display:'Leather pack',  skill:'packmaking', inputs:[{item:'leather',qty:3}],                               outputs:[{item:'leather_pack',qty:1}],  requires_fire:false }
+    wooden_handle: { display:'Wooden handle', skill:'carpentry',  inputs:[{item:'wood',qty:1}],                                  outputs:[{item:'wooden_handle',qty:2}], requires_fire:false, sparks_reward:2 },
+    simple_chest:  { display:'Simple chest',  skill:'carpentry',  inputs:[{item:'wood',qty:4}],                                  outputs:[{item:'simple_chest',qty:1}],  requires_fire:false, sparks_reward:5 },
+    stone_head:    { display:'Stone head',    skill:'masonry',    inputs:[{item:'stone',qty:2}],                                 outputs:[{item:'stone_head',qty:1}],    requires_fire:false, sparks_reward:3 },
+    healing_salve: { display:'Healing salve', skill:'herbalism',  inputs:[{item:'common_herb',qty:3}],                           outputs:[{item:'healing_salve',qty:1}], requires_fire:false, sparks_reward:4 },
+    simple_axe:    { display:'Simple axe',    skill:'toolmaking', inputs:[{item:'wooden_handle',qty:1},{item:'stone_head',qty:1}], outputs:[{item:'simple_axe',qty:1}],   requires_fire:false, sparks_reward:6 },
+    cook_meat:     { display:'Cooked meat',   skill:'cooking',    inputs:[{item:'raw_meat',qty:1}],                              outputs:[{item:'cooked_meat',qty:1}],   requires_fire:true,  sparks_reward:2 },
+    smoke_meat:    { display:'Smoked meat',   skill:'smoking',    inputs:[{item:'raw_meat',qty:2}],                              outputs:[{item:'smoked_meat',qty:1}],   requires_fire:true,  sparks_reward:4 },
+    cure_meat:     { display:'Cured meat',    skill:'curing',     inputs:[{item:'raw_meat',qty:2}],                              outputs:[{item:'cured_meat',qty:1}],    requires_fire:true,  sparks_reward:4 },
+    tan_hide:      { display:'Tanned leather',skill:'tanning',    inputs:[{item:'hide',qty:1}],                                  outputs:[{item:'leather',qty:2}],       requires_fire:true,  sparks_reward:3 },
+    make_shoes:    { display:'Leather shoes', skill:'shoemaking', inputs:[{item:'leather',qty:2}],                               outputs:[{item:'shoes',qty:1}],         requires_fire:false, sparks_reward:4 },
+    make_hat:      { display:'Leather hat',   skill:'shoemaking', inputs:[{item:'leather',qty:1}],                               outputs:[{item:'leather_hat',qty:1}],   requires_fire:false, sparks_reward:3 },
+    make_clothes:  { display:'Leather tunic', skill:'shoemaking', inputs:[{item:'leather',qty:4}],                               outputs:[{item:'leather_clothes',qty:1}], requires_fire:false, sparks_reward:6 },
+    leather_pack:  { display:'Leather pack',  skill:'packmaking', inputs:[{item:'leather',qty:3}],                               outputs:[{item:'leather_pack',qty:1}],  requires_fire:false, sparks_reward:5 },
+    make_belt:     { display:'Leather belt',  skill:'packmaking', inputs:[{item:'leather',qty:2}],                               outputs:[{item:'leather_belt',qty:1}],  requires_fire:false, sparks_reward:4 }
   },
   entities: {
     deer:   { display:'deer',   summary:'A wary forest deer.',   hp:10, attack_damage_range:[1,3], evasion:0.1, hostile:false, base_drops:[{item:'raw_meat',qty:2}], skinning_drops:[{item:'hide',qty:1}] },
@@ -408,7 +489,6 @@ const KIND_ITEMDROP = 30423;
 const KIND_LOOT     = 30424;
 const TOPIC = 'story:' + STORY.meta.id;
 const FIRE_DURATION_TURNS = 20;
-const WEAPON_BONUS = { rusty_dagger: 3, simple_axe: 6 };
 
 // ============================================================
 //  IDENTITY (localStorage-backed)
@@ -462,6 +542,8 @@ const player = {
   combat_target: null,
   turn: 0,
   chests: new Map(),  // roomId -> { items: [], materials: {} }
+  equipment: {},      // slot -> item_id
+  visited: new Set([STORY.meta.starting_location]),
   rooms: structuredClone(STORY.rooms)
 };
 
@@ -500,6 +582,8 @@ function serializeState() {
     riddles_solved: [...player.riddles_solved],
     fires: [...player.fires],
     chests: [...player.chests].map(([k, v]) => [k, { items: [...v.items], materials: { ...v.materials } }]),
+    equipment: { ...player.equipment },
+    visited: [...player.visited],
     turn: player.turn,
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
@@ -516,6 +600,8 @@ function applyState(s) {
   player.riddles_solved = new Set(s.riddles_solved || []);
   player.fires = new Map(s.fires || []);
   player.chests = new Map(s.chests || []);
+  player.equipment = { ...(s.equipment || {}) };
+  player.visited = new Set(s.visited || [player.location]);
   player.turn = s.turn ?? 0;
   if (s.rooms_state) {
     for (const [rid, rs] of Object.entries(s.rooms_state)) {
@@ -574,7 +660,8 @@ function write(text='', cls='') {
 function refreshSidebar() {
   const cap = computeMaxCapacity();
   const wt  = Math.round(computeWeight() * 10) / 10;
-  document.getElementById('life').textContent = `${Math.max(0, Math.floor(player.life))}/${player.life_max}`;
+  const maxLife = computeMaxLife();
+  document.getElementById('life').textContent = `${Math.max(0, Math.floor(player.life))}/${maxLife}`;
   document.getElementById('gold').textContent = player.gold;
   document.getElementById('sparks').textContent = player.sparks;
   document.getElementById('load').textContent = `${wt}/${cap}`;
@@ -585,6 +672,18 @@ function refreshSidebar() {
   document.getElementById('mh-sparks').textContent = player.sparks;
   document.getElementById('mh-load').textContent = `${wt}/${cap}`;
   document.getElementById('mh-room').textContent = player.rooms[player.location].name;
+  // Equipment
+  const eqEl = document.getElementById('equipment');
+  if (eqEl) {
+    eqEl.innerHTML = '';
+    const slots = Object.entries(player.equipment);
+    if (slots.length === 0) eqEl.innerHTML = '<div class="empty">nothing worn</div>';
+    else for (const [slot, item] of slots) {
+      const row = document.createElement('div'); row.className = 'eq-row';
+      row.innerHTML = `<span style="color:var(--muted);">${slot}:</span> <span>${itemDisplay(item)}</span>`;
+      eqEl.appendChild(row);
+    }
+  }
 
   const matEl = document.getElementById('materials');
   const matEntries = Object.entries(player.materials).filter(([_, q]) => q > 0);
@@ -614,12 +713,19 @@ function computeWeight() {
   let total = 0;
   for (const it of player.inventory) total += STORY.items[it]?.weight ?? 1;
   for (const [it, qty] of Object.entries(player.materials)) total += (STORY.items[it]?.weight ?? 1) * qty;
+  for (const it of Object.values(player.equipment)) total += STORY.items[it]?.weight ?? 1;
   return total;
 }
 function computeMaxCapacity() {
   let cap = player.base_capacity;
   for (const it of player.inventory) cap += STORY.items[it]?.effects?.carry_capacity_bonus ?? 0;
+  for (const it of Object.values(player.equipment)) cap += STORY.items[it]?.effects?.carry_capacity_bonus ?? 0;
   return cap;
+}
+function computeMaxLife() {
+  let max = player.life_max;
+  for (const it of Object.values(player.equipment)) max += STORY.items[it]?.effects?.life_max_bonus ?? 0;
+  return max;
 }
 function canCarry(itemId, qty = 1) {
   const w = (STORY.items[itemId]?.weight ?? 1) * qty;
@@ -896,9 +1002,9 @@ function fireActive(roomId) {
   return exp != null && player.turn < exp;
 }
 function bestWeaponBonus() {
-  let best = 0;
-  for (const it of player.inventory) if (WEAPON_BONUS[it] > best) best = WEAPON_BONUS[it];
-  return best;
+  // Only equipped weapon (in 'hand' slot) contributes
+  const wielded = player.equipment.hand;
+  return wielded ? (STORY.items[wielded]?.effects?.attack_bonus ?? 0) : 0;
 }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function pickWeighted(table) {
@@ -940,6 +1046,7 @@ function handleDeath(cause) {
   const droppedItems = [];
   for (const it of player.inventory) droppedItems.push({ item: it, qty: 1 });
   for (const [it, qty] of Object.entries(player.materials)) if (qty > 0) droppedItems.push({ item: it, qty });
+  for (const it of Object.values(player.equipment)) droppedItems.push({ item: it, qty: 1 });
   if (droppedItems.length) {
     publishItemDrop(droppedItems, cause);
     write(`Your possessions remain in ${player.rooms[player.location].name}.`, 'error');
@@ -947,6 +1054,7 @@ function handleDeath(cause) {
   publishAction('died', { location: player.location, cause });
   player.inventory = [];
   player.materials = {};
+  player.equipment = {};   // even your clothes drop
   player.life = Math.floor(player.life_max / 2);
   player.combat_target = null;
   player.location = STORY.meta.starting_location;
@@ -998,7 +1106,10 @@ function move(dir) {
   const target = room.exits[dir];
   if (!target) { write("You can't go that way.", 'error'); return; }
   const from = player.location; player.location = target;
+  const newRoom = !player.visited.has(target);
+  player.visited.add(target);
   publishAction('move', { from, to: target });
+  if (newRoom) write(`(new place — added to your map)`, 'system');
   describeRoom();
 }
 
@@ -1046,7 +1157,7 @@ function showInventory() {
 
 function showStatus() {
   write(`Location: ${player.rooms[player.location].name}`);
-  write(`Life: ${Math.floor(player.life)}/${player.life_max}  ·  Gold: ${player.gold}  ·  Sparks: ${player.sparks}  ·  Load: ${Math.round(computeWeight()*10)/10}/${computeMaxCapacity()}  ·  Turn: ${player.turn}`);
+  write(`Life: ${Math.floor(player.life)}/${computeMaxLife()}  ·  Gold: ${player.gold}  ·  Sparks: ${player.sparks}  ·  Load: ${Math.round(computeWeight()*10)/10}/${computeMaxCapacity()}  ·  Turn: ${player.turn}`);
   write(`Skills: ${player.skills.size === 0 ? 'none' : [...player.skills].map(s => STORY.skills[s].display).join(', ')}`);
   if (inCombat()) write(`In combat with ${player.combat_target.display} (${player.combat_target.hp} HP).`, 'combat');
 }
@@ -1142,8 +1253,8 @@ function craft(arg) {
   for (const io of r.outputs) addItem(io.item, io.qty);
   const outStr = r.outputs.map(io => `${io.qty} ${itemDisplay(io.item)}`).join(', ');
   write(`You craft: ${outStr}.`, 'success');
-  // craft reward
-  const reward = STORY.meta.sparks_per_craft || 0;
+  // craft reward (recipe-specific override falls back to meta default)
+  const reward = r.sparks_reward ?? STORY.meta.sparks_per_craft ?? 0;
   if (reward > 0) {
     player.sparks += reward;
     write(`(+${reward} sparks for crafting)`, 'spark');
@@ -1173,6 +1284,16 @@ function answer(text) {
     player.sparks += r.reward_sparks;
     write(r.on_solve_message, 'success');
     write(`(+${r.reward_sparks} sparks)`, 'spark');
+    for (const ri of (r.reward_items || [])) {
+      if (canCarry(ri.item, ri.qty)) {
+        addItem(ri.item, ri.qty);
+        write(`You receive ${ri.qty} ${itemDisplay(ri.item)}.`, 'success');
+      } else {
+        // Drop into the room as a regular item
+        for (let i = 0; i < ri.qty; i++) (player.rooms[player.location].items ||= []).push(ri.item);
+        write(`A ${itemDisplay(ri.item)} appears, but it's too heavy to carry — left here for now.`, 'system');
+      }
+    }
     publishAction('riddle_solved', { location: player.location, gained: r.reward_sparks });
   } else {
     write('The voice is silent. That is not the answer.', 'error');
@@ -1253,7 +1374,7 @@ function eat(arg) {
   if (it.consumable_action !== 'eat' && !it.tags?.includes('food')) { write(`You can't eat ${it.display}.`, 'error'); return; }
   removeFromInventoryOrMaterials(itemId, 1);
   const restore = it.effects?.restore_life ?? 0;
-  player.life = Math.min(player.life_max, player.life + restore);
+  player.life = Math.min(computeMaxLife(), player.life + restore);
   write(`You eat ${itemDisplay(itemId, true)}. (+${restore} life)`, 'success');
   publishAction('eat', { item: itemId, restore });
 }
@@ -1265,7 +1386,7 @@ function drink(arg) {
     const next = player.drink_cooldowns.get(cdKey) || 0;
     if (Date.now() < next) { write(`Wait ${Math.ceil((next - Date.now()) / 1000)}s.`, 'error'); return; }
     const r = room.drink_source.restore_life;
-    player.life = Math.min(player.life_max, player.life + r);
+    player.life = Math.min(computeMaxLife(), player.life + r);
     if (room.drink_source.cooldown_seconds) player.drink_cooldowns.set(cdKey, Date.now() + room.drink_source.cooldown_seconds * 1000);
     write(`You drink. (+${r} life)`, 'success');
     publishAction('drink', { location: player.location, restore: r });
@@ -1281,9 +1402,68 @@ function drink(arg) {
   if (it.consumable_action !== 'drink') { write(`You can't drink ${it.display}.`, 'error'); return; }
   removeFromInventoryOrMaterials(itemId, 1);
   const restore = it.effects?.restore_life ?? 0;
-  player.life = Math.min(player.life_max, player.life + restore);
+  player.life = Math.min(computeMaxLife(), player.life + restore);
   write(`You drink ${itemDisplay(itemId, true)}. (+${restore} life)`, 'success');
   publishAction('drink', { item: itemId, restore });
+}
+
+const EQUIP_SLOTS = ['head','torso','feet','belt','neck','hand'];
+
+function wear(arg) {
+  if (combatBlock('wear')) return;
+  if (!arg) { write('Wear what?', 'error'); return; }
+  const idx = findItemIn(player.inventory, arg);
+  if (idx === -1) { write(`You don't have "${arg}".`, 'error'); return; }
+  const itemId = player.inventory[idx];
+  const it = STORY.items[itemId];
+  if (!it.slot) { write(`You can't wear ${it.display}.`, 'error'); return; }
+  // If already wearing in that slot, swap
+  const existing = player.equipment[it.slot];
+  if (existing) {
+    player.inventory.push(existing);
+    write(`You take off ${itemDisplay(existing, true)}.`, 'system');
+  }
+  player.inventory.splice(idx, 1);
+  player.equipment[it.slot] = itemId;
+  const bonusLife = it.effects?.life_max_bonus ?? 0;
+  const bonusCap  = it.effects?.carry_capacity_bonus ?? 0;
+  let bonusStr = '';
+  if (bonusLife) bonusStr += ` (+${bonusLife} max life)`;
+  if (bonusCap)  bonusStr += ` (+${bonusCap} carry)`;
+  write(`You put on ${itemDisplay(itemId, true)}.${bonusStr}`, 'success');
+  publishAction('wear', { item: itemId, slot: it.slot });
+}
+
+function unwear(arg) {
+  if (combatBlock('unwear')) return;
+  if (!arg) { write('Unwear what? (slot or item name)', 'error'); return; }
+  let slot;
+  if (EQUIP_SLOTS.includes(arg)) slot = arg;
+  else {
+    for (const [s, id] of Object.entries(player.equipment)) {
+      const itd = STORY.items[id]?.display || '';
+      if (id === arg || itd.includes(arg) || itd.split(' ').includes(arg)) { slot = s; break; }
+    }
+  }
+  if (!slot || !player.equipment[slot]) { write('You\'re not wearing that.', 'error'); return; }
+  const itemId = player.equipment[slot];
+  delete player.equipment[slot];
+  player.inventory.push(itemId);
+  write(`You take off ${itemDisplay(itemId, true)}.`, 'success');
+  publishAction('unwear', { item: itemId, slot });
+}
+
+function showEquipment() {
+  const slots = Object.entries(player.equipment);
+  if (slots.length === 0) { write('You wear nothing.'); return; }
+  write('Equipped:', 'system');
+  for (const [slot, item] of slots) {
+    const eff = STORY.items[item]?.effects || {};
+    let parts = [];
+    if (eff.life_max_bonus) parts.push(`+${eff.life_max_bonus} life`);
+    if (eff.carry_capacity_bonus) parts.push(`+${eff.carry_capacity_bonus} carry`);
+    write(`  ${slot}: ${itemDisplay(item, true)}${parts.length ? ' (' + parts.join(', ') + ')' : ''}`);
+  }
 }
 
 function lightFire() {
@@ -1292,6 +1472,60 @@ function lightFire() {
   player.fires.set(player.location, player.turn + FIRE_DURATION_TURNS);
   write(`You light a fire. It will burn for ${FIRE_DURATION_TURNS} turns.`, 'fire');
   publishAction('lit_fire', { location: player.location });
+}
+
+// --- Merchant services: sharpen & repair ---
+const SHARPEN_RECIPES = {
+  rusty_dagger: { cost_gold: 20, becomes: 'sharpened_dagger' }
+};
+const REPAIR_RECIPES = {
+  broken_sword: { cost_gold: 50, materials: { wood: 1, leather: 1 }, becomes: 'sword' }
+};
+function findMerchantHere() {
+  const room = player.rooms[player.location];
+  return (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('buys_items')) || null;
+}
+
+function sharpen(arg) {
+  if (combatBlock('sharpen')) return;
+  const merchant = findMerchantHere();
+  if (!merchant) { write('No merchant here to sharpen blades.', 'error'); return; }
+  const idx = arg ? findItemIn(player.inventory, arg) : player.inventory.findIndex(i => SHARPEN_RECIPES[i]);
+  if (idx === -1) { write(`You have nothing here that can be sharpened.`, 'error'); return; }
+  const itemId = player.inventory[idx];
+  const rec = SHARPEN_RECIPES[itemId];
+  if (!rec) { write(`${itemDisplay(itemId, true)} can't be sharpened.`, 'error'); return; }
+  if (player.gold < rec.cost_gold) { write(`Sharpening costs ${rec.cost_gold} gold. You have ${player.gold}.`, 'error'); return; }
+  player.gold -= rec.cost_gold;
+  player.inventory.splice(idx, 1);
+  addItem(rec.becomes, 1);
+  write(`${STORY.npcs[merchant].display} runs a stone along the edge. ${itemDisplay(itemId)} becomes ${itemDisplay(rec.becomes, true)}. (-${rec.cost_gold} gold)`, 'success');
+  publishAction('sharpen', { from: itemId, to: rec.becomes, cost: rec.cost_gold });
+}
+
+function repair(arg) {
+  if (combatBlock('repair')) return;
+  const merchant = findMerchantHere();
+  if (!merchant) { write('No merchant here to repair items.', 'error'); return; }
+  const idx = arg ? findItemIn(player.inventory, arg) : player.inventory.findIndex(i => REPAIR_RECIPES[i]);
+  if (idx === -1) { write(`You have nothing here that can be repaired.`, 'error'); return; }
+  const itemId = player.inventory[idx];
+  const rec = REPAIR_RECIPES[itemId];
+  if (!rec) { write(`${itemDisplay(itemId, true)} can't be repaired.`, 'error'); return; }
+  if (player.gold < rec.cost_gold) { write(`Repair costs ${rec.cost_gold} gold. You have ${player.gold}.`, 'error'); return; }
+  // Check materials
+  for (const [matId, qty] of Object.entries(rec.materials || {})) {
+    const have = STORY.items[matId].stackable ? (player.materials[matId] || 0) : player.inventory.filter(i => i === matId).length;
+    if (have < qty) { write(`Repair also needs ${qty} ${itemDisplay(matId)} (you have ${have}).`, 'error'); return; }
+  }
+  // Consume
+  player.gold -= rec.cost_gold;
+  for (const [matId, qty] of Object.entries(rec.materials || {})) removeFromInventoryOrMaterials(matId, qty);
+  player.inventory.splice(idx, 1);
+  addItem(rec.becomes, 1);
+  const matStr = Object.entries(rec.materials || {}).map(([k, q]) => `${q} ${itemDisplay(k)}`).join(', ');
+  write(`${STORY.npcs[merchant].display} works for an hour. ${itemDisplay(itemId)} is reforged into ${itemDisplay(rec.becomes, true)}. (-${rec.cost_gold} gold${matStr ? ', -' + matStr : ''})`, 'success');
+  publishAction('repair', { from: itemId, to: rec.becomes, cost: rec.cost_gold });
 }
 
 function rest() {
@@ -1335,8 +1569,9 @@ function sleep() {
     }
   }
   player.turn += 24;
-  const restore = Math.floor((player.life_max - player.life) * restoreFraction);
-  player.life = Math.min(player.life_max, player.life + restore);
+  const maxLife = computeMaxLife();
+  const restore = Math.floor((maxLife - player.life) * restoreFraction);
+  player.life = Math.min(maxLife, player.life + restore);
   write(`You sleep ${label}. (+${restore} life · 8 hours pass)`, 'success');
   publishAction('slept', { location: player.location, restored: restore });
 }
@@ -1562,6 +1797,27 @@ function who() {
   }
 }
 
+const SHORT_NAMES = {
+  forest_clearing: 'Clearing',
+  deep_forest: 'Deep Wood',
+  red_canyon: 'Canyon',
+  hilltop_ruins: 'Ruins',
+  quiet_valley: 'Valley',
+  echoing_cave: 'Cave',
+  riverside_camp: 'Camp',
+  greenmeadow_village: 'Village',
+  moss_grotto: 'Grotto',
+  hermits_glade: 'Glade',
+  old_mine: 'Mine',
+  salt_marsh: 'Marsh'
+};
+function shortRoomName(rid) {
+  if (SHORT_NAMES[rid]) return SHORT_NAMES[rid];
+  const parts = rid.split('_');
+  const last = parts[parts.length - 1];
+  return last.charAt(0).toUpperCase() + last.slice(1);
+}
+
 function showMap() {
   const rooms = player.rooms;
   const positions = new Map();
@@ -1572,6 +1828,7 @@ function showMap() {
     const cur = queue.shift();
     const [cx, cy] = positions.get(cur);
     for (const [dir, target] of Object.entries(rooms[cur].exits || {})) {
+      if (!player.visited.has(target)) continue;   // fog-of-war: only visited
       if (positions.has(target)) continue;
       const off = dirOffset[dir];
       if (!off) continue;
@@ -1581,7 +1838,8 @@ function showMap() {
   }
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
   for (const [x, y] of positions.values()) { minX=Math.min(minX,x); maxX=Math.max(maxX,x); minY=Math.min(minY,y); maxY=Math.max(maxY,y); }
-  const cellW = 14, cellH = 4;
+  const labelMax = 10;
+  const cellW = 12, cellH = 4;
   const cols = (maxX - minX + 1) * cellW;
   const rows = (maxY - minY + 1) * cellH;
   const grid = Array(rows).fill(null).map(() => Array(cols).fill(' '));
@@ -1593,8 +1851,8 @@ function showMap() {
     if (rooms[room].hazards?.wolves) mark = '⚠';
     else if (player.chests.has(room)) mark = '📦';
     else if (fireActive(room)) mark = '🔥';
-    const labelMax = 10;
-    const name = room.length > labelMax ? room.slice(0, labelMax-1) + '…' : room;
+    const sn = shortRoomName(room);
+    const name = sn.length > labelMax ? sn.slice(0, labelMax-1) + '…' : sn;
     const inner = (here ? '*' : ' ') + name.padEnd(labelMax) + mark;
     put(cy + 0, cx, '┌' + '─'.repeat(labelMax + 2) + '┐');
     put(cy + 1, cx, '│' + inner + '│');
@@ -1610,10 +1868,33 @@ function showMap() {
       else if (dx === 0 && dy === 1) put(cy + 3, cx + Math.floor(cellW/2), '│');
     }
   }
-  write('');
-  write('-- map (* = you, ⚠ = wolves, 📦 = your chest, 🔥 = fire) --', 'system');
-  for (const row of grid) write(row.join('').replace(/\s+$/, ''));
-  write('');
+  // Render in a horizontally-scrollable container so wide maps still fit on phones
+  const wrap = document.createElement('div');
+  wrap.className = 'map-wrap';
+  const header = document.createElement('div');
+  header.className = 'line system';
+  header.textContent = `-- map (* = you, ⚠ = wolves, 📦 = chest, 🔥 = fire) — ${player.visited.size} room${player.visited.size === 1 ? '' : 's'} discovered --`;
+  wrap.appendChild(header);
+  const pre = document.createElement('pre');
+  pre.className = 'map-pre';
+  pre.textContent = grid.map(row => row.join('').replace(/\s+$/, '')).join('\n');
+  wrap.appendChild(pre);
+  out.appendChild(wrap);
+  // total exits hint: undiscovered exits from visited rooms
+  const undiscovered = [];
+  for (const room of player.visited) {
+    for (const [dir, target] of Object.entries(rooms[room].exits || {})) {
+      if (!player.visited.has(target)) undiscovered.push(`${shortRoomName(room)} → ${dir}`);
+    }
+  }
+  if (undiscovered.length) {
+    const hint = document.createElement('div');
+    hint.className = 'line system';
+    hint.style.opacity = '0.7';
+    hint.textContent = `Unexplored exits: ${undiscovered.join(', ')}`;
+    out.appendChild(hint);
+  }
+  out.scrollTop = out.scrollHeight;
 }
 
 function help() {
@@ -1625,6 +1906,8 @@ function help() {
     'Gathering:       chop / forage / gather (needs skill)',
     'Crafting:        recipes · craft <recipe>  (each craft awards sparks)',
     'Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest · sleep',
+    'Equipment:       wear / wield <x> · unwear <slot> · equipment / eq',
+    'Smithing:        sharpen <x> · repair <x>  (at any merchant)',
     'Storage:         place chest · chest · store <x> · retrieve <x>',
     'Market:          sell <item>     (direct sale to merchant, instant gold)',
     '                 sell <item> <price>  (list on player marketplace)',
@@ -1681,6 +1964,11 @@ function handleCommand(input) {
     case 'flee':                 flee(); break;
     case 'eat':                  eat(arg); break;
     case 'drink':                drink(arg); break;
+    case 'wear': case 'equip': case 'wield':   wear(arg); break;
+    case 'unwear': case 'remove': case 'unequip': unwear(arg); break;
+    case 'equipment': case 'eq': showEquipment(); consumesTurn = false; break;
+    case 'sharpen':              sharpen(arg); break;
+    case 'repair':               repair(arg); break;
     case 'light':                if (arg === 'fire' || arg === '') lightFire(); else write(`Light what?`, 'error'); break;
     case 'rest':                 rest(); break;
     case 'sleep':                sleep(); break;
@@ -1736,7 +2024,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${STORY.meta.title} — Nostr PoC v0.5 ===`, 'title');
+write(`=== ${STORY.meta.title} — Nostr PoC v0.6 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
