@@ -607,6 +607,12 @@ const KIND_LISTING  = 30421;
 const KIND_PURCHASE = 30422;
 const KIND_ITEMDROP = 30423;
 const KIND_LOOT     = 30424;
+const KIND_DM       = 30426;
+const KIND_NOTICE   = 30427;
+const KIND_GIFT_OFFER   = 30428;
+const KIND_GIFT_ACCEPT  = 30429;
+const KIND_GIFT_DECLINE = 30430;
+const KIND_HEAL         = 30431;
 const TOPIC = 'story:' + STORY.meta.id;
 const FIRE_DURATION_TURNS = 20;
 
@@ -679,6 +685,8 @@ const player = {
     riddles_solved: 0
   },
   achievements: new Set(),  // earned achievement ids
+  outgoing_offers: new Map(), // offer_id -> { item, qty, recipient_pubkey, recipient_name, offered_at }
+  incoming_offers: new Map(), // offer_id -> { item, qty, sender_pubkey, sender_name, message, offered_at }
   rooms: structuredClone(STORY.rooms),
   name: null   // set on first launch by askName()
 };
@@ -709,6 +717,8 @@ for (const [npcId, npc] of Object.entries(STORY.npcs)) {
 }
 const drops = new Map();
 const looted = new Map();
+const notices = new Map();   // notice_id -> { roomId, author, name, text, posted_at }
+const dmInbox = [];          // received DMs (most recent first), { from_pubkey, from_name, text, received_at }
 
 // ============================================================
 //  PERSISTENCE (localStorage + Nostr-encrypted state events)
@@ -735,6 +745,8 @@ function serializeState() {
     stats: { ...player.stats, kills: { ...player.stats.kills } },
     achievements: [...player.achievements],
     name: player.name,
+    outgoing_offers: [...player.outgoing_offers],
+    incoming_offers: [...player.incoming_offers],
     turn: player.turn,
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
@@ -765,6 +777,8 @@ function applyState(s) {
   player.stats.kills = { ...(s.stats?.kills || {}) };
   player.achievements = new Set(s.achievements || []);
   if (s.name) player.name = s.name;
+  player.outgoing_offers = new Map(s.outgoing_offers || []);
+  player.incoming_offers = new Map(s.incoming_offers || []);
   player.turn = s.turn ?? 0;
   if (s.rooms_state) {
     for (const [rid, rs] of Object.entries(s.rooms_state)) {
@@ -970,13 +984,87 @@ async function publishLoot(did) {
   return evt;
 }
 
+async function publishDM(recipient_pubkey, text) {
+  try {
+    const ciphertext = await nip04.encrypt(sk, recipient_pubkey, JSON.stringify({ from_name: player.name, text }));
+    const evt = finalizeEvent({
+      kind: KIND_DM, created_at: Math.floor(Date.now() / 1000),
+      tags: [['t', TOPIC], ['p', recipient_pubkey]],
+      content: ciphertext
+    }, sk);
+    addToFeed('myEvents', `dm to ${recipient_pubkey.slice(0,8)}…`, evt.id.slice(0, 8));
+    Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+    return evt;
+  } catch (e) { console.warn('dm failed', e); }
+}
+
+async function publishGiftOffer(recipient_pubkey, item, qty, message) {
+  const offer_id = uuid();
+  const evt = finalizeEvent({
+    kind: KIND_GIFT_OFFER, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['p', recipient_pubkey], ['offer', offer_id]],
+    content: JSON.stringify({ from_name: player.name, item, qty, message: message || '' })
+  }, sk);
+  player.outgoing_offers.set(offer_id, { item, qty, recipient_pubkey, recipient_name: knownPlayers.get(recipient_pubkey)?.name, offered_at: Date.now() });
+  addToFeed('myEvents', `gift ${item} → ${recipient_pubkey.slice(0,8)}…`, evt.id.slice(0, 8));
+  Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+  return offer_id;
+}
+
+async function publishGiftAccept(offer_id, sender_pubkey) {
+  const evt = finalizeEvent({
+    kind: KIND_GIFT_ACCEPT, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['p', sender_pubkey], ['offer', offer_id]],
+    content: JSON.stringify({ accepter_name: player.name })
+  }, sk);
+  Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+  return evt;
+}
+
+async function publishGiftDecline(offer_id, sender_pubkey) {
+  const evt = finalizeEvent({
+    kind: KIND_GIFT_DECLINE, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['p', sender_pubkey], ['offer', offer_id]],
+    content: JSON.stringify({ decliner_name: player.name })
+  }, sk);
+  Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+  return evt;
+}
+
+async function publishHeal(recipient_pubkey, restore) {
+  const heal_id = uuid();
+  const evt = finalizeEvent({
+    kind: KIND_HEAL, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['p', recipient_pubkey], ['heal', heal_id]],
+    content: JSON.stringify({ from_name: player.name, restore, item: 'healing_salve' })
+  }, sk);
+  Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+  return evt;
+}
+
+async function publishNotice(text) {
+  const notice_id = uuid();
+  const evt = finalizeEvent({
+    kind: KIND_NOTICE, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['room', player.location], ['notice', notice_id]],
+    content: JSON.stringify({ name: player.name, text, room: player.location })
+  }, sk);
+  notices.set(notice_id, { roomId: player.location, author: pk, name: player.name, text, posted_at: Date.now() });
+  addToFeed('myEvents', `pin notice in ${player.location}`, evt.id.slice(0, 8));
+  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  return notice_id;
+}
+
 function subscribe() {
   pool.subscribeMany(RELAYS, [
     { kinds: [KIND_ACTION],   '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 60 },
     { kinds: [KIND_LISTING],  '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 },
     { kinds: [KIND_PURCHASE], '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 },
     { kinds: [KIND_ITEMDROP], '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 },
-    { kinds: [KIND_LOOT],     '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 }
+    { kinds: [KIND_LOOT],     '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 },
+    { kinds: [KIND_NOTICE],   '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 30 * 24 * 3600 },
+    { kinds: [KIND_DM],       '#p': [pk],    since: Math.floor(Date.now() / 1000) - 7 * 24 * 3600 },
+    { kinds: [KIND_GIFT_OFFER, KIND_GIFT_ACCEPT, KIND_GIFT_DECLINE, KIND_HEAL], '#p': [pk], since: Math.floor(Date.now() / 1000) - 7 * 24 * 3600 }
   ], {
     onevent(event) {
       if (event.pubkey === pk && event.kind === KIND_ACTION) return;
@@ -985,8 +1073,95 @@ function subscribe() {
       if (event.kind === KIND_PURCHASE) handleRemotePurchase(event);
       if (event.kind === KIND_ITEMDROP) handleRemoteItemDrop(event);
       if (event.kind === KIND_LOOT)     handleRemoteLoot(event);
+      if (event.kind === KIND_NOTICE)   handleRemoteNotice(event);
+      if (event.kind === KIND_DM)       handleRemoteDM(event);
+      if (event.kind === KIND_GIFT_OFFER)   handleRemoteGiftOffer(event);
+      if (event.kind === KIND_GIFT_ACCEPT)  handleRemoteGiftAccept(event);
+      if (event.kind === KIND_GIFT_DECLINE) handleRemoteGiftDecline(event);
+      if (event.kind === KIND_HEAL)         handleRemoteHeal(event);
     }
   });
+}
+
+function handleRemoteGiftOffer(event) {
+  const offer_id = event.tags.find(t => t[0] === 'offer')?.[1];
+  const meTag = event.tags.find(t => t[0] === 'p' && t[1] === pk);
+  if (!offer_id || !meTag || event.pubkey === pk) return;
+  if (player.incoming_offers.has(offer_id)) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch { return; }
+  player.incoming_offers.set(offer_id, {
+    item: p.item, qty: p.qty || 1,
+    sender_pubkey: event.pubkey, sender_name: p.from_name || event.pubkey.slice(0,8) + '…',
+    message: p.message || '', offered_at: event.created_at * 1000
+  });
+  write('');
+  write(`📦 ${p.from_name || event.pubkey.slice(0,8) + '…'} offers you ${p.qty || 1} ${itemDisplay(p.item)}.`, 'spark');
+  if (p.message) write(`   "${p.message}"`, 'whisper');
+  write(`   (claim ${offer_id.slice(0,8)} / decline ${offer_id.slice(0,8)})`, 'system');
+}
+
+function handleRemoteGiftAccept(event) {
+  const offer_id = event.tags.find(t => t[0] === 'offer')?.[1];
+  const meTag = event.tags.find(t => t[0] === 'p' && t[1] === pk);
+  if (!offer_id || !meTag) return;
+  const offer = player.outgoing_offers.get(offer_id);
+  if (!offer) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch {}
+  player.outgoing_offers.delete(offer_id);
+  write(`📦 ${p.accepter_name || event.pubkey.slice(0,8) + '…'} accepted your gift of ${itemDisplay(offer.item)}.`, 'success');
+}
+
+function handleRemoteGiftDecline(event) {
+  const offer_id = event.tags.find(t => t[0] === 'offer')?.[1];
+  const meTag = event.tags.find(t => t[0] === 'p' && t[1] === pk);
+  if (!offer_id || !meTag) return;
+  const offer = player.outgoing_offers.get(offer_id);
+  if (!offer) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch {}
+  // Restore item to sender
+  addItem(offer.item, offer.qty || 1);
+  player.outgoing_offers.delete(offer_id);
+  write(`${p.decliner_name || event.pubkey.slice(0,8) + '…'} declined your gift. ${itemDisplay(offer.item, true)} returned to your inventory.`, 'system');
+  refreshSidebar();
+}
+
+function handleRemoteHeal(event) {
+  const meTag = event.tags.find(t => t[0] === 'p' && t[1] === pk);
+  if (!meTag || event.pubkey === pk) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch { return; }
+  const restore = Number(p.restore) || 0;
+  if (restore <= 0) return;
+  const before = player.life;
+  player.life = Math.min(computeMaxLife(), player.life + restore);
+  const actual = Math.floor(player.life - before);
+  write(`💚 ${p.from_name || event.pubkey.slice(0,8) + '…'} heals you. (+${actual} life)`, 'success');
+  refreshSidebar();
+}
+
+function handleRemoteNotice(event) {
+  const notice_id = event.tags.find(t => t[0] === 'notice')?.[1];
+  const room_id = event.tags.find(t => t[0] === 'room')?.[1];
+  if (!notice_id || notices.has(notice_id)) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch { return; }
+  notices.set(notice_id, { roomId: room_id, author: event.pubkey, name: p.name, text: p.text, posted_at: event.created_at * 1000 });
+  if (event.pubkey !== pk && room_id === player.location) {
+    write(`[notice] ${p.name || event.pubkey.slice(0,8) + '…'} pinned a note here. ("notices" to read)`, 'system');
+  }
+}
+
+async function handleRemoteDM(event) {
+  // Only handle if addressed to us
+  const meTag = event.tags.find(t => t[0] === 'p' && t[1] === pk);
+  if (!meTag) return;
+  if (event.pubkey === pk) return;  // skip our own outgoing
+  try {
+    const plain = await nip04.decrypt(sk, event.pubkey, event.content);
+    const p = JSON.parse(plain);
+    const fromName = p.from_name || event.pubkey.slice(0,8) + '…';
+    dmInbox.unshift({ from_pubkey: event.pubkey, from_name: fromName, text: p.text, received_at: event.created_at * 1000 });
+    while (dmInbox.length > 50) dmInbox.pop();
+    write(`[dm from ${fromName}] ${p.text}`, 'whisper');
+  } catch {}
 }
 
 function displayName(pubkey, fromPayload) {
@@ -1300,6 +1475,10 @@ function describeRoom() {
   if (others.length) write('Other travelers: ' + others.map(([pkOther, info]) => info.name || pkOther.slice(0,8) + '…').join(', '), 'system');
   const localDrops = getDropsInRoom(player.location);
   if (localDrops.length) write(`Dropped here: ${localDrops.length} cache${localDrops.length > 1 ? 's' : ''}. Use "corpses".`, 'system');
+  // Notices in this room
+  let noticeCount = 0;
+  for (const n of notices.values()) if (n.roomId === player.location) noticeCount++;
+  if (noticeCount > 0) write(`A bulletin board holds ${noticeCount} note${noticeCount === 1 ? '' : 's'}. Use "notices".`, 'system');
   write('Exits: ' + Object.keys(room.exits).join(', '), 'exits');
 }
 
@@ -2252,13 +2431,41 @@ function importSoul(arg) {
 }
 
 function newCharacter() {
-  const ok = confirm('Start a fresh character?\n\nThis WIPES your current character on this browser.\nIf you want to come back to it, type "soul" first to copy your nsec.');
+  const ok = confirm('Start a fresh character?\n\nThis WIPES your current character on this browser — name, npub, skills, gold, sparks, inventory, equipment, chests, quests, achievements, the lot.\nIf you want to come back to this character later, type "soul" first to copy your nsec.');
   if (!ok) { write('Cancelled.', 'system'); return; }
+  // In-memory wipe (in case reload is interrupted)
+  player.inventory = [];
+  player.materials = {};
+  player.equipment = {};
+  player.skills = new Set();
+  player.riddles_solved = new Set();
+  player.fires = new Map();
+  player.chests = new Map();
+  player.quests = {};
+  player.edges = new Map();
+  player.flags = new Set();
+  player.companion = null;
+  player.events_fired = new Set();
+  player.stats = { kills: {}, gold_earned: 0, sparks_earned: 0, deaths: 0, quests_completed: 0, crafts: 0, riddles_solved: 0 };
+  player.achievements = new Set();
+  player.outgoing_offers = new Map();
+  player.incoming_offers = new Map();
+  player.visited = new Set();
+  player.gold = 0; player.sparks = 0; player.life = 0; player.turn = 0;
+  player.name = null;
+  // Sweep ALL nstadv:* keys so nothing leaks
+  let removed = 0;
   try {
-    localStorage.removeItem(STORAGE_NSEC);
-    localStorage.removeItem(STORAGE_STATE);
-  } catch {}
-  write('Wiping local data. Reloading with a fresh keypair…', 'system');
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('nstadv:')) keys.push(k);
+    }
+    for (const k of keys) { localStorage.removeItem(k); removed++; }
+  } catch (e) {
+    write('Local storage error: ' + e.message, 'error');
+  }
+  write(`Wiped ${removed} stored entr${removed === 1 ? 'y' : 'ies'}. Reloading with a fresh keypair…`, 'system');
   setTimeout(() => location.reload(), 600);
 }
 
@@ -2475,6 +2682,186 @@ function whisper(text) {
   publishAction('whisper', { text, location: player.location });
 }
 
+function giveCommand(argRaw) {
+  if (combatBlock('give')) return;
+  // Parse: "give <item> to <name>" or "give <item> to <name> <message>"
+  // Or short form: "give <item> <name>"
+  let itemQuery, target, message = '';
+  const toForm = argRaw.match(/^(.+?)\s+to\s+(\S+)(?:\s+(.+))?$/i);
+  if (toForm) {
+    itemQuery = toForm[1].trim();
+    target = toForm[2].trim();
+    message = (toForm[3] || '').trim();
+  } else {
+    const parts = argRaw.trim().split(/\s+/);
+    if (parts.length < 2) { write('Usage: give <item> to <name|npub> [message]', 'error'); return; }
+    itemQuery = parts[0];
+    target = parts[1];
+    message = parts.slice(2).join(' ');
+  }
+  // Resolve target
+  let recipient_pubkey = null;
+  if (target.startsWith('npub')) {
+    try { const dec = nip19.decode(target); if (dec.type === 'npub') recipient_pubkey = dec.data; } catch {}
+  }
+  if (!recipient_pubkey) {
+    for (const [pkOther, info] of knownPlayers) {
+      if (info.name && info.name.toLowerCase() === target.toLowerCase()) { recipient_pubkey = pkOther; break; }
+    }
+  }
+  if (!recipient_pubkey) { write(`No traveler named "${target}" known yet. Use their npub directly.`, 'error'); return; }
+  if (recipient_pubkey === pk) { write("You can't give items to yourself.", 'error'); return; }
+  // Find item — escrow it
+  const idx = findItemIn(player.inventory, itemQuery);
+  let itemId;
+  if (idx !== -1) { itemId = player.inventory[idx]; player.inventory.splice(idx, 1); }
+  else {
+    const matKey = findMaterialKey(itemQuery);
+    if (!matKey) { write(`You don't have "${itemQuery}".`, 'error'); return; }
+    itemId = matKey;
+    player.materials[itemId]--;
+  }
+  publishGiftOffer(recipient_pubkey, itemId, 1, message);
+  const recipientName = knownPlayers.get(recipient_pubkey)?.name || target;
+  write(`📦 You offer ${itemDisplay(itemId, true)} to ${recipientName}. (held until they claim or decline)`, 'success');
+  refreshSidebar();
+}
+
+function claimGift(arg) {
+  if (combatBlock('claim')) return;
+  if (!arg) { write('Usage: claim <offer_id>', 'error'); return; }
+  let foundId = null;
+  for (const oid of player.incoming_offers.keys()) {
+    if (oid.startsWith(arg) || oid === arg) { foundId = oid; break; }
+  }
+  if (!foundId) { write(`No incoming offer matching "${arg}". Try "gifts" to list.`, 'error'); return; }
+  const offer = player.incoming_offers.get(foundId);
+  if (!canCarry(offer.item, offer.qty)) { write(`Too heavy to claim ${offer.qty} ${itemDisplay(offer.item)}. Drop or store something first.`, 'error'); return; }
+  addItem(offer.item, offer.qty);
+  player.incoming_offers.delete(foundId);
+  publishGiftAccept(foundId, offer.sender_pubkey);
+  write(`You accept the gift: ${offer.qty} ${itemDisplay(offer.item)} from ${offer.sender_name}.`, 'success');
+  refreshSidebar();
+}
+
+function declineGift(arg) {
+  if (combatBlock('decline')) return;
+  if (!arg) { write('Usage: decline <offer_id>', 'error'); return; }
+  let foundId = null;
+  for (const oid of player.incoming_offers.keys()) {
+    if (oid.startsWith(arg) || oid === arg) { foundId = oid; break; }
+  }
+  if (!foundId) { write(`No incoming offer matching "${arg}".`, 'error'); return; }
+  const offer = player.incoming_offers.get(foundId);
+  player.incoming_offers.delete(foundId);
+  publishGiftDecline(foundId, offer.sender_pubkey);
+  write(`You decline ${offer.sender_name}'s gift.`, 'system');
+}
+
+function showGifts() {
+  const inc = [...player.incoming_offers.entries()];
+  const out = [...player.outgoing_offers.entries()];
+  if (inc.length === 0 && out.length === 0) { write('No gift offers pending.'); return; }
+  if (inc.length) {
+    write('-- Incoming gifts --', 'system');
+    for (const [oid, o] of inc) {
+      const ago = Math.round((Date.now() - o.offered_at) / 60000);
+      const msg = o.message ? ` — "${o.message}"` : '';
+      write(`  ${oid.slice(0,8)}  ${o.sender_name}: ${o.qty} ${itemDisplay(o.item)}${msg}  (${ago}m ago)`);
+    }
+    write('  Accept with "claim <id>", refuse with "decline <id>".', 'system');
+  }
+  if (out.length) {
+    write('-- Outgoing gifts (waiting) --', 'system');
+    for (const [oid, o] of out) {
+      const ago = Math.round((Date.now() - o.offered_at) / 60000);
+      const recip = o.recipient_name || o.recipient_pubkey.slice(0,8) + '…';
+      write(`  ${oid.slice(0,8)}  to ${recip}: ${o.qty} ${itemDisplay(o.item)}  (${ago}m ago)`);
+    }
+  }
+}
+
+function healCommand(target) {
+  if (combatBlock('heal')) return;
+  if (!target) { write('Usage: heal <name|npub>', 'error'); return; }
+  let recipient_pubkey = null;
+  if (target.startsWith('npub')) {
+    try { const dec = nip19.decode(target); if (dec.type === 'npub') recipient_pubkey = dec.data; } catch {}
+  }
+  if (!recipient_pubkey) {
+    for (const [pkOther, info] of knownPlayers) {
+      if (info.name && info.name.toLowerCase() === target.toLowerCase()) { recipient_pubkey = pkOther; break; }
+    }
+  }
+  if (!recipient_pubkey) { write(`No traveler named "${target}" known.`, 'error'); return; }
+  if (recipient_pubkey === pk) { write('Use "eat healing_salve" to heal yourself.', 'error'); return; }
+  const idx = findItemIn(player.inventory, 'healing_salve');
+  if (idx === -1) { write('You need a healing salve.', 'error'); return; }
+  const restore = STORY.items.healing_salve.effects?.restore_life || 25;
+  player.inventory.splice(idx, 1);
+  publishHeal(recipient_pubkey, restore);
+  const recipientName = knownPlayers.get(recipient_pubkey)?.name || target;
+  write(`💚 You crush the salve and bind it to ${recipientName}'s life. (+${restore} life sent)`, 'success');
+  refreshSidebar();
+}
+
+function dmCommand(args) {
+  if (combatBlock('dm')) return;
+  const trimmed = (args || '').trim();
+  const firstSpace = trimmed.indexOf(' ');
+  if (firstSpace === -1) { write('Usage: dm <name|npub> <message>', 'error'); return; }
+  const target = trimmed.slice(0, firstSpace);
+  const text = trimmed.slice(firstSpace + 1).trim();
+  if (!target || !text) { write('Usage: dm <name|npub> <message>', 'error'); return; }
+  // Resolve target → pubkey hex
+  let pubkeyHex = null;
+  if (target.startsWith('npub')) {
+    try { const dec = nip19.decode(target); if (dec.type === 'npub') pubkeyHex = dec.data; } catch {}
+  }
+  if (!pubkeyHex) {
+    for (const [pkOther, info] of knownPlayers) {
+      if (info.name && info.name.toLowerCase() === target.toLowerCase()) { pubkeyHex = pkOther; break; }
+    }
+  }
+  if (!pubkeyHex) { write(`No traveler named "${target}" known yet. Use their npub directly, or wait until you've seen them in the world.`, 'error'); return; }
+  publishDM(pubkeyHex, text);
+  write(`[dm to ${target}] ${text}`, 'whisper');
+}
+
+function showInbox() {
+  if (dmInbox.length === 0) { write('No messages.'); return; }
+  write('-- Messages --', 'system');
+  for (const m of dmInbox.slice(0, 15)) {
+    const ago = Math.round((Date.now() - m.received_at) / 60000);
+    write(`  ${m.from_name} (${ago}m ago): "${m.text}"`);
+  }
+  if (dmInbox.length > 15) write(`  ... and ${dmInbox.length - 15} older.`, 'system');
+}
+
+function pinNotice(text) {
+  if (combatBlock('pin')) return;
+  if (!text) { write('Usage: pin <text>  (posts a note on this room\'s board)', 'error'); return; }
+  publishNotice(text);
+  write(`You pin a note. "${text}"`, 'success');
+}
+
+function showNotices() {
+  const localNotices = [];
+  for (const [nid, n] of notices) {
+    if (n.roomId === player.location) localNotices.push({ id: nid, ...n });
+  }
+  if (localNotices.length === 0) { write('No notices here.'); return; }
+  localNotices.sort((a, b) => b.posted_at - a.posted_at);
+  write(`-- Notices in ${player.rooms[player.location].name} --`, 'system');
+  for (const n of localNotices.slice(0, 10)) {
+    const ago = Math.round((Date.now() - n.posted_at) / 60000);
+    const author = n.name || n.author.slice(0, 8) + '…';
+    write(`  ${author} (${ago}m ago):`);
+    write(`    "${n.text}"`);
+  }
+  if (localNotices.length > 10) write(`  ...and ${localNotices.length - 10} older notices.`);
+}
+
 function who() {
   if (knownPlayers.size === 0) { write('No other players seen yet.'); return; }
   write(`Known travelers: ${knownPlayers.size}`);
@@ -2607,7 +2994,13 @@ function help() {
     '                 sell <item> <price>  (list on player marketplace)',
     '                 buy <#> · market · listings',
     'Drops:           corpses · loot <#>',
-    'Network:         whisper <text> · who',
+    'Network:         whisper <text>  (broadcast to your room)',
+    '                 dm <name|npub> <text>  · messages / inbox',
+    '                 pin <text>  · notices / board (settlement bulletin)',
+    '                 who',
+    'Cooperation:     give <item> to <name> [message]',
+    '                 gifts / offers · claim <id> · decline <id>',
+    '                 heal <name>  (uses one healing salve from your inventory)',
     'Identity:        soul (show your nsec) · import <nsec> · new character (fresh start)',
     '                 rename <new_name>  (change your visible name)',
     'Misc:            clear · help'
@@ -2693,6 +3086,15 @@ function handleCommand(input) {
     case 'corpses':              showCorpses(); consumesTurn = false; break;
     case 'loot':                 loot(arg); break;
     case 'whisper': case 'shout':whisper(argRaw); break;
+    case 'dm': case 'tell':      dmCommand(argRaw); break;
+    case 'messages': case 'inbox': case 'msg': showInbox(); consumesTurn = false; break;
+    case 'pin':                  pinNotice(argRaw); break;
+    case 'notices': case 'board':showNotices(); consumesTurn = false; break;
+    case 'give':                 giveCommand(argRaw); break;
+    case 'claim':                claimGift(arg); break;
+    case 'decline':              declineGift(arg); break;
+    case 'gifts': case 'offers': showGifts(); consumesTurn = false; break;
+    case 'heal':                 healCommand(arg); break;
     case 'who':                  who(); consumesTurn = false; break;
     case 'map': case 'm':        showMap(); consumesTurn = false; break;
     case 'help': case '?':       help(); consumesTurn = false; break;
@@ -2737,7 +3139,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${STORY.meta.title} — Nostr PoC v0.10 ===`, 'title');
+write(`=== ${STORY.meta.title} — Nostr PoC v0.12 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
