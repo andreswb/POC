@@ -1844,6 +1844,17 @@ function importSoul(arg) {
   }
 }
 
+function newCharacter() {
+  const ok = confirm('Start a fresh character?\n\nThis WIPES your current character on this browser.\nIf you want to come back to it, type "soul" first to copy your nsec.');
+  if (!ok) { write('Cancelled.', 'system'); return; }
+  try {
+    localStorage.removeItem(STORAGE_NSEC);
+    localStorage.removeItem(STORAGE_STATE);
+  } catch {}
+  write('Wiping local data. Reloading with a fresh keypair…', 'system');
+  setTimeout(() => location.reload(), 600);
+}
+
 // --- chests (personal storage) ---
 function placeChest() {
   if (combatBlock('place')) return;
@@ -2163,7 +2174,7 @@ function help() {
     '                 buy <#> · market · listings',
     'Drops:           corpses · loot <#>',
     'Network:         whisper <text> · who',
-    'Identity:        soul (show your nsec) · import <nsec> (load another character)',
+    'Identity:        soul (show your nsec) · import <nsec> · new character (fresh start)',
     'Misc:            clear · help'
   ];
   for (const l of lines) write(l, 'system');
@@ -2231,6 +2242,8 @@ function handleCommand(input) {
     case 'sleep':                sleep(); break;
     case 'soul':                 showSoul(); consumesTurn = false; break;
     case 'import':               importSoul(argRaw); consumesTurn = false; break;
+    case 'new':                  if (arg === 'character' || arg === '') newCharacter(); else write('Did you mean "new character"?', 'error'); consumesTurn = false; break;
+    case 'reset':                newCharacter(); consumesTurn = false; break;
     case 'place':                if (arg === 'chest') placeChest(); else write('Place what? Try "place chest".', 'error'); break;
     case 'chest':                showChest(); consumesTurn = false; break;
     case 'store':                storeItem(arg); break;
