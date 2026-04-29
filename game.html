@@ -186,6 +186,10 @@
       <h3>Equipment</h3>
       <div class="mat-list" id="equipment"></div>
     </section>
+    <section id="companionSection" style="display:none;">
+      <h3>Companion</h3>
+      <div class="mat-list" id="companionPanel"></div>
+    </section>
     <section>
       <h3>Materials</h3>
       <div class="mat-list" id="materials"></div>
@@ -1289,6 +1293,32 @@ function refreshSidebar() {
     }
   }
 
+  // Companion (only visible when one is bound)
+  const compSec = document.getElementById('companionSection');
+  const compEl = document.getElementById('companionPanel');
+  if (compSec && compEl) {
+    if (player.companion) {
+      const c = player.companion;
+      const ent = STORY.entities[c.entity];
+      const tpd = STORY.meta.turns_per_day || 96;
+      const daysSinceFed = (player.turn - c.last_fed_turn) / tpd;
+      let mood, color;
+      if (daysSinceFed >= HUNGER_DAYS) { mood = 'hungry — feed it!'; color = 'var(--err, #c66)'; }
+      else if (daysSinceFed >= HUNGER_DAYS * 0.66) { mood = 'getting hungry'; color = '#f0b54a'; }
+      else { mood = 'content'; color = 'var(--ok, #6c6)'; }
+      compEl.innerHTML = '';
+      const r1 = document.createElement('div'); r1.className = 'row';
+      r1.innerHTML = `<span>${ent?.display || c.entity}</span><span class="qty">${c.hp}/${c.max_hp} hp</span>`;
+      compEl.appendChild(r1);
+      const r2 = document.createElement('div'); r2.className = 'row';
+      r2.innerHTML = `<span style="color:${color};">${mood}</span><span class="qty" style="color:var(--muted);">fed ${daysSinceFed.toFixed(1)}d ago</span>`;
+      compEl.appendChild(r2);
+      compSec.style.display = '';
+    } else {
+      compSec.style.display = 'none';
+    }
+  }
+
   const matEl = document.getElementById('materials');
   const matEntries = Object.entries(player.materials).filter(([_, q]) => q > 0);
   matEl.innerHTML = '';
@@ -1952,8 +1982,14 @@ function describeRoom() {
   const roomGlyph = isShortGlyph(room.image) ? room.image + ' ' : '';
   write(roomGlyph + room.name + adornments, 'room-name');
   write(room.summary, 'room-desc');
-  if (room.items?.length)
-    write('You see: ' + room.items.map(i => itemDisplay(i, true)).join(', '), 'items');
+  if (room.items?.length) {
+    // Group identical items in the room so dropped piles render as "rusty dagger ×3"
+    const seen = new Map();
+    for (const i of room.items) seen.set(i, (seen.get(i) || 0) + 1);
+    const parts = [];
+    for (const [id, n] of seen) parts.push(n > 1 ? `${itemDisplay(id, true)} ×${n}` : itemDisplay(id, true));
+    write('You see: ' + parts.join(', '), 'items');
+  }
   if (room.npcs?.length)
     write('Here: ' + room.npcs.map(n => STORY.npcs[n].display).join(', '), 'items');
   if (room.resources?.length) {
@@ -1962,8 +1998,23 @@ function describeRoom() {
   }
   if (room.spawn_table?.length)
     write('Tracks here suggest ' + room.spawn_table.map(s => STORY.entities[s.entity]?.display).filter(Boolean).join(', ') + '. Try "hunt".', 'items');
+  // Riddle in this room — show the prompt if unsolved (or if repeatable)
+  if (room.riddle && STORY.riddles[room.riddle]) {
+    const rd = STORY.riddles[room.riddle];
+    if (!player.riddles_solved.has(room.riddle) || rd.repeatable) {
+      write('A voice asks: "' + rd.prompt + '"', 'spark');
+      write('(Try "answer <text>" if you know it.)', 'system');
+    } else {
+      write('(You have already solved the riddle here.)', 'system');
+    }
+  }
   if (room.drink_source) write('Fresh water here. Try "drink".', 'items');
   if (player.chests.has(player.location)) write('Your chest sits here. Try "chest", "store <x>", "retrieve <x>".', 'items');
+  // Companion at your side
+  if (player.companion) {
+    const ent = STORY.entities[player.companion.entity];
+    write(`Your ${ent?.display || player.companion.entity} pads alongside you (${player.companion.hp}/${player.companion.max_hp} hp).`, 'success');
+  }
   const others = [...knownPlayers.entries()].filter(([_, v]) => v.location === player.location);
   if (others.length) write('Other travelers: ' + others.map(([pkOther, info]) => info.name || pkOther.slice(0,8) + '…').join(', '), 'system');
   const localDrops = getDropsInRoom(player.location);
@@ -2067,7 +2118,22 @@ function bury(arg) {
 
 function showInventory() {
   if (!player.inventory.length) write('You carry no discrete items.');
-  else write('You carry: ' + player.inventory.map(i => itemDisplay(i, true)).join(', '));
+  else {
+    // Group identical items so multiples render as "cooked meat ×3" instead of three rows.
+    // Skip grouping for items with edge/durability (each weapon copy is unique).
+    const groups = new Map(); // item_id -> count
+    const unique = []; // items with durability tracked separately
+    for (const i of player.inventory) {
+      if (player.edges?.has(i)) unique.push(i);
+      else groups.set(i, (groups.get(i) || 0) + 1);
+    }
+    const parts = [];
+    for (const [id, n] of groups) {
+      parts.push(n > 1 ? `${itemDisplay(id, true)} ×${n}` : itemDisplay(id, true));
+    }
+    for (const i of unique) parts.push(itemDisplay(i, true));
+    write('You carry: ' + parts.join(', '));
+  }
   const mats = Object.entries(player.materials).filter(([_, q]) => q > 0);
   if (mats.length) write('Materials: ' + mats.map(([k, q]) => `${itemDisplay(k)} ×${q}`).join(', '), 'gold');
   write(`Load: ${Math.round(computeWeight()*10)/10}/${computeMaxCapacity()}`, 'system');
@@ -2077,6 +2143,11 @@ function showStatus() {
   write(`Location: ${player.rooms[player.location].name}`);
   write(`Life: ${Math.floor(player.life)}/${computeMaxLife()}  ·  Gold: ${player.gold}  ·  Sparks: ${player.sparks}  ·  Load: ${Math.round(computeWeight()*10)/10}/${computeMaxCapacity()}  ·  Turn: ${player.turn}`);
   write(`Skills: ${player.skills.size === 0 ? 'none' : [...player.skills].map(s => STORY.skills[s].display).join(', ')}`);
+  if (player.companion) {
+    const c = player.companion;
+    const ent = STORY.entities[c.entity];
+    write(`Companion: ${ent?.display || c.entity} (${c.hp}/${c.max_hp} hp). Type "companion" for status, "feed" for hunger.`, 'success');
+  }
   if (inCombat()) write(`In combat with ${player.combat_target.display} (${player.combat_target.hp} HP).`, 'combat');
 }
 
@@ -2878,6 +2949,7 @@ function tameAttempt() {
     };
     player.combat_target = null;
     write(`The ${t.display} sniffs the meat, hesitates, and lowers its hackles. It follows you now.`, 'success');
+    write(`(Type "companion" any time to check on it. Feed it raw meat every ${HUNGER_DAYS} days or it'll go wild.)`, 'system');
     publishAction('tamed', { entity: t.id });
   } else {
     write(`The ${t.display} snatches the meat and lunges anyway.`, 'error');
@@ -3571,7 +3643,7 @@ function showMap() {
   const positions = new Map();
   positions.set(player.location, [0, 0]);
   const queue = [player.location];
-  const dirOffset = { north:[0,-1], south:[0,1], east:[1,0], west:[-1,0], up:[0,-3], down:[0,3] };
+  const dirOffset = { north:[0,-1], south:[0,1], east:[1,0], west:[-1,0], up:[0,-3], down:[0,3], in:[0,2], out:[0,-2] };
   while (queue.length) {
     const cur = queue.shift();
     const [cx, cy] = positions.get(cur);
@@ -3617,6 +3689,8 @@ function showMap() {
       const dx = tx - x, dy = ty - y;
       if (dx === 1 && dy === 0)      put(cy + 1, cx + boxW, '──');
       else if (dx === 0 && dy === 1) put(cy + 3, cx + Math.floor(boxW/2), '│');
+      else if (dx === 0 && dy === 2) put(cy + 3, cx + Math.floor(boxW/2), '┊');  // in (dotted — going inside)
+      else if (dx === 0 && dy === 3) put(cy + 3, cx + Math.floor(boxW/2), '╎');  // down
     }
   }
   // Render in a horizontally-scrollable container so wide maps still fit on phones
