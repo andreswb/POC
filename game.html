@@ -223,19 +223,26 @@ import {
 const STORY_WHISPERING_FOREST = {
   schema_version: '0.4',
   meta: {
-    id: 'whispering-forest-v1', title: 'The Whispering Forest', author: 'Andres',
+    id: 'whispering-forest-v1',
+    title: { en: 'The Whispering Forest', de: 'Der Flüsternde Wald' },
+    author: 'Andres',
     starting_location: 'forest_clearing',
     starting_inventory: [], starting_materials: {},
     starting_gold: 0, starting_sparks: 30, starting_skills: [],
     starting_life: 100, life_max: 100, life_decay_per_turn: 0.5,
     carry_capacity: 40, sparks_per_craft: 2,
     turns_per_day: 96,
-    daily_quest_pool: ['daily_fishmonger', 'daily_hunter', 'daily_forager', 'daily_smith']
+    daily_quest_pool: ['daily_fishmonger', 'daily_hunter', 'daily_forager', 'daily_smith'],
+    languages: ['en', 'de'],
+    language: 'en'
   },
   rooms: {
     forest_clearing: {
-      name: 'A Clearing in the Forest',
-      summary: 'A small clearing ringed by pines. Old moss-covered stones in the center. Paths wind north into deeper forest, east toward a canyon, south to a village, and west toward a quiet glade.',
+      name: { en: 'A Clearing in the Forest', de: 'Eine Lichtung im Wald' },
+      summary: {
+        en: 'A small clearing ringed by pines. Old moss-covered stones in the center. Paths wind north into deeper forest, east toward a canyon, south to a village, and west toward a quiet glade.',
+        de: 'Eine kleine Lichtung, umringt von Tannen. Alte moosbedeckte Steine in der Mitte. Pfade führen nach Norden in den tieferen Wald, nach Osten zu einer Schlucht, nach Süden zu einem Dorf und nach Westen zu einer stillen Lichtung.'
+      },
       exits: { north: 'deep_forest', east: 'red_canyon', south: 'greenmeadow_village', west: 'hermits_glade' },
       items: ['rusty_dagger'], npcs: [], riddle: null,
       resources: [{ id:'wood', skill:'woodcutting', verb:'chop', yield_qty:1, regenerates:true, regen_seconds:60 }],
@@ -282,8 +289,8 @@ const STORY_WHISPERING_FOREST = {
     },
     hermits_glade: {
       name: 'The Hermit\'s Glade',
-      summary: 'A quiet glade carpeted in fern. A hermit\'s small fire smokes near a wall of stones. The glade feels held outside time. The clearing is east.',
-      exits: { east: 'forest_clearing' },
+      summary: 'A quiet glade carpeted in fern. A hermit\'s small fire smokes near a wall of stones. The glade feels held outside time. The clearing is east; an old path winds in deeper to a sacred grove.',
+      exits: { east: 'forest_clearing', in: 'sacred_grove' },
       items: [], npcs: ['hermit'], riddle: null,
       resources: [{ id:'common_herb', skill:'foraging', verb:'forage', yield_qty:1, regenerates:true, regen_seconds:120 }],
       spawn_table: [],
@@ -321,8 +328,8 @@ const STORY_WHISPERING_FOREST = {
     },
     wave_cliffs: {
       name: 'The Wave-Worn Cliffs',
-      summary: 'Sheer black cliffs over surf. Salt spray rises in slow gusts. A weathered shape on a flat stone speaks once and falls silent. West leads back to the marsh.',
-      exits: { west: 'salt_marsh' },
+      summary: 'Sheer black cliffs over surf. Salt spray rises in slow gusts. A weathered shape on a flat stone speaks once and falls silent. West leads back to the marsh; a crumbling stair climbs up to an abandoned lighthouse.',
+      exits: { west: 'salt_marsh', up: 'abandoned_lighthouse' },
       items: [], npcs: [], riddle: 'cliff_riddle',
       resources: [{ id:'raw_fish', skill:'fishing', verb:'fish', yield_qty:2, regenerates:true, regen_seconds:50 }],
       spawn_table: [],
@@ -402,10 +409,38 @@ const STORY_WHISPERING_FOREST = {
       resources: [],
       spawn_table: [{ entity:'stone_wraith', weight:1 }],
       hazards: {}, drink_source: null
+    },
+    sacred_grove: {
+      name: 'The Sacred Grove',
+      summary: 'A circle of ancient oaks, taller than seems reasonable. Light slants between trunks the colour of old bronze. Something watches from within the moss. Out leads back to the hermit\'s glade.',
+      example_descriptions: [
+        'A cathedral of leaves. The wind enters and remembers to leave.',
+        'A green silence so total your own breath sounds rude.'
+      ],
+      tone_hints: ['ancient','luminous','sacred','watching'],
+      exits: { out:'hermits_glade' },
+      items: [], npcs: [], riddle: 'grove_riddle',
+      resources: [{ id:'common_herb', skill:'foraging', verb:'forage', yield_qty:2, regenerates:true, regen_seconds:120 }],
+      spawn_table: [{ entity:'forest_spirit', weight:1 }],
+      hazards: {}, drink_source: { restore_life: 8, cooldown_seconds: 120 }
+    },
+    abandoned_lighthouse: {
+      name: 'The Abandoned Lighthouse',
+      summary: 'A spiral of stone steps climbs to a ruined lantern room. Salt has eaten the iron. The lens is gone, but the view is forever. A cold draft hums up the shaft. Down leads back to the cliffs.',
+      example_descriptions: [
+        'The wind through the broken windows sounds like a slow song someone forgot the words to.',
+        'Below, the sea writes and rewrites the same sentence on the rocks.'
+      ],
+      tone_hints: ['forgotten','high','salt','melancholic'],
+      exits: { down:'wave_cliffs' },
+      items: [], npcs: [], riddle: 'lighthouse_riddle',
+      resources: [{ id:'iron_ore', skill:'stone_knapping', verb:'mine', yield_qty:1, regenerates:true, regen_seconds:120 }],
+      spawn_table: [],
+      hazards: {}, drink_source: null
     }
   },
   items: {
-    rusty_dagger:  { display:'rusty dagger',  article:'a',         value:5,  weight:2, category:'good',       stackable:false, tags:['weapon','metal'], slot:'hand', effects:{attack_bonus:3, damage_type:'pierce'} },
+    rusty_dagger:  { display:{en:'rusty dagger',de:'rostiger Dolch'}, article:{en:'a',de:'einen'}, value:5,  weight:2, category:'good',       stackable:false, tags:['weapon','metal'], slot:'hand', effects:{attack_bonus:3, damage_type:'pierce'} },
     sharpened_dagger:{ display:'sharpened dagger', article:'a',    value:18, weight:2, category:'good',       stackable:false, tags:['weapon','metal','crafted'], slot:'hand', effects:{attack_bonus:5, damage_type:'pierce'} },
     broken_sword:  { display:'broken sword',  article:'a',         value:3,  weight:3, category:'good',       stackable:false, tags:['weapon','metal','broken'] },
     sword:         { display:'fine sword',    article:'a',         value:80, weight:3, category:'good',       stackable:false, tags:['weapon','metal','crafted','rare'], slot:'hand', effects:{attack_bonus:10, damage_type:'slash'} },
@@ -444,7 +479,10 @@ const STORY_WHISPERING_FOREST = {
     arrow:         { display:'arrow',         article:'an',        value:1,  weight:0, category:'resource',   stackable:true,  tags:['weapon','ammo'] },
     torch:         { display:'torch',         article:'a',         value:6,  weight:1, category:'tool',       stackable:false, tags:['crafted','light','weapon'], slot:'hand', effects:{attack_bonus:2, damage_type:'blunt'} },
     cartwheel:     { display:'cartwheel',     article:'a',         value:8,  weight:5, category:'good',       stackable:false, tags:['quest','wood'] },
-    spirit_glass:  { display:'spirit glass',  article:'a',         value:120,weight:1, category:'good',       stackable:false, tags:['rare','mythic'], effects:{life_max_bonus:25} }
+    spirit_glass:  { display:'spirit glass',  article:'a',         value:120,weight:1, category:'good',       stackable:false, tags:['rare','mythic'], effects:{life_max_bonus:25} },
+    iron_axe:      { display:'iron axe',      article:'an',        value:140,weight:4, category:'tool',       stackable:false, tags:['weapon','metal','crafted'], slot:'hand', effects:{attack_bonus:9, damage_type:'slash'} },
+    iron_sword:    { display:'iron sword',    article:'an',        value:200,weight:3, category:'good',       stackable:false, tags:['weapon','metal','crafted','rare'], slot:'hand', effects:{attack_bonus:12, damage_type:'slash'} },
+    grove_token:   { display:'grove token',   article:'a',         value:80, weight:1, category:'good',       stackable:false, tags:['rare','mythic'], effects:{} }
   },
   npcs: {
     weathered_merchant: {
@@ -454,6 +492,7 @@ const STORY_WHISPERING_FOREST = {
       behaviors: ['buys_items','tells_rumors'],
       buys_tags: ['weapon','metal','herb','trinket','wood','stone','crafted','leather','food','ore'],
       is_marketplace: true,
+      hours: { open: 6, close: 20 },
       initial_stock: [
         { item:'wood', price_gold:2, qty:5 },
         { item:'silver_herb', price_gold:18, qty:1 },
@@ -470,8 +509,9 @@ const STORY_WHISPERING_FOREST = {
         'Sword needs sharpening every battle or two. That\'s just the way of iron.'
       ],
       behaviors: ['offers_smithing','tells_rumors'],
-      buys_tags: [],
+      buys_tags: ['ore','metal'],
       is_marketplace: false,
+      hours: { open: 7, close: 19 },
       initial_stock: []
     },
     riverside_trader: {
@@ -482,6 +522,7 @@ const STORY_WHISPERING_FOREST = {
       buys_tags: ['food','leather','herb','crafted','fish'],
       is_marketplace: true,
       teaches: ['fishing'],
+      hours: { open: 5, close: 22 },
       initial_stock: [
         { item:'raw_meat',    price_gold:3,  qty:3 },
         { item:'raw_fish',    price_gold:2,  qty:5 },
@@ -502,6 +543,7 @@ const STORY_WHISPERING_FOREST = {
       buys_tags: ['feather','wood','leather','crafted'],
       is_marketplace: true,
       teaches: ['fletching'],
+      hours: { open: 8, close: 18 },
       initial_stock: [
         { item:'bow',         price_gold:60, qty:1 },
         { item:'arrow',       price_gold:2,  qty:20 },
@@ -576,6 +618,18 @@ const STORY_WHISPERING_FOREST = {
       answers:['iron','steel','metal'], reward_sparks:120,
       reward_items:[{ item:'iron_ingot', qty:1 }],
       on_solve_message:'The inscription glows once, then fades. The cold forge breathes a small warm draft. A single ingot of iron rests on the anvil.', repeatable:false
+    },
+    grove_riddle: {
+      location:'sacred_grove',
+      prompt:'The more you take, the more you leave behind. What are they?',
+      answers:['footsteps','steps','footprints'], reward_sparks:130,
+      on_solve_message:'The grove sighs. Light shifts between the oaks. The moss at your feet has spelled out something kind, and is already forgetting it.', repeatable:false
+    },
+    lighthouse_riddle: {
+      location:'abandoned_lighthouse',
+      prompt:'I have no body and no eyes, but I see all that approaches in the dark. What was I?',
+      answers:['light','a light','a lamp','lamp','beacon','a beacon'], reward_sparks:110,
+      on_solve_message:'Far below, a wave breaks. The empty lantern frame hums for a long moment, and a pale glow stirs once where a flame used to be.', repeatable:false
     }
   },
   skills: {
@@ -598,7 +652,7 @@ const STORY_WHISPERING_FOREST = {
     packmaking:     { display:'Packmaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['leather_pack','make_belt']} },
     taming:         { display:'Taming',         spark_cost:120, prereqs:['hunting','skinning'], tier:3, unlocks:{verbs:['tame'], recipes:[]}, tags:['survival'] },
     fletching:      { display:'Fletching',      spark_cost:100, prereqs:['carpentry'],       tier:3, unlocks:{verbs:[], recipes:['craft_bow','craft_arrows']}, tags:['crafting'] },
-    smelting:       { display:'Smelting',       spark_cost:120, prereqs:['stone_knapping','firemaking'], tier:3, unlocks:{verbs:[], recipes:['smelt_iron','craft_torch']}, tags:['crafting'] }
+    smelting:       { display:'Smelting',       spark_cost:120, prereqs:['stone_knapping','firemaking'], tier:3, unlocks:{verbs:[], recipes:['smelt_iron','craft_torch','forge_iron_axe','forge_iron_sword']}, tags:['crafting'] }
   },
   recipes: {
     wooden_handle: { display:'Wooden handle', skill:'carpentry',  inputs:[{item:'wood',qty:1}],                                  outputs:[{item:'wooden_handle',qty:2}], requires_fire:false, sparks_reward:2 },
@@ -622,7 +676,9 @@ const STORY_WHISPERING_FOREST = {
     craft_bow:     { display:'Longbow',       skill:'fletching',  inputs:[{item:'wood',qty:2},{item:'wooden_handle',qty:1}],     outputs:[{item:'bow',qty:1}],           requires_fire:false, sparks_reward:8 },
     craft_arrows:  { display:'Arrows (×5)',   skill:'fletching',  inputs:[{item:'wood',qty:1},{item:'feather',qty:1}],           outputs:[{item:'arrow',qty:5}],         requires_fire:false, sparks_reward:3 },
     smelt_iron:    { display:'Iron ingot',    skill:'smelting',   inputs:[{item:'iron_ore',qty:2}],                              outputs:[{item:'iron_ingot',qty:1}],    requires_fire:true,  sparks_reward:6 },
-    craft_torch:   { display:'Torch',         skill:'smelting',   inputs:[{item:'wood',qty:1},{item:'hide',qty:1}],              outputs:[{item:'torch',qty:1}],         requires_fire:true,  sparks_reward:3 }
+    craft_torch:   { display:'Torch',         skill:'smelting',   inputs:[{item:'wood',qty:1},{item:'hide',qty:1}],              outputs:[{item:'torch',qty:1}],         requires_fire:true,  sparks_reward:3 },
+    forge_iron_axe:   { display:'Iron axe',   skill:'smelting',   inputs:[{item:'iron_ingot',qty:2},{item:'wooden_handle',qty:1}], outputs:[{item:'iron_axe',qty:1}],   requires_fire:true,  sparks_reward:12 },
+    forge_iron_sword: { display:'Iron sword', skill:'smelting',   inputs:[{item:'iron_ingot',qty:3},{item:'wooden_handle',qty:1}], outputs:[{item:'iron_sword',qty:1}], requires_fire:true,  sparks_reward:18 }
   },
   entities: {
     deer:   { display:'deer',   summary:'A wary forest deer.',   hp:10, attack_damage_range:[1,3], evasion:0.1, hostile:false, base_drops:[{item:'raw_meat',qty:2}], skinning_drops:[{item:'hide',qty:1}], rare_drops:[{item:'bone_knife',qty:1,chance:0.15}], weaknesses:['pierce'] },
@@ -632,7 +688,8 @@ const STORY_WHISPERING_FOREST = {
     fox:    { display:'fox',    summary:'Russet, quick, eyes that miss nothing.', hp:6, attack_damage_range:[1,2], evasion:0.3, hostile:false, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[{item:'hide',qty:1}], rare_drops:[{item:'bone_knife',qty:1,chance:0.20}], weaknesses:['pierce'] },
     bear:   { display:'bear',   summary:'A great brown shape, slow and unhurried. Eyes calm.', hp:35, attack_damage_range:[5,12], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:4}], skinning_drops:[{item:'hide',qty:2}], weaknesses:['slash','pierce'], resistances:[], tameable:false },
     eagle:  { display:'eagle',  summary:'A wide-winged shadow, talons the colour of bone.', hp:8, attack_damage_range:[1,3], evasion:0.4, hostile:false, base_drops:[{item:'feather',qty:3},{item:'raw_meat',qty:1}], skinning_drops:[], rare_drops:[{item:'feather',qty:2,chance:0.30}], weaknesses:['pierce'], resistances:['blunt'] },
-    stone_wraith: { display:'stone wraith', summary:'A figure of polished stone with empty eyes and a slow, deliberate gait.', hp:60, attack_damage_range:[6,14], evasion:0.10, hostile:true, base_drops:[{item:'spirit_glass',qty:1}], skinning_drops:[], rare_drops:[], weaknesses:['pierce'], resistances:['slash','blunt'], tameable:false }
+    stone_wraith: { display:'stone wraith', summary:'A figure of polished stone with empty eyes and a slow, deliberate gait.', hp:60, attack_damage_range:[6,14], evasion:0.10, hostile:true, base_drops:[{item:'spirit_glass',qty:1}], skinning_drops:[], rare_drops:[], weaknesses:['pierce'], resistances:['slash','blunt'], tameable:false },
+    forest_spirit: { display:'forest spirit', summary:'A drift of moss and antler-shadow that becomes a shape only when you look away.', hp:45, attack_damage_range:[4,9], evasion:0.30, hostile:false, base_drops:[{item:'grove_token',qty:1},{item:'common_herb',qty:3}], skinning_drops:[], rare_drops:[{item:'silver_herb',qty:1,chance:0.40}], weaknesses:['blunt'], resistances:['pierce','slash'], tameable:false }
   },
   events: {
     first_kill_rumor: {
@@ -820,6 +877,35 @@ const STORY_WHISPERING_FOREST = {
       objectives: [{ type:'have_item', item:'iron_ore', qty:3 }],
       rewards: { gold: 30, sparks: 12, items: [] },
       completion_message: 'The merchant tips their hat. "The smith will eat well tonight. Take this — earned."'
+    },
+    smith_apprentice: {
+      title: "The Smith's Apprentice (1/3)",
+      description: 'The blacksmith wants to test you. Bring 5 iron ore from the old mine or the lighthouse cliffs.',
+      giver: 'village_blacksmith',
+      auto_accept: false,
+      objectives: [{ type:'have_item', item:'iron_ore', qty:5 }],
+      rewards: { gold: 20, sparks: 10, items: [] },
+      completion_message: '"Strong arms," the smith says. "Now bring me the work that follows the ore."'
+    },
+    smith_journeyman: {
+      title: "The Smith's Journeyman (2/3)",
+      description: 'Smelt and bring back 3 iron ingots. The smith wants to see whether you can finish what you start.',
+      giver: 'village_blacksmith',
+      auto_accept: false,
+      requires: ['smith_apprentice'],
+      objectives: [{ type:'have_item', item:'iron_ingot', qty:3 }],
+      rewards: { gold: 35, sparks: 15, items: [] },
+      completion_message: '"Better than I expected." The smith pockets the ingots and slides a ledger across the bench.'
+    },
+    smith_master: {
+      title: "The Smith's Master Work (3/3)",
+      description: 'Forge an iron axe and present it. The smith wants to see your hands at the anvil.',
+      giver: 'village_blacksmith',
+      auto_accept: false,
+      requires: ['smith_journeyman'],
+      objectives: [{ type:'have_item', item:'iron_axe', qty:1 }],
+      rewards: { gold: 80, sparks: 40, items: [{ item:'iron_sword', qty:1 }] },
+      completion_message: '"This is good work." The smith presses an iron sword into your hand. "Keep that axe. Take this too — and remember the price of iron."'
     }
   }
 };
@@ -1129,8 +1215,95 @@ const player = {
   daily_quest_day: 0,          // in-game day when the active daily was assigned
   daily_quests_completed: 0,   // lifetime count of daily quests turned in
   combat_id: null,             // 4.5: id of the shared combat session this player is part of
-  freshness: {}                // per-item FIFO batches: { item_id: [{turn, qty}, ...] }
+  freshness: {},               // per-item FIFO batches: { item_id: [{turn, qty}, ...] }
+  language: null               // i18n: 'en' / 'de' / etc. null = auto-detect from browser, fallback to story default
 };
+
+// ---- i18n helpers (5.3) ---------------------------------------------------
+// Prose fields in stories may be a plain string (legacy) or an object keyed
+// by language code: { en: "Hello", de: "Hallo" }. The story declares which
+// languages it supports via meta.languages (array of codes). The player can
+// switch their preferred language via the "lang <code>" command.
+function currentLang() {
+  if (player.language) return player.language;
+  const supported = STORY.meta.languages || [STORY.meta.language || 'en'];
+  // Browser preference, if it's one the story supports
+  const browser = (navigator.language || 'en').toLowerCase().split('-')[0];
+  if (supported.includes(browser)) return browser;
+  return STORY.meta.language || supported[0] || 'en';
+}
+function t(v) {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (Array.isArray(v)) return v;  // arrays are returned as-is; tArr handles them
+  if (typeof v !== 'object') return String(v);
+  const want = currentLang();
+  if (v[want] != null) return v[want];
+  if (v.en != null) return v.en;
+  const def = STORY.meta.language;
+  if (def && v[def] != null) return v[def];
+  for (const k of Object.keys(v)) if (v[k] != null) return v[k];
+  return '';
+}
+function tArr(v) {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v.map(t);
+  // Maybe { en: [...], de: [...] }
+  if (typeof v === 'object') {
+    const want = currentLang();
+    if (Array.isArray(v[want])) return v[want].map(t);
+    if (Array.isArray(v.en)) return v.en.map(t);
+    for (const k of Object.keys(v)) if (Array.isArray(v[k])) return v[k].map(t);
+  }
+  return [];
+}
+// Convenience accessor: t-wrapped display for any entity kind. Used heavily in narration.
+function tDisp(kind, id) {
+  const obj = STORY[kind]?.[id];
+  if (!obj) return id;
+  return t(obj.display) || id;
+}
+
+// Resolve i18n prose fields IN PLACE on STORY. Stores the original on STORY.__raw so we can
+// re-resolve when the player switches language. Touches: name, summary, display, article,
+// description, prompt, on_solve_message, title, completion_message, tone, tone_hints,
+// dialogue_seeds, example_descriptions, conditional_dialogue.lines, recipe.display.
+const I18N_STRING_FIELDS = ['name','summary','display','article','description','prompt','on_solve_message','title','completion_message','tone'];
+const I18N_ARRAY_FIELDS  = ['tone_hints','dialogue_seeds','example_descriptions','answers'];
+function resolveStoryProse() {
+  // Snapshot the raw story once on first call so we can re-resolve on language change
+  if (!STORY.__raw) {
+    STORY.__raw = JSON.parse(JSON.stringify(STORY));
+  }
+  const RAW = STORY.__raw;
+  function resolveObj(target, raw) {
+    if (!target || !raw) return;
+    for (const k of I18N_STRING_FIELDS) {
+      if (raw[k] !== undefined) target[k] = t(raw[k]);
+    }
+    for (const k of I18N_ARRAY_FIELDS) {
+      if (raw[k] !== undefined) target[k] = tArr(raw[k]);
+    }
+    // Special: NPC conditional_dialogue blocks have their own .lines
+    if (Array.isArray(raw.conditional_dialogue)) {
+      target.conditional_dialogue = raw.conditional_dialogue.map(blk => ({
+        ...blk,
+        lines: tArr(blk.lines)
+      }));
+    }
+  }
+  // meta: title, tone
+  if (STORY.meta && RAW.meta) {
+    if (RAW.meta.title !== undefined) STORY.meta.title = t(RAW.meta.title);
+    if (RAW.meta.tone !== undefined) STORY.meta.tone = t(RAW.meta.tone);
+  }
+  for (const kind of ['rooms','items','npcs','riddles','skills','recipes','entities','quests','events']) {
+    if (!STORY[kind] || !RAW[kind]) continue;
+    for (const id of Object.keys(STORY[kind])) {
+      resolveObj(STORY[kind][id], RAW[kind][id]);
+    }
+  }
+}
 
 // 4.5 group hunts: shared combat sessions keyed by combat_id
 const combatSessions = new Map();
@@ -1254,6 +1427,7 @@ function serializeState() {
     daily_quest_day: player.daily_quest_day,
     daily_quests_completed: player.daily_quests_completed,
     combat_id: player.combat_id,
+    language: player.language,
     freshness: Object.fromEntries(Object.entries(player.freshness || {}).map(([k, batches]) => [k, batches.map(b => ({ turn: b.turn, qty: b.qty }))])),
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
@@ -1297,6 +1471,7 @@ function applyState(s) {
   player.daily_quest_day = s.daily_quest_day ?? 0;
   player.daily_quests_completed = s.daily_quests_completed ?? 0;
   player.combat_id = s.combat_id ?? null;
+  if (s.language) player.language = s.language;
   player.freshness = {};
   for (const [k, batches] of Object.entries(s.freshness || {})) {
     if (Array.isArray(batches)) player.freshness[k] = batches.map(b => ({ turn: b.turn, qty: b.qty }));
@@ -2064,7 +2239,7 @@ function formatActionSummary(action, p) {
     case 'take':           return `take ${p.item}`;
     case 'drop':           return `drop ${p.item}`;
     case 'gather':         return `${p.verb} ${p.item} ×${p.qty}`;
-    case 'craft':          return `craft ${p.recipe}`;
+    case 'craft':          return `craft ${p.qty && p.qty > 1 ? p.qty + '× ' : ''}${p.recipe}`;
     case 'learn':          return `learn ${p.skill}`;
     case 'talk':           return `talk to ${p.npc}`;
     case 'whisper':        return `whisper "${(p.text || '').slice(0, 32)}"`;
@@ -2101,13 +2276,16 @@ function itemDisplay(id, withArticle = false) {
   const it = STORY.items[id];
   if (!it) return id;
   const glyph = isShortGlyph(it.image) ? it.image + ' ' : '';
-  return withArticle ? `${it.article} ${glyph}${it.display}` : `${glyph}${it.display}`;
+  const disp = t(it.display);
+  const art = t(it.article);
+  return withArticle ? `${art} ${glyph}${disp}` : `${glyph}${disp}`;
 }
 function findItemIn(list, query) {
   return list.findIndex(i => {
     const it = STORY.items[i];
     if (!it) return i === query;
-    return i === query || it.display.includes(query) || it.display.split(' ').includes(query);
+    const disp = t(it.display);
+    return i === query || disp.includes(query) || disp.split(' ').includes(query);
   });
 }
 function findMaterialKey(query) {
@@ -2302,7 +2480,8 @@ function tickTurn() {
   if (!player.combat_target && room.hazards?.wolves) {
     const w = room.hazards.wolves;
     const nightBoost = dayPart().isNight ? 1.5 : 1.0;
-    if (Math.random() < w.encounter_chance * nightBoost) {
+    const fogBoost = (player.weather === 'fog') ? 1.5 : 1.0;
+    if (Math.random() < w.encounter_chance * nightBoost * fogBoost) {
       const ent = STORY.entities[w.entity];
       player.combat_target = { id: w.entity, ...structuredClone(ent) };
       write('');
@@ -2350,8 +2529,8 @@ function describeRoom() {
   write('');
   const adornments = (fireActive(player.location) ? '  🔥' : '') + (room.hazards?.wolves ? '  ⚠' : '') + (player.chests.has(player.location) ? '  📦' : '');
   const roomGlyph = isShortGlyph(room.image) ? room.image + ' ' : '';
-  write(roomGlyph + room.name + adornments, 'room-name');
-  write(room.summary, 'room-desc');
+  write(roomGlyph + t(room.name) + adornments, 'room-name');
+  write(t(room.summary), 'room-desc');
   if (room.items?.length) {
     // Group identical items in the room so dropped piles render as "rusty dagger ×3"
     const seen = new Map();
@@ -2361,7 +2540,7 @@ function describeRoom() {
     write('You see: ' + parts.join(', '), 'items');
   }
   if (room.npcs?.length)
-    write('Here: ' + room.npcs.map(n => STORY.npcs[n].display).join(', '), 'items');
+    write('Here: ' + room.npcs.map(n => t(STORY.npcs[n].display)).join(', '), 'items');
   if (room.resources?.length) {
     const verbs = room.resources.map(r => `${r.verb} (${itemDisplay(r.id)})`).join(', ');
     write('Gatherable: ' + verbs, 'items');
@@ -2610,39 +2789,74 @@ function showRecipes() {
   write('Type "craft <recipe_id>" to craft. Each craft awards ' + STORY.meta.sparks_per_craft + ' sparks.', 'system');
 }
 
-function craft(arg) {
+function craft(argRaw) {
   if (combatBlock('craft')) return;
-  const r = STORY.recipes[arg];
-  if (!r) { write(`No such recipe "${arg}".`, 'error'); return; }
-  if (!player.skills.has(r.skill)) { write(`You need ${STORY.skills[r.skill].display}.`, 'error'); return; }
+  // Accept "craft <recipe>" or "craft <qty> <recipe>". Qty must be a positive integer.
+  const parts = (argRaw || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) { write('Craft what? Usage: craft <recipe>  or  craft <qty> <recipe>', 'error'); return; }
+  let qty = 1;
+  let recipeId = parts[0];
+  if (/^\d+$/.test(parts[0]) && parts.length >= 2) {
+    qty = parseInt(parts[0], 10);
+    recipeId = parts[1];
+    if (qty < 1) { write('Quantity must be ≥ 1.', 'error'); return; }
+    if (qty > 99) { write('Sane batch size is ≤ 99 per command. Run again if you really want more.', 'error'); return; }
+  }
+  const r = STORY.recipes[recipeId];
+  if (!r) { write(`No such recipe "${recipeId}".`, 'error'); return; }
+  if (!player.skills.has(r.skill)) { write(`You need ${t(STORY.skills[r.skill].display)}.`, 'error'); return; }
   if (r.requires_fire && !fireActive(player.location)) { write('You need an active fire here. Try "light fire".', 'error'); return; }
+  // Aggregate input requirement for the full batch
   for (const io of r.inputs) {
+    const need = io.qty * qty;
     const have = STORY.items[io.item].stackable ? (player.materials[io.item] || 0) : player.inventory.filter(i => i === io.item).length;
-    if (have < io.qty) { write(`Not enough ${itemDisplay(io.item)} (need ${io.qty}, have ${have}).`, 'error'); return; }
+    if (have < need) { write(`Not enough ${itemDisplay(io.item)} for ${qty}× ${t(r.display)} (need ${need}, have ${have}).`, 'error'); return; }
   }
   if (r.tool && !player.inventory.includes(r.tool)) { write(`You need ${itemDisplay(r.tool, true)}.`, 'error'); return; }
-  // Capacity check on outputs (after consuming inputs)
+  // Capacity check on the full batch
   let inputWeight = 0;
-  for (const io of r.inputs) inputWeight += (STORY.items[io.item].weight ?? 1) * io.qty;
+  for (const io of r.inputs) inputWeight += (STORY.items[io.item].weight ?? 1) * io.qty * qty;
   let outputWeight = 0;
-  for (const io of r.outputs) outputWeight += (STORY.items[io.item].weight ?? 1) * io.qty;
+  for (const io of r.outputs) outputWeight += (STORY.items[io.item].weight ?? 1) * io.qty * qty;
   if (computeWeight() - inputWeight + outputWeight > computeMaxCapacity()) {
-    write(`Too heavy: the result would exceed your carry capacity. Drop or store something first.`, 'error'); return;
+    write(`Too heavy: ${qty}× ${t(r.display)} would exceed your carry capacity. Drop or store something first.`, 'error'); return;
   }
-  for (const io of r.inputs) removeFromInventoryOrMaterials(io.item, io.qty);
-  for (const io of r.outputs) addItem(io.item, io.qty);
-  const outStr = r.outputs.map(io => `${io.qty} ${itemDisplay(io.item)}`).join(', ');
-  write(`You craft: ${outStr}.`, 'success');
-  // craft reward (recipe-specific override falls back to meta default)
-  const reward = r.sparks_reward ?? STORY.meta.sparks_per_craft ?? 0;
-  if (reward > 0) {
-    player.sparks += reward;
-    player.stats.sparks_earned += reward;
-    write(`(+${reward} sparks for crafting)`, 'spark');
+  // Apply: consume inputs × qty, produce outputs × qty (in one pass)
+  for (const io of r.inputs) removeFromInventoryOrMaterials(io.item, io.qty * qty);
+  for (const io of r.outputs) addItem(io.item, io.qty * qty);
+  const outStr = r.outputs.map(io => `${io.qty * qty} ${itemDisplay(io.item)}`).join(', ');
+  if (qty > 1) write(`You craft ${qty}× ${t(r.display)}: ${outStr}.`, 'success');
+  else write(`You craft: ${outStr}.`, 'success');
+  // Sparks reward (per craft)
+  const perCraftReward = r.sparks_reward ?? STORY.meta.sparks_per_craft ?? 0;
+  const totalReward = perCraftReward * qty;
+  if (totalReward > 0) {
+    player.sparks += totalReward;
+    player.stats.sparks_earned += totalReward;
+    write(`(+${totalReward} sparks for ${qty} craft${qty === 1 ? '' : 's'})`, 'spark');
   }
-  player.stats.crafts++;
-  publishAction('craft', { recipe: arg, location: player.location });
-  fireEvents('on_craft', { recipe: arg });
+  player.stats.crafts += qty;
+  publishAction('craft', { recipe: recipeId, qty, location: player.location });
+  // Fire on_craft once per craft so events that count crafts work correctly
+  for (let i = 0; i < qty; i++) fireEvents('on_craft', { recipe: recipeId });
+}
+
+// 3.4 leftover: NPC schedules. If `npc.hours = {open, close}` is set, the NPC
+// is unavailable outside that hour range. Hours are in 24h. close < open means
+// "open through midnight" (e.g. {open:22, close:4} = 10pm–4am).
+function npcOpen(npcId) {
+  const n = STORY.npcs[npcId];
+  if (!n?.hours) return true;
+  const hr = dayPart().hour;
+  const { open, close } = n.hours;
+  if (open == null || close == null) return true;
+  if (close > open) return hr >= open && hr < close;
+  return hr >= open || hr < close;
+}
+function describeNpcStatus(npcId) {
+  const n = STORY.npcs[npcId];
+  if (!n?.hours) return null;
+  return `${n.display} is closed (open ${n.hours.open}h–${n.hours.close}h).`;
 }
 
 function resolveNpcInRoom(target) {
@@ -2678,6 +2892,7 @@ function talk(target) {
     return;
   }
   target = resolved;
+  if (!npcOpen(target)) { write(describeNpcStatus(target) || 'They aren\'t here right now.', 'error'); return; }
   const npc = STORY.npcs[target];
   // Pick conditional dialogue if any condition matches; else default seeds.
   let lines = npc.dialogue_seeds || ['...'];
@@ -3305,6 +3520,17 @@ function matchesNpcCondition(c) {
 function lightFire() {
   if (!player.skills.has('firemaking')) { write('You need the Firemaking skill.', 'error'); return; }
   if (fireActive(player.location)) { write('A fire is already burning here.'); return; }
+  // Weather-dependent: rain/snow reduce success outdoors; indoor rooms are sheltered.
+  const room = player.rooms[player.location];
+  const indoor = (room.tags || []).some(t => ['indoor','underground','shelter'].includes(t));
+  const weather = player.weather || 'clear';
+  if (!indoor && (weather === 'rain' || weather === 'snow')) {
+    if (Math.random() < 0.5) {
+      write(`The ${weather} stifles your spark. The kindling smokes and dies.`, 'error');
+      return;
+    }
+    write(`The ${weather} fights you, but you coax a flame to life.`, 'fire');
+  }
   player.fires.set(player.location, player.turn + FIRE_DURATION_TURNS);
   write(`You light a fire. It will burn for ${FIRE_DURATION_TURNS} turns.`, 'fire');
   publishAction('lit_fire', { location: player.location });
@@ -3325,12 +3551,17 @@ const REPAIR_RECIPES = {
 const DURABLE_WEAPONS = {
   sharpened_dagger: { max: 15, downgrade: 'rusty_dagger' },
   sword:            { max: 25, downgrade: 'broken_sword' },
-  bone_knife:       { max: 3,  downgrade: null }   // breaks completely, non-repairable
+  bone_knife:       { max: 3,  downgrade: null },  // breaks completely, non-repairable
+  iron_axe:         { max: 40, downgrade: null },  // iron-tier — durable, rebuy if broken
+  iron_sword:       { max: 50, downgrade: null }
 };
 
 function findBlacksmithHere() {
   const room = player.rooms[player.location];
-  return (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('offers_smithing')) || null;
+  const id = (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('offers_smithing'));
+  if (!id) return null;
+  if (!npcOpen(id)) { write(describeNpcStatus(id), 'error'); return null; }
+  return id;
 }
 
 function locateWieldableOrInv(arg, predicate) {
@@ -3815,6 +4046,7 @@ async function buy(arg) {
   const room = player.rooms[player.location];
   const merchantId = (room.npcs || []).find(n => STORY.npcs[n].is_marketplace);
   if (!merchantId) { write('No merchant here.', 'error'); return; }
+  if (!npcOpen(merchantId)) { write(describeNpcStatus(merchantId), 'error'); return; }
   const idx = parseInt(arg, 10) - 1;
   if (Number.isNaN(idx)) { write('Specify a listing number.', 'error'); return; }
   const listings = getActiveListings(merchantId);
@@ -3837,6 +4069,7 @@ async function sell(args) {
   const directNpc  = (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('buys_items'));
   const buyer = merchantId || directNpc;
   if (!buyer) { write('There is no one here to sell to.', 'error'); return; }
+  if (!npcOpen(buyer)) { write(describeNpcStatus(buyer), 'error'); return; }
   // Parse: "sell <item> [price]" OR "sell <qty> <item> [price]"
   const parts = args.trim().split(/\s+/);
   if (!parts[0]) { write('Sell what? Usage: sell <item> [price]  or  sell <qty> <item> [price]', 'error'); return; }
@@ -4116,6 +4349,28 @@ function showNotices() {
   if (localNotices.length > 10) write(`  ...and ${localNotices.length - 10} older notices.`);
 }
 
+// i18n: switch language at runtime. Re-resolves all STORY prose strings in place.
+function langCommand(argRaw) {
+  const supported = STORY.meta.languages || [STORY.meta.language || 'en'];
+  const arg = (argRaw || '').trim().toLowerCase();
+  if (!arg) {
+    write(`Current language: ${currentLang()}.`, 'system');
+    write(`Story supports: ${supported.join(', ')}.`, 'system');
+    if (supported.length > 1) write(`Switch with "lang <code>", e.g. "lang de".`, 'system');
+    else write(`This story is single-language.`, 'system');
+    return;
+  }
+  if (!supported.includes(arg)) {
+    write(`This story doesn't have a "${arg}" translation. Available: ${supported.join(', ')}.`, 'error');
+    return;
+  }
+  player.language = arg;
+  resolveStoryProse();
+  write(`Language set to ${arg}.`, 'success');
+  describeRoom();
+  refreshSidebar();
+}
+
 function relayCommand(argRaw) {
   const parts = (argRaw || '').trim().split(/\s+/).filter(Boolean);
   const sub = (parts[0] || '').toLowerCase();
@@ -4244,7 +4499,9 @@ const SHORT_NAMES = {
   wave_cliffs: 'Cliffs',
   greycliffs_hamlet: 'Hamlet',
   forge_ruins: 'Forge',
-  grand_hall: 'Hall'
+  grand_hall: 'Hall',
+  sacred_grove: 'Grove',
+  abandoned_lighthouse: 'Lighthouse'
 };
 function shortRoomName(rid) {
   if (SHORT_NAMES[rid]) return SHORT_NAMES[rid];
@@ -4344,7 +4601,7 @@ function help() {
     'World:           talk <npc> · answer <text>',
     'Skills:          skills · learn <skill>',
     'Gathering:       chop / forage / gather (needs skill)',
-    'Crafting:        recipes · craft <recipe>  (each craft awards sparks)',
+    'Crafting:        recipes · craft <recipe> · craft <qty> <recipe>  (batch; each craft awards sparks)',
     'Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest · sleep',
     '                 assist [<name>]  (join another player\'s fight in the same room)',
     'Equipment:       wear / wield <x> · unwear <slot> · equipment / eq',
@@ -4373,6 +4630,7 @@ function help() {
     'Worlds:          switch story · stories  (list/switch story files)',
     'Relays:          relay list · relay add <wss://...> · relay remove <url> · relay reset',
     'Offline:         (no command — events queue automatically when offline, sync on reconnect)',
+    'Language:        lang  (show)  ·  lang <code>  (switch, e.g. "lang de")',
     'Misc:            clear · help'
   ];
   for (const l of lines) write(l, 'system');
@@ -4457,6 +4715,7 @@ function handleCommand(input) {
     case 'rename':               renameCharacter(argRaw); consumesTurn = false; break;
     case 'switch':               if (arg === 'story' || arg === '') switchStoryCommand(); else write('Did you mean "switch story"?', 'error'); consumesTurn = false; break;
     case 'relay': case 'relays': relayCommand(argRaw); consumesTurn = false; break;
+    case 'lang': case 'language': langCommand(argRaw); consumesTurn = false; break;
     case 'stories':              listStoriesCommand(); consumesTurn = false; break;
     case 'place':                if (arg === 'chest') placeChest(); else write('Place what? Try "place chest".', 'error'); break;
     case 'chest':                showChest(); consumesTurn = false; break;
@@ -4520,7 +4779,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${STORY.meta.title} — Nostr PoC v0.17 ===`, 'title');
+write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.18 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
@@ -4544,6 +4803,8 @@ try {
     write('[restored from local storage]', 'system');
   }
 } catch {}
+// i18n: resolve all prose to current language (browser default if first launch, or saved)
+resolveStoryProse();
 
 // If we don't have a name yet (new character or legacy save), ask now
 if (!player.name) askName();
