@@ -322,9 +322,9 @@ const STORY = {
     },
     greenmeadow_village: {
       name: 'Greenmeadow Village',
-      summary: "A handful of cottages around a stone well. A weathered merchant's cart sits in the square. The forest is to the north. The well stones are unusually deep — a rope ladder leads down.",
+      summary: "A handful of cottages around a stone well. A weathered merchant's cart sits in the square; behind it, a blacksmith's forge glows. The forest is to the north. The well stones are unusually deep — a rope ladder leads down.",
       exits: { north:'forest_clearing', down:'moss_grotto' },
-      items: [], npcs: ['weathered_merchant'], riddle: null,
+      items: [], npcs: ['weathered_merchant', 'village_blacksmith'], riddle: null,
       resources: [], spawn_table: [],
       hazards: {}, drink_source: { restore_life: 4, cooldown_seconds: 60 }
     },
@@ -342,6 +342,7 @@ const STORY = {
     sharpened_dagger:{ display:'sharpened dagger', article:'a',    value:18, weight:2, category:'good',       stackable:false, tags:['weapon','metal','crafted'], slot:'hand', effects:{attack_bonus:5} },
     broken_sword:  { display:'broken sword',  article:'a',         value:3,  weight:3, category:'good',       stackable:false, tags:['weapon','metal','broken'] },
     sword:         { display:'fine sword',    article:'a',         value:80, weight:3, category:'good',       stackable:false, tags:['weapon','metal','crafted','rare'], slot:'hand', effects:{attack_bonus:10} },
+    bone_knife:    { display:'bone knife',    article:'a',         value:3,  weight:1, category:'good',       stackable:false, tags:['weapon','bone','fragile'], slot:'hand', effects:{attack_bonus:1} },
     smooth_stone:  { display:'smooth stone',  article:'a',         value:1,  weight:1, category:'good',       stackable:false, tags:['trinket'] },
     silver_herb:   { display:'silver herb',   article:'a',         value:12, weight:1, category:'good',       stackable:false, tags:['herb','rare'] },
     wood:          { display:'wood log',      article:'a',         value:1,  weight:2, category:'resource',   stackable:true,  tags:['wood','raw'] },
@@ -370,15 +371,29 @@ const STORY = {
     weathered_merchant: {
       display:'a weathered merchant', location:'greenmeadow_village',
       summary:'A trader with kind eyes.',
-      dialogue_seeds: ['Buying anything you don\'t need, traveler.', 'Wolves moving in the canyon. Best take care.', 'A traveler with a leather pack carries twice the world.'],
+      dialogue_seeds: ['Buying anything you don\'t need, traveler.', 'Wolves moving in the canyon. Best take care.', 'Lost your blade? I\'ve a few rusty ones in the cart.', 'The smith next door takes a dull edge and gives it back sharper. For coin, of course.'],
       behaviors: ['buys_items','tells_rumors'],
-      buys_tags: ['weapon','metal','herb','trinket','wood','stone','crafted','leather','food'],
+      buys_tags: ['weapon','metal','herb','trinket','wood','stone','crafted','leather','food','ore'],
       is_marketplace: true,
       initial_stock: [
         { item:'wood', price_gold:2, qty:5 },
         { item:'silver_herb', price_gold:18, qty:1 },
-        { item:'cooked_meat', price_gold:8, qty:2 }
+        { item:'cooked_meat', price_gold:8, qty:2 },
+        { item:'rusty_dagger', price_gold:12, qty:2 }
       ]
+    },
+    village_blacksmith: {
+      display:'the village blacksmith', location:'greenmeadow_village',
+      summary:'A burly smith with calloused hands and a leather apron. The forge glows behind them.',
+      dialogue_seeds: [
+        'A blade left dull is a blade left dangerous to its bearer.',
+        'Bring me dull edges. Bring me broken steel. I\'ll set them right for fair coin.',
+        'Sword needs sharpening every battle or two. That\'s just the way of iron.'
+      ],
+      behaviors: ['offers_smithing','tells_rumors'],
+      buys_tags: [],
+      is_marketplace: false,
+      initial_stock: []
     },
     riverside_trader: {
       display:'the riverside trader', location:'riverside_camp',
@@ -474,8 +489,8 @@ const STORY = {
     make_belt:     { display:'Leather belt',  skill:'packmaking', inputs:[{item:'leather',qty:2}],                               outputs:[{item:'leather_belt',qty:1}],  requires_fire:false, sparks_reward:4 }
   },
   entities: {
-    deer:   { display:'deer',   summary:'A wary forest deer.',   hp:10, attack_damage_range:[1,3], evasion:0.1, hostile:false, base_drops:[{item:'raw_meat',qty:2}], skinning_drops:[{item:'hide',qty:1}] },
-    rabbit: { display:'rabbit', summary:'A small cottontail.',    hp:4,  attack_damage_range:[0,1], evasion:0.2, hostile:false, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[] },
+    deer:   { display:'deer',   summary:'A wary forest deer.',   hp:10, attack_damage_range:[1,3], evasion:0.1, hostile:false, base_drops:[{item:'raw_meat',qty:2}], skinning_drops:[{item:'hide',qty:1}], rare_drops:[{item:'bone_knife',qty:1,chance:0.15}] },
+    rabbit: { display:'rabbit', summary:'A small cottontail.',    hp:4,  attack_damage_range:[0,1], evasion:0.2, hostile:false, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[], rare_drops:[{item:'bone_knife',qty:1,chance:0.08}] },
     wolf:   { display:'wolf',   summary:'A grey wolf, lean from the season. It does not run.', hp:20, attack_damage_range:[3,8], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[{item:'hide',qty:1}] }
   },
   quests: {
@@ -485,11 +500,11 @@ const STORY = {
       giver: null,
       auto_accept: true,
       objectives: [
-        { type:'have_item', item:'rusty_dagger', qty:1 },
+        { type:'have_item', item:'rusty_dagger', qty:1, consume: false },
         { type:'visited',   room:'greenmeadow_village' }
       ],
       rewards: { gold: 5, sparks: 10, items: [] },
-      completion_message: 'You have your bearings now. The forest is yours to explore.'
+      completion_message: 'You have your bearings now. The forest is yours to explore. Keep that dagger close.'
     },
     merchants_meat: {
       title: 'The Stew Pot',
@@ -605,6 +620,7 @@ const player = {
   equipment: {},      // slot -> item_id
   visited: new Set([STORY.meta.starting_location]),
   quests: {},         // questId -> { state: 'active'|'completed', kills: {entity:N}, visited: [room,...] }
+  edges: new Map(),   // weapon_id -> remaining durability
   rooms: structuredClone(STORY.rooms)
 };
 
@@ -653,6 +669,7 @@ function serializeState() {
     equipment: { ...player.equipment },
     visited: [...player.visited],
     quests: Object.fromEntries(Object.entries(player.quests).map(([k, v]) => [k, { state: v.state, kills: { ...v.kills }, visited: [...v.visited] }])),
+    edges: [...player.edges],
     turn: player.turn,
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
@@ -675,6 +692,7 @@ function applyState(s) {
   for (const [k, v] of Object.entries(s.quests || {})) {
     player.quests[k] = { state: v.state, kills: { ...(v.kills || {}) }, visited: [...(v.visited || [])] };
   }
+  player.edges = new Map(s.edges || []);
   player.turn = s.turn ?? 0;
   if (s.rooms_state) {
     for (const [rid, rs] of Object.entries(s.rooms_state)) {
@@ -1446,10 +1464,38 @@ function attack() {
     t.hp -= playerDmg;
     write(`You strike the ${t.display} for ${playerDmg} damage. (${Math.max(0, t.hp)} HP left)`, 'success');
   }
+  // Wear down the wielded weapon's edge
+  const wielded = player.equipment.hand;
+  if (wielded && DURABLE_WEAPONS[wielded]) {
+    const cur = player.edges.has(wielded) ? player.edges.get(wielded) : DURABLE_WEAPONS[wielded].max;
+    const next = cur - 1;
+    if (next <= 0) {
+      const dgr = DURABLE_WEAPONS[wielded].downgrade;
+      player.edges.delete(wielded);
+      delete player.equipment.hand;
+      if (dgr) {
+        player.inventory.push(dgr);
+        // Auto-wield the downgrade if it has a hand slot
+        if (STORY.items[dgr]?.slot === 'hand') {
+          const idx = player.inventory.indexOf(dgr);
+          if (idx !== -1) { player.inventory.splice(idx, 1); player.equipment.hand = dgr; }
+        }
+        write(`Your ${itemDisplay(wielded)} dulls beyond use. You're left holding ${itemDisplay(dgr, true)}.`, 'error');
+      } else {
+        write(`Your ${itemDisplay(wielded)} shatters. Useless now.`, 'error');
+      }
+    } else {
+      player.edges.set(wielded, next);
+      if (next <= 3) write(`Your ${itemDisplay(wielded)} is dulling — ${next} good strike${next === 1 ? '' : 's'} left.`, 'system');
+    }
+  }
   if (t.hp <= 0) {
     write(`The ${t.display} falls.`, 'success');
     const allDrops = [...t.base_drops];
     if (player.skills.has('skinning')) allDrops.push(...t.skinning_drops);
+    for (const rd of (t.rare_drops || [])) {
+      if (Math.random() < (rd.chance || 0)) allDrops.push({ item: rd.item, qty: rd.qty });
+    }
     let summary = [];
     let leftBehind = [];
     for (const d of allDrops) {
@@ -1683,9 +1729,11 @@ function turnInQuest(qid) {
     }
   }
   if (!questComplete(qid)) { write(`Objectives not yet met. Type "quests" to see progress.`, 'error'); return; }
-  // Consume have_item objectives
+  // Consume have_item objectives (unless they opt out with consume: false)
   for (const obj of q.objectives) {
-    if (obj.type === 'have_item') removeFromInventoryOrMaterials(obj.item, obj.qty || 1);
+    if (obj.type === 'have_item' && obj.consume !== false) {
+      removeFromInventoryOrMaterials(obj.item, obj.qty || 1);
+    }
   }
   // Apply rewards
   const r = q.rewards || {};
@@ -1721,58 +1769,100 @@ function lightFire() {
   publishAction('lit_fire', { location: player.location });
 }
 
-// --- Merchant services: sharpen & repair ---
-const SHARPEN_RECIPES = {
-  rusty_dagger: { cost_gold: 20, becomes: 'sharpened_dagger' }
+// --- Blacksmith services: sharpen & repair ---
+// SHARPEN_OPTIONS: id → either { cost, transform } (changes form, e.g. rusty→sharpened)
+//                       or  { cost, restore: true } (restores edge, no form change)
+const SHARPEN_OPTIONS = {
+  rusty_dagger:     { cost: 20, transform: 'sharpened_dagger' },
+  sharpened_dagger: { cost: 10, restore: true },
+  sword:            { cost: 25, restore: true }
 };
 const REPAIR_RECIPES = {
   broken_sword: { cost_gold: 50, materials: { wood: 1, leather: 1 }, becomes: 'sword' }
 };
-function findMerchantHere() {
+// DURABLE_WEAPONS: weapons whose edge wears down with use.
+const DURABLE_WEAPONS = {
+  sharpened_dagger: { max: 15, downgrade: 'rusty_dagger' },
+  sword:            { max: 25, downgrade: 'broken_sword' },
+  bone_knife:       { max: 3,  downgrade: null }   // breaks completely, non-repairable
+};
+
+function findBlacksmithHere() {
   const room = player.rooms[player.location];
-  return (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('buys_items')) || null;
+  return (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('offers_smithing')) || null;
+}
+
+function locateWieldableOrInv(arg, predicate) {
+  // Returns { itemId, kind: 'inventory'|'equipment', key } or null
+  if (arg) {
+    const idx = findItemIn(player.inventory, arg);
+    if (idx !== -1 && predicate(player.inventory[idx])) return { itemId: player.inventory[idx], kind: 'inventory', key: idx };
+    for (const [slot, eqItem] of Object.entries(player.equipment)) {
+      const dn = STORY.items[eqItem]?.display || '';
+      if ((eqItem === arg || dn.includes(arg) || dn.split(' ').includes(arg)) && predicate(eqItem)) {
+        return { itemId: eqItem, kind: 'equipment', key: slot };
+      }
+    }
+    return null;
+  }
+  // No arg — auto-pick: prefer wielded weapon, else first matching in inventory
+  if (player.equipment.hand && predicate(player.equipment.hand))
+    return { itemId: player.equipment.hand, kind: 'equipment', key: 'hand' };
+  const idx = player.inventory.findIndex(predicate);
+  if (idx !== -1) return { itemId: player.inventory[idx], kind: 'inventory', key: idx };
+  return null;
+}
+
+function removeAt(loc) {
+  if (loc.kind === 'inventory') player.inventory.splice(loc.key, 1);
+  else delete player.equipment[loc.key];
 }
 
 function sharpen(arg) {
   if (combatBlock('sharpen')) return;
-  const merchant = findMerchantHere();
-  if (!merchant) { write('No merchant here to sharpen blades.', 'error'); return; }
-  const idx = arg ? findItemIn(player.inventory, arg) : player.inventory.findIndex(i => SHARPEN_RECIPES[i]);
-  if (idx === -1) { write(`You have nothing here that can be sharpened.`, 'error'); return; }
-  const itemId = player.inventory[idx];
-  const rec = SHARPEN_RECIPES[itemId];
-  if (!rec) { write(`${itemDisplay(itemId, true)} can't be sharpened.`, 'error'); return; }
-  if (player.gold < rec.cost_gold) { write(`Sharpening costs ${rec.cost_gold} gold. You have ${player.gold}.`, 'error'); return; }
-  player.gold -= rec.cost_gold;
-  player.inventory.splice(idx, 1);
-  addItem(rec.becomes, 1);
-  write(`${STORY.npcs[merchant].display} runs a stone along the edge. ${itemDisplay(itemId)} becomes ${itemDisplay(rec.becomes, true)}. (-${rec.cost_gold} gold)`, 'success');
-  publishAction('sharpen', { from: itemId, to: rec.becomes, cost: rec.cost_gold });
+  const smith = findBlacksmithHere();
+  if (!smith) { write('No blacksmith here. Try the village.', 'error'); return; }
+  const found = locateWieldableOrInv(arg, id => !!SHARPEN_OPTIONS[id]);
+  if (!found) { write(arg ? `Nothing matching "${arg}" can be sharpened.` : `Nothing here can be sharpened.`, 'error'); return; }
+  const opt = SHARPEN_OPTIONS[found.itemId];
+  if (player.gold < opt.cost) { write(`Sharpening costs ${opt.cost} gold. You have ${player.gold}.`, 'error'); return; }
+  player.gold -= opt.cost;
+  if (opt.transform) {
+    removeAt(found);
+    addItem(opt.transform, 1);
+    if (DURABLE_WEAPONS[opt.transform]) player.edges.set(opt.transform, DURABLE_WEAPONS[opt.transform].max);
+    write(`${STORY.npcs[smith].display} works the edge. ${itemDisplay(found.itemId)} becomes ${itemDisplay(opt.transform, true)}. (-${opt.cost} gold)`, 'success');
+    publishAction('sharpen', { from: found.itemId, to: opt.transform, cost: opt.cost });
+  } else {
+    // Restore edge in place
+    if (DURABLE_WEAPONS[found.itemId]) {
+      player.edges.set(found.itemId, DURABLE_WEAPONS[found.itemId].max);
+      write(`${STORY.npcs[smith].display} restores the edge on ${itemDisplay(found.itemId, true)}. (-${opt.cost} gold)`, 'success');
+      publishAction('sharpen', { item: found.itemId, cost: opt.cost });
+    }
+  }
 }
 
 function repair(arg) {
   if (combatBlock('repair')) return;
-  const merchant = findMerchantHere();
-  if (!merchant) { write('No merchant here to repair items.', 'error'); return; }
-  const idx = arg ? findItemIn(player.inventory, arg) : player.inventory.findIndex(i => REPAIR_RECIPES[i]);
-  if (idx === -1) { write(`You have nothing here that can be repaired.`, 'error'); return; }
-  const itemId = player.inventory[idx];
-  const rec = REPAIR_RECIPES[itemId];
-  if (!rec) { write(`${itemDisplay(itemId, true)} can't be repaired.`, 'error'); return; }
+  const smith = findBlacksmithHere();
+  if (!smith) { write('No blacksmith here. Try the village.', 'error'); return; }
+  const found = locateWieldableOrInv(arg, id => !!REPAIR_RECIPES[id]);
+  if (!found) { write(`Nothing here can be repaired.`, 'error'); return; }
+  const rec = REPAIR_RECIPES[found.itemId];
   if (player.gold < rec.cost_gold) { write(`Repair costs ${rec.cost_gold} gold. You have ${player.gold}.`, 'error'); return; }
-  // Check materials
   for (const [matId, qty] of Object.entries(rec.materials || {})) {
     const have = STORY.items[matId].stackable ? (player.materials[matId] || 0) : player.inventory.filter(i => i === matId).length;
     if (have < qty) { write(`Repair also needs ${qty} ${itemDisplay(matId)} (you have ${have}).`, 'error'); return; }
   }
-  // Consume
   player.gold -= rec.cost_gold;
   for (const [matId, qty] of Object.entries(rec.materials || {})) removeFromInventoryOrMaterials(matId, qty);
-  player.inventory.splice(idx, 1);
+  removeAt(found);
   addItem(rec.becomes, 1);
+  if (DURABLE_WEAPONS[rec.becomes]) player.edges.set(rec.becomes, DURABLE_WEAPONS[rec.becomes].max);
   const matStr = Object.entries(rec.materials || {}).map(([k, q]) => `${q} ${itemDisplay(k)}`).join(', ');
-  write(`${STORY.npcs[merchant].display} works for an hour. ${itemDisplay(itemId)} is reforged into ${itemDisplay(rec.becomes, true)}. (-${rec.cost_gold} gold${matStr ? ', -' + matStr : ''})`, 'success');
-  publishAction('repair', { from: itemId, to: rec.becomes, cost: rec.cost_gold });
+  write(`${STORY.npcs[smith].display} works the forge for an hour. ${itemDisplay(found.itemId)} is reforged into ${itemDisplay(rec.becomes, true)}. (-${rec.cost_gold} gold${matStr ? ', -' + matStr : ''})`, 'success');
+  publishAction('repair', { from: found.itemId, to: rec.becomes, cost: rec.cost_gold });
 }
 
 function rest() {
@@ -2058,7 +2148,7 @@ function who() {
 
 const SHORT_NAMES = {
   forest_clearing: 'Clearing',
-  deep_forest: 'Deep Wood',
+  deep_forest: 'Deep',
   red_canyon: 'Canyon',
   hilltop_ruins: 'Ruins',
   quiet_valley: 'Valley',
@@ -2097,8 +2187,10 @@ function showMap() {
   }
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
   for (const [x, y] of positions.values()) { minX=Math.min(minX,x); maxX=Math.max(maxX,x); minY=Math.min(minY,y); maxY=Math.max(maxY,y); }
-  const labelMax = 10;
-  const cellW = 12, cellH = 4;
+  const labelMax = 8;
+  const boxW = labelMax + 4;   // ┌ + (* or space) + name + mark + ┐
+  const cellW = boxW + 2;       // 2-char gap for connectors
+  const cellH = 4;
   const cols = (maxX - minX + 1) * cellW;
   const rows = (maxY - minY + 1) * cellH;
   const grid = Array(rows).fill(null).map(() => Array(cols).fill(' '));
@@ -2106,16 +2198,17 @@ function showMap() {
   for (const [room, [x, y]] of positions) {
     const cx = (x - minX) * cellW, cy = (y - minY) * cellH;
     const here = room === player.location;
+    // Chest takes priority — player most cares about their own caches.
     let mark = ' ';
-    if (rooms[room].hazards?.wolves) mark = '⚠';
-    else if (player.chests.has(room)) mark = '📦';
+    if (player.chests.has(room)) mark = '📦';
+    else if (rooms[room].hazards?.wolves) mark = '⚠';
     else if (fireActive(room)) mark = '🔥';
     const sn = shortRoomName(room);
     const name = sn.length > labelMax ? sn.slice(0, labelMax-1) + '…' : sn;
     const inner = (here ? '*' : ' ') + name.padEnd(labelMax) + mark;
-    put(cy + 0, cx, '┌' + '─'.repeat(labelMax + 2) + '┐');
+    put(cy + 0, cx, '┌' + '─'.repeat(boxW - 2) + '┐');
     put(cy + 1, cx, '│' + inner + '│');
-    put(cy + 2, cx, '└' + '─'.repeat(labelMax + 2) + '┘');
+    put(cy + 2, cx, '└' + '─'.repeat(boxW - 2) + '┘');
   }
   for (const [room, [x, y]] of positions) {
     const cx = (x - minX) * cellW, cy = (y - minY) * cellH;
@@ -2123,8 +2216,8 @@ function showMap() {
       if (!positions.has(target)) continue;
       const [tx, ty] = positions.get(target);
       const dx = tx - x, dy = ty - y;
-      if (dx === 1 && dy === 0)      put(cy + 1, cx + cellW - 1, '──');
-      else if (dx === 0 && dy === 1) put(cy + 3, cx + Math.floor(cellW/2), '│');
+      if (dx === 1 && dy === 0)      put(cy + 1, cx + boxW, '──');
+      else if (dx === 0 && dy === 1) put(cy + 3, cx + Math.floor(boxW/2), '│');
     }
   }
   // Render in a horizontally-scrollable container so wide maps still fit on phones
@@ -2294,7 +2387,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${STORY.meta.title} — Nostr PoC v0.7 ===`, 'title');
+write(`=== ${STORY.meta.title} — Nostr PoC v0.8 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
