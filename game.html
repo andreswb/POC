@@ -275,7 +275,8 @@ const STORY_WHISPERING_FOREST = {
       summary: 'A small camp by the river\'s bend. Drying racks of fish and meat. A trader\'s lean-to with a steady fire. The valley is to the west. A muddy track leads south into reeds.',
       exits: { west: 'quiet_valley', south: 'salt_marsh' },
       items: [], npcs: ['riverside_trader'], riddle: null,
-      resources: [], spawn_table: [],
+      resources: [{ id:'raw_fish', skill:'fishing', verb:'fish', yield_qty:2, regenerates:true, regen_seconds:60 }],
+      spawn_table: [],
       hazards: {}, drink_source: { restore_life: 5, cooldown_seconds: 60 }
     },
     hermits_glade: {
@@ -322,7 +323,7 @@ const STORY_WHISPERING_FOREST = {
       summary: 'Sheer black cliffs over surf. Salt spray rises in slow gusts. A weathered shape on a flat stone speaks once and falls silent. West leads back to the marsh.',
       exits: { west: 'salt_marsh' },
       items: [], npcs: [], riddle: 'cliff_riddle',
-      resources: [],
+      resources: [{ id:'raw_fish', skill:'fishing', verb:'fish', yield_qty:2, regenerates:true, regen_seconds:50 }],
       spawn_table: [],
       hazards: {}, drink_source: { restore_life: 3, cooldown_seconds: 90 }
     },
@@ -341,7 +342,10 @@ const STORY_WHISPERING_FOREST = {
       summary: 'A green valley with a stream running through it. To the west, the canyon. A dark cave gapes to the north. Smoke from a small camp rises east along the riverbank.',
       exits: { west:'red_canyon', north:'echoing_cave', east:'riverside_camp' },
       items: ['silver_herb'], npcs: [], riddle: null,
-      resources: [{ id:'common_herb', skill:'foraging', verb:'forage', yield_qty:1, regenerates:true, regen_seconds:90 }],
+      resources: [
+        { id:'common_herb', skill:'foraging', verb:'forage', yield_qty:1, regenerates:true, regen_seconds:90 },
+        { id:'raw_fish',    skill:'fishing',  verb:'fish',   yield_qty:1, regenerates:true, regen_seconds:75 }
+      ],
       spawn_table: [{ entity:'deer', weight:3 }, { entity:'rabbit', weight:2 }],
       hazards: {}, drink_source: { restore_life: 5, cooldown_seconds: 30 }
     },
@@ -367,7 +371,8 @@ const STORY_WHISPERING_FOREST = {
       summary: 'Beneath the village, a vast grotto opens around a still black pool. Glow-moss lines the walls. A voice in the water hums: "What runs but never walks, has a mouth but never eats, has a head but never weeps?"',
       exits: { up:'greenmeadow_village' },
       items: [], npcs: [], riddle: 'river_riddle',
-      resources: [], spawn_table: [],
+      resources: [{ id:'raw_fish', skill:'fishing', verb:'fish', yield_qty:1, regenerates:true, regen_seconds:120 }],
+      spawn_table: [],
       hazards: {}, drink_source: { restore_life: 6, cooldown_seconds: 60 }
     },
     greycliffs_hamlet: {
@@ -418,6 +423,10 @@ const STORY_WHISPERING_FOREST = {
     cooked_meat:   { display:'cooked meat',   article:'some',      value:6,  weight:1, category:'consumable', stackable:false, tags:['food','cooked'],  effects:{restore_life:10}, consumable_action:'eat' },
     smoked_meat:   { display:'smoked meat',   article:'some',      value:11, weight:1, category:'consumable', stackable:false, tags:['food','preserved'],effects:{restore_life:14}, consumable_action:'eat' },
     cured_meat:    { display:'cured meat',    article:'some',      value:16, weight:1, category:'consumable', stackable:false, tags:['food','preserved'],effects:{restore_life:18}, consumable_action:'eat' },
+    raw_fish:      { display:'raw fish',      article:'a',         value:2,  weight:1, category:'resource',   stackable:true,  tags:['food','raw','fish'],     effects:{restore_life:3},  consumable_action:'eat' },
+    cooked_fish:   { display:'cooked fish',   article:'a',         value:5,  weight:1, category:'consumable', stackable:false, tags:['food','cooked','fish'],  effects:{restore_life:8},  consumable_action:'eat' },
+    smoked_fish:   { display:'smoked fish',   article:'a',         value:9,  weight:1, category:'consumable', stackable:false, tags:['food','preserved','fish'], effects:{restore_life:12}, consumable_action:'eat' },
+    cured_fish:    { display:'cured fish',    article:'a',         value:14, weight:1, category:'consumable', stackable:false, tags:['food','preserved','fish'], effects:{restore_life:16}, consumable_action:'eat' },
     hide:          { display:'hide',          article:'a',         value:3,  weight:3, category:'resource',   stackable:true,  tags:['leather','raw'] },
     leather:       { display:'leather',       article:'a',         value:8,  weight:2, category:'resource',   stackable:true,  tags:['leather','crafted'] },
     shoes:         { display:'leather shoes', article:'a pair of', value:24, weight:1, category:'good',       stackable:false, tags:['crafted','equipment'], slot:'feet',  effects:{life_max_bonus:10} },
@@ -467,14 +476,17 @@ const STORY_WHISPERING_FOREST = {
     riverside_trader: {
       display:'the riverside trader', location:'riverside_camp',
       summary:'A weathered hunter-trader with a knife and a story for everyone.',
-      dialogue_seeds: ['Welcome to the camp. Skins, meat, and herbs of the river — that\'s our trade.', 'Saw three deer at the water this morning. Good hunting.', 'Bring me fresh meat and I\'ll pay better than the village. Need it for the stew pot.'],
-      behaviors: ['buys_items','tells_rumors'],
-      buys_tags: ['food','leather','herb','crafted'],
+      dialogue_seeds: ['Welcome to the camp. Skins, meat, fish, and herbs of the river — that\'s our trade.', 'Saw three deer at the water this morning. Good hunting.', 'Bring me fresh fish or meat and I\'ll pay better than the village. Need it for the stew pot.'],
+      behaviors: ['buys_items','tells_rumors','teaches_skill'],
+      buys_tags: ['food','leather','herb','crafted','fish'],
       is_marketplace: true,
+      teaches: ['fishing'],
       initial_stock: [
-        { item:'raw_meat', price_gold:3, qty:3 },
-        { item:'hide', price_gold:5, qty:2 },
-        { item:'leather', price_gold:12, qty:1 }
+        { item:'raw_meat',    price_gold:3,  qty:3 },
+        { item:'raw_fish',    price_gold:2,  qty:5 },
+        { item:'cooked_fish', price_gold:6,  qty:2 },
+        { item:'hide',        price_gold:5,  qty:2 },
+        { item:'leather',     price_gold:12, qty:1 }
       ]
     },
     greycliffs_fletcher: {
@@ -568,6 +580,7 @@ const STORY_WHISPERING_FOREST = {
   skills: {
     woodcutting:    { display:'Woodcutting',    spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['chop'],   recipes:[]} },
     foraging:       { display:'Foraging',       spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['forage'], recipes:['weave_rope']} },
+    fishing:        { display:'Fishing',        spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['fish'],   recipes:[]} },
     stone_knapping: { display:'Stone-knapping', spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['gather'], recipes:[]} },
     hunting:        { display:'Hunting',        spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['hunt'],   recipes:[]} },
     firemaking:     { display:'Firemaking',     spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['light'],  recipes:[]} },
@@ -575,11 +588,11 @@ const STORY_WHISPERING_FOREST = {
     masonry:        { display:'Masonry',        spark_cost:50,  prereqs:['stone_knapping'],  tier:2, unlocks:{verbs:[], recipes:['stone_head']} },
     herbalism:      { display:'Herbalism',      spark_cost:50,  prereqs:['foraging'],        tier:2, unlocks:{verbs:[], recipes:['healing_salve']} },
     skinning:       { display:'Skinning',       spark_cost:50,  prereqs:['hunting'],         tier:2, unlocks:{verbs:[], recipes:[], interactions:['passive_skinning']} },
-    cooking:        { display:'Cooking',        spark_cost:50,  prereqs:['firemaking'],      tier:2, unlocks:{verbs:[], recipes:['cook_meat']} },
+    cooking:        { display:'Cooking',        spark_cost:50,  prereqs:['firemaking'],      tier:2, unlocks:{verbs:[], recipes:['cook_meat','cook_fish']} },
     tanning:        { display:'Tanning',        spark_cost:50,  prereqs:['skinning'],        tier:2, unlocks:{verbs:[], recipes:['tan_hide']} },
     toolmaking:     { display:'Toolmaking',     spark_cost:150, prereqs:['carpentry','masonry'], tier:3, unlocks:{verbs:[], recipes:['simple_axe']} },
-    smoking:        { display:'Smoking',        spark_cost:100, prereqs:['cooking'],         tier:3, unlocks:{verbs:[], recipes:['smoke_meat']} },
-    curing:         { display:'Curing',         spark_cost:100, prereqs:['cooking'],         tier:3, unlocks:{verbs:[], recipes:['cure_meat']} },
+    smoking:        { display:'Smoking',        spark_cost:100, prereqs:['cooking'],         tier:3, unlocks:{verbs:[], recipes:['smoke_meat','smoke_fish']} },
+    curing:         { display:'Curing',         spark_cost:100, prereqs:['cooking'],         tier:3, unlocks:{verbs:[], recipes:['cure_meat','cure_fish']} },
     shoemaking:     { display:'Shoemaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['make_shoes','make_hat','make_clothes']} },
     packmaking:     { display:'Packmaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['leather_pack','make_belt']} },
     taming:         { display:'Taming',         spark_cost:120, prereqs:['hunting','skinning'], tier:3, unlocks:{verbs:['tame'], recipes:[]}, tags:['survival'] },
@@ -595,6 +608,9 @@ const STORY_WHISPERING_FOREST = {
     cook_meat:     { display:'Cooked meat',   skill:'cooking',    inputs:[{item:'raw_meat',qty:1}],                              outputs:[{item:'cooked_meat',qty:1}],   requires_fire:true,  sparks_reward:2 },
     smoke_meat:    { display:'Smoked meat',   skill:'smoking',    inputs:[{item:'raw_meat',qty:2}],                              outputs:[{item:'smoked_meat',qty:1}],   requires_fire:true,  sparks_reward:4 },
     cure_meat:     { display:'Cured meat',    skill:'curing',     inputs:[{item:'raw_meat',qty:2}],                              outputs:[{item:'cured_meat',qty:1}],    requires_fire:true,  sparks_reward:4 },
+    cook_fish:     { display:'Cooked fish',   skill:'cooking',    inputs:[{item:'raw_fish',qty:1}],                              outputs:[{item:'cooked_fish',qty:1}],   requires_fire:true,  sparks_reward:2 },
+    smoke_fish:    { display:'Smoked fish',   skill:'smoking',    inputs:[{item:'raw_fish',qty:2}],                              outputs:[{item:'smoked_fish',qty:1}],   requires_fire:true,  sparks_reward:4 },
+    cure_fish:     { display:'Cured fish',    skill:'curing',     inputs:[{item:'raw_fish',qty:2}],                              outputs:[{item:'cured_fish',qty:1}],    requires_fire:true,  sparks_reward:4 },
     tan_hide:      { display:'Tanned leather',skill:'tanning',    inputs:[{item:'hide',qty:1}],                                  outputs:[{item:'leather',qty:2}],       requires_fire:true,  sparks_reward:3 },
     make_shoes:    { display:'Leather shoes', skill:'shoemaking', inputs:[{item:'leather',qty:2}],                               outputs:[{item:'shoes',qty:1}],         requires_fire:false, sparks_reward:4 },
     make_hat:      { display:'Leather hat',   skill:'shoemaking', inputs:[{item:'leather',qty:1}],                               outputs:[{item:'leather_hat',qty:1}],   requires_fire:false, sparks_reward:3 },
@@ -2258,10 +2274,39 @@ function craft(arg) {
   fireEvents('on_craft', { recipe: arg });
 }
 
+function resolveNpcInRoom(target) {
+  // Resolve a fuzzy NPC reference to a canonical id present in the current room.
+  // Match priority: exact id → substring of id → substring of display name.
+  const room = player.rooms[player.location];
+  const here = room.npcs || [];
+  if (!target) return null;
+  const t = target.toLowerCase().trim();
+  if (here.includes(t)) return t;
+  // substring match against npc ids
+  let matches = here.filter(id => id.toLowerCase().includes(t));
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) return { ambiguous: matches };
+  // substring match against display names ("the riverside trader", "the hermit", etc.)
+  matches = here.filter(id => (STORY.npcs[id]?.display || '').toLowerCase().includes(t));
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) return { ambiguous: matches };
+  return null;
+}
+
 function talk(target) {
   if (combatBlock('talk')) return;
   const room = player.rooms[player.location];
-  if (!room.npcs?.includes(target)) { write(`There's no "${target}" here.`, 'error'); return; }
+  const resolved = resolveNpcInRoom(target);
+  if (!resolved) {
+    if ((room.npcs || []).length === 0) write(`There's no one here to talk to.`, 'error');
+    else write(`There's no "${target}" here. Try: ${(room.npcs || []).map(n => STORY.npcs[n]?.display || n).join(', ')}.`, 'error');
+    return;
+  }
+  if (resolved.ambiguous) {
+    write(`Multiple matches: ${resolved.ambiguous.join(', ')}. Be more specific.`, 'error');
+    return;
+  }
+  target = resolved;
   const npc = STORY.npcs[target];
   // Pick conditional dialogue if any condition matches; else default seeds.
   let lines = npc.dialogue_seeds || ['...'];
