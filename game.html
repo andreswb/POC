@@ -229,7 +229,8 @@ const STORY_WHISPERING_FOREST = {
     starting_gold: 0, starting_sparks: 30, starting_skills: [],
     starting_life: 100, life_max: 100, life_decay_per_turn: 0.5,
     carry_capacity: 40, sparks_per_craft: 2,
-    turns_per_day: 96
+    turns_per_day: 96,
+    daily_quest_pool: ['daily_fishmonger', 'daily_hunter', 'daily_forager', 'daily_smith']
   },
   rooms: {
     forest_clearing: {
@@ -419,11 +420,11 @@ const STORY_WHISPERING_FOREST = {
     simple_chest:  { display:'simple chest',  article:'a',         value:15, weight:6, category:'good',       stackable:false, tags:['crafted','container'] },
     healing_salve: { display:'healing salve', article:'a',         value:14, weight:1, category:'consumable', stackable:false, tags:['crafted','herb'], effects:{restore_life:25}, consumable_action:'eat' },
     simple_axe:    { display:'simple axe',    article:'a',         value:25, weight:4, category:'tool',       stackable:false, tags:['crafted','tool','weapon'], slot:'hand', effects:{attack_bonus:6, damage_type:'blunt'} },
-    raw_meat:      { display:'raw meat',      article:'some',      value:2,  weight:2, category:'resource',   stackable:true,  tags:['food','raw'],     effects:{restore_life:4},  consumable_action:'eat' },
+    raw_meat:      { display:'raw meat',      article:'some',      value:2,  weight:2, category:'resource',   stackable:true,  tags:['food','raw'],     effects:{restore_life:4},  consumable_action:'eat', decay_turns:50 },
     cooked_meat:   { display:'cooked meat',   article:'some',      value:6,  weight:1, category:'consumable', stackable:false, tags:['food','cooked'],  effects:{restore_life:10}, consumable_action:'eat' },
     smoked_meat:   { display:'smoked meat',   article:'some',      value:11, weight:1, category:'consumable', stackable:false, tags:['food','preserved'],effects:{restore_life:14}, consumable_action:'eat' },
     cured_meat:    { display:'cured meat',    article:'some',      value:16, weight:1, category:'consumable', stackable:false, tags:['food','preserved'],effects:{restore_life:18}, consumable_action:'eat' },
-    raw_fish:      { display:'raw fish',      article:'a',         value:2,  weight:1, category:'resource',   stackable:true,  tags:['food','raw','fish'],     effects:{restore_life:3},  consumable_action:'eat' },
+    raw_fish:      { display:'raw fish',      article:'a',         value:2,  weight:1, category:'resource',   stackable:true,  tags:['food','raw','fish'],     effects:{restore_life:3},  consumable_action:'eat', decay_turns:50 },
     cooked_fish:   { display:'cooked fish',   article:'a',         value:5,  weight:1, category:'consumable', stackable:false, tags:['food','cooked','fish'],  effects:{restore_life:8},  consumable_action:'eat' },
     smoked_fish:   { display:'smoked fish',   article:'a',         value:9,  weight:1, category:'consumable', stackable:false, tags:['food','preserved','fish'], effects:{restore_life:12}, consumable_action:'eat' },
     cured_fish:    { display:'cured fish',    article:'a',         value:14, weight:1, category:'consumable', stackable:false, tags:['food','preserved','fish'], effects:{restore_life:16}, consumable_action:'eat' },
@@ -779,6 +780,46 @@ const STORY_WHISPERING_FOREST = {
       ],
       rewards: { gold: 50, sparks: 30, items: [{ item:'simple_axe', qty:1 }] },
       completion_message: 'The merchant beams. "I owe you twice over. Take this axe — and my thanks. The road is yours, traveler."'
+    },
+    daily_fishmonger: {
+      title: "Today's Catch",
+      description: "The riverside trader needs 5 raw fish for the day's stew pot. Deliver before dawn.",
+      giver: 'riverside_trader',
+      auto_accept: false,
+      recurrence: 'daily',
+      objectives: [{ type:'have_item', item:'raw_fish', qty:5 }],
+      rewards: { gold: 30, sparks: 10, items: [] },
+      completion_message: 'The trader nods. "That\'s the day\'s pot covered. Same again tomorrow?"'
+    },
+    daily_hunter: {
+      title: "Today's Hunt",
+      description: "The village merchant has put a bounty on 3 wolves today. Bring proof by the end of the day.",
+      giver: 'weathered_merchant',
+      auto_accept: false,
+      recurrence: 'daily',
+      objectives: [{ type:'kill', entity:'wolf', qty:3 }],
+      rewards: { gold: 50, sparks: 15, items: [] },
+      completion_message: 'The merchant counts coin into your hand. "The road sleeps easier tonight. Come back tomorrow."'
+    },
+    daily_forager: {
+      title: "Today's Greens",
+      description: "The village apothecary needs 5 common herbs today. Forage and deliver before dawn.",
+      giver: 'weathered_merchant',
+      auto_accept: false,
+      recurrence: 'daily',
+      objectives: [{ type:'have_item', item:'common_herb', qty:5 }],
+      rewards: { gold: 25, sparks: 10, items: [] },
+      completion_message: 'The merchant takes the bundle. "Thank you. The healers will be glad. Rest well."'
+    },
+    daily_smith: {
+      title: "Today's Ore",
+      description: "The merchant has a smith waiting on 3 iron ore today. Mine and deliver before dawn.",
+      giver: 'weathered_merchant',
+      auto_accept: false,
+      recurrence: 'daily',
+      objectives: [{ type:'have_item', item:'iron_ore', qty:3 }],
+      rewards: { gold: 30, sparks: 12, items: [] },
+      completion_message: 'The merchant tips their hat. "The smith will eat well tonight. Take this — earned."'
     }
   }
 };
@@ -962,7 +1003,33 @@ const STORY = await resolveActiveStory();
 // ============================================================
 //  CONFIG
 // ============================================================
-const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band'];
+const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band'];
+const STORAGE_RELAYS = 'nstadv:custom_relays';
+function loadCustomRelays() {
+  try {
+    const raw = localStorage.getItem(STORAGE_RELAYS);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter(s => typeof s === 'string' && /^wss?:\/\//i.test(s)) : [];
+  } catch { return []; }
+}
+function saveCustomRelays(arr) {
+  try { localStorage.setItem(STORAGE_RELAYS, JSON.stringify(arr)); } catch {}
+}
+// Merge defaults + custom (custom comes first so it has priority for first-publish wins)
+function buildRelayList() {
+  const custom = loadCustomRelays();
+  const seen = new Set();
+  const out = [];
+  for (const r of [...custom, ...DEFAULT_RELAYS]) {
+    const norm = r.replace(/\/+$/, '');
+    if (seen.has(norm)) continue;
+    seen.add(norm);
+    out.push(r);
+  }
+  return out;
+}
+let RELAYS = buildRelayList();
 const KIND_ACTION   = 30420;
 const KIND_LISTING  = 30421;
 const KIND_PURCHASE = 30422;
@@ -975,6 +1042,7 @@ const KIND_GIFT_ACCEPT  = 30429;
 const KIND_GIFT_DECLINE = 30430;
 const KIND_HEAL         = 30431;
 const KIND_CARVE        = 30432;  // 4.11: persistent player marks tagged to a room
+const KIND_COMBAT       = 30435;  // 4.5: shared combat sessions (open/damage/end phases)
 const TOPIC = 'story:' + STORY.meta.id;
 const FIRE_DURATION_TURNS = 20;
 
@@ -1056,8 +1124,17 @@ const player = {
   login_streak: 0,        // consecutive days logged in
   last_login_date: null,  // ISO yyyy-mm-dd of the last login boot
   total_logins: 0,        // total distinct days ever logged in
-  carvings_left: 0        // number of `carve` actions this character has placed (stat only)
+  carvings_left: 0,       // number of `carve` actions this character has placed (stat only)
+  daily_quest_active: null,    // currently-active daily quest id (string or null)
+  daily_quest_day: 0,          // in-game day when the active daily was assigned
+  daily_quests_completed: 0,   // lifetime count of daily quests turned in
+  combat_id: null,             // 4.5: id of the shared combat session this player is part of
+  freshness: {}                // per-item FIFO batches: { item_id: [{turn, qty}, ...] }
 };
+
+// 4.5 group hunts: shared combat sessions keyed by combat_id
+const combatSessions = new Map();
+// session shape: { entity_id, room_id, hp, max_hp, opener_pubkey, opener_name, participants: Set<pk>, started_at, ended }
 
 // Auto-accept quests at start
 for (const [qid, q] of Object.entries(STORY.quests || {})) {
@@ -1173,6 +1250,11 @@ function serializeState() {
     last_login_date: player.last_login_date,
     total_logins: player.total_logins,
     carvings_left: player.carvings_left,
+    daily_quest_active: player.daily_quest_active,
+    daily_quest_day: player.daily_quest_day,
+    daily_quests_completed: player.daily_quests_completed,
+    combat_id: player.combat_id,
+    freshness: Object.fromEntries(Object.entries(player.freshness || {}).map(([k, batches]) => [k, batches.map(b => ({ turn: b.turn, qty: b.qty }))])),
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
 }
@@ -1211,6 +1293,14 @@ function applyState(s) {
   player.last_login_date = s.last_login_date ?? null;
   player.total_logins = s.total_logins ?? 0;
   player.carvings_left = s.carvings_left ?? 0;
+  player.daily_quest_active = s.daily_quest_active ?? null;
+  player.daily_quest_day = s.daily_quest_day ?? 0;
+  player.daily_quests_completed = s.daily_quests_completed ?? 0;
+  player.combat_id = s.combat_id ?? null;
+  player.freshness = {};
+  for (const [k, batches] of Object.entries(s.freshness || {})) {
+    if (Array.isArray(batches)) player.freshness[k] = batches.map(b => ({ turn: b.turn, qty: b.qty }));
+  }
   if (s.rooms_state) {
     for (const [rid, rs] of Object.entries(s.rooms_state)) {
       if (player.rooms[rid] && rs.items) player.rooms[rid].items = [...rs.items];
@@ -1378,7 +1468,13 @@ function refreshSidebar() {
   if (matEntries.length === 0) matEl.innerHTML = '<div class="empty">no materials</div>';
   else for (const [item, qty] of matEntries) {
     const row = document.createElement('div'); row.className = 'row';
-    row.innerHTML = `<span>${itemDisplay(item)}</span><span class="qty">×${qty}</span>`;
+    const left = freshnessRemaining(item);
+    let qtyHtml = `×${qty}`;
+    if (left != null) {
+      const color = left <= 10 ? '#c66' : (left <= 25 ? '#f0b54a' : 'var(--muted)');
+      qtyHtml += ` <span style="color:${color};font-size:11px;" title="rots in ${left} turn${left === 1 ? '' : 's'}">·${left}t</span>`;
+    }
+    row.innerHTML = `<span>${itemDisplay(item)}</span><span class="qty">${qtyHtml}</span>`;
     matEl.appendChild(row);
   }
 
@@ -1561,6 +1657,17 @@ async function publishNotice(text) {
   return notice_id;
 }
 
+// 4.5 — publish a combat session event (open / damage / end)
+async function publishCombat(phase, payload) {
+  const evt = finalizeEvent({
+    kind: KIND_COMBAT, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['phase', phase], ['combat', payload.combat_id]],
+    content: JSON.stringify(payload)
+  }, sk);
+  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  return evt;
+}
+
 async function publishCarve(text) {
   const carving_id = uuid();
   const evt = finalizeEvent({
@@ -1587,6 +1694,7 @@ function subscribe() {
     { kinds: [KIND_LOOT],     '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 24 * 3600 },
     { kinds: [KIND_NOTICE],   '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 30 * 24 * 3600 },
     { kinds: [KIND_CARVE],    '#t': [TOPIC] },  // carvings are forever (no since filter)
+    { kinds: [KIND_COMBAT],   '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 600 }, // 4.5: short window — combats are ephemeral
     { kinds: [KIND_DM],       '#p': [pk],    since: Math.floor(Date.now() / 1000) - 7 * 24 * 3600 },
     { kinds: [KIND_GIFT_OFFER, KIND_GIFT_ACCEPT, KIND_GIFT_DECLINE, KIND_HEAL], '#p': [pk], since: Math.floor(Date.now() / 1000) - 7 * 24 * 3600 }
   ], {
@@ -1599,6 +1707,7 @@ function subscribe() {
       if (event.kind === KIND_LOOT)     handleRemoteLoot(event);
       if (event.kind === KIND_NOTICE)   handleRemoteNotice(event);
       if (event.kind === KIND_CARVE)    handleRemoteCarve(event);
+      if (event.kind === KIND_COMBAT)   handleRemoteCombat(event);
       if (event.kind === KIND_DM)       handleRemoteDM(event);
       if (event.kind === KIND_GIFT_OFFER)   handleRemoteGiftOffer(event);
       if (event.kind === KIND_GIFT_ACCEPT)  handleRemoteGiftAccept(event);
@@ -1685,6 +1794,79 @@ function handleRemoteCarve(event) {
     posted_at: event.created_at * 1000
   });
   // Quiet — discovered when entering or running `look` / `carvings`.
+}
+
+// 4.5 — handle remote combat events (open / damage / end)
+function handleRemoteCombat(event) {
+  const phase = event.tags.find(t => t[0] === 'phase')?.[1];
+  const combat_id = event.tags.find(t => t[0] === 'combat')?.[1];
+  if (!phase || !combat_id) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch { return; }
+
+  if (phase === 'open') {
+    if (combatSessions.has(combat_id)) return; // dedupe
+    const sess = {
+      entity_id: p.entity_id,
+      room_id: p.room_id,
+      hp: p.hp, max_hp: p.max_hp,
+      opener_pubkey: event.pubkey,
+      opener_name: p.opener_name || '',
+      participants: new Set([event.pubkey]),
+      started_at: event.created_at * 1000,
+      ended: false
+    };
+    combatSessions.set(combat_id, sess);
+    // Surface to the user only if they're in the same room and it's not their own combat
+    if (sess.room_id === player.location && event.pubkey !== pk) {
+      const ent = STORY.entities[sess.entity_id];
+      const name = sess.opener_name || event.pubkey.slice(0, 8) + '…';
+      write(`[${name} engages a ${ent?.display || sess.entity_id} here. "assist" to join.]`, 'combat');
+    }
+  } else if (phase === 'damage') {
+    let sess = combatSessions.get(combat_id);
+    if (!sess) {
+      // We missed the open event — synthesize a session from this damage broadcast
+      sess = {
+        entity_id: p.entity_id || null, room_id: p.room_id || null,
+        hp: p.hp_after, max_hp: p.hp_after,
+        opener_pubkey: event.pubkey, opener_name: '',
+        participants: new Set([event.pubkey]),
+        started_at: event.created_at * 1000, ended: false
+      };
+      combatSessions.set(combat_id, sess);
+    }
+    sess.hp = Math.min(sess.hp, p.hp_after ?? sess.hp);
+    sess.participants.add(event.pubkey);
+    // If WE'RE in this combat, mirror the HP onto our local target
+    if (player.combat_id === combat_id && player.combat_target) {
+      player.combat_target.hp = sess.hp;
+      if (event.pubkey !== pk) {
+        const dispEnt = STORY.entities[sess.entity_id]?.display || 'creature';
+        write(`[${p.attacker_name || event.pubkey.slice(0, 8) + '…'} hits the ${dispEnt} for ${p.dmg || '?'}. (${Math.max(0, sess.hp)} HP left)]`, 'combat');
+      }
+    }
+  } else if (phase === 'end') {
+    const sess = combatSessions.get(combat_id);
+    if (!sess || sess.ended) return;
+    sess.ended = true;
+    // If WE were in this combat and didn't get the killing blow, claim assist credit
+    if (player.combat_id === combat_id && p.killer_pubkey !== pk) {
+      const ent_id = sess.entity_id || p.entity_id;
+      const ent = STORY.entities[ent_id];
+      if (ent_id) {
+        player.stats.kills[ent_id] = (player.stats.kills[ent_id] || 0) + 1;
+        for (const ps of Object.values(player.quests)) {
+          if (ps.state === 'active') ps.kills[ent_id] = (ps.kills[ent_id] || 0) + 1;
+        }
+        fireEvents('on_kill', { entity: ent_id });
+      }
+      const killerName = p.killer_name || p.killer_pubkey?.slice(0, 8) + '…' || 'someone';
+      write(`[${killerName} lands the killing blow on the ${ent?.display || 'creature'}. You assisted — kill credit yours, drops to the killer.]`, 'success');
+      player.combat_target = null;
+      player.combat_id = null;
+      refreshSidebar();
+    }
+  }
 }
 
 function carvingsAt(roomId) {
@@ -1874,6 +2056,7 @@ function removeFromInventoryOrMaterials(itemId, qty = 1) {
     if (player.materials[itemId] > 0) { player.materials[itemId]--; continue; }
     return false;
   }
+  consumeFreshness(itemId, qty);
   return true;
 }
 function addItem(itemId, qty = 1) {
@@ -1882,7 +2065,69 @@ function addItem(itemId, qty = 1) {
   if (!canCarry(itemId, qty)) return false;
   if (it.stackable) player.materials[itemId] = (player.materials[itemId] || 0) + qty;
   else for (let i = 0; i < qty; i++) player.inventory.push(itemId);
+  addFreshness(itemId, qty);
   return true;
+}
+
+// ---- Freshness / rot (raw food spoils after `decay_turns` turns from acquisition) ----
+function addFreshness(item, qty) {
+  const it = STORY.items[item];
+  if (!it?.decay_turns || qty <= 0) return;
+  if (!player.freshness) player.freshness = {};
+  if (!player.freshness[item]) player.freshness[item] = [];
+  // Coalesce with the most recent batch if same turn (avoids fragmentation when farming fast)
+  const last = player.freshness[item][player.freshness[item].length - 1];
+  if (last && last.turn === player.turn) last.qty += qty;
+  else player.freshness[item].push({ turn: player.turn, qty });
+}
+function consumeFreshness(item, qty) {
+  if (!player.freshness?.[item]) return;
+  let remaining = qty;
+  while (remaining > 0 && player.freshness[item].length > 0) {
+    const batch = player.freshness[item][0];
+    if (batch.qty <= remaining) {
+      remaining -= batch.qty;
+      player.freshness[item].shift();
+    } else {
+      batch.qty -= remaining;
+      remaining = 0;
+    }
+  }
+  if (player.freshness[item].length === 0) delete player.freshness[item];
+}
+function tickRot() {
+  if (!player.freshness || Object.keys(player.freshness).length === 0) return;
+  for (const [item, batches] of Object.entries(player.freshness)) {
+    const decay = STORY.items[item]?.decay_turns;
+    if (!decay) continue;
+    let rotted = 0;
+    while (batches.length > 0 && (player.turn - batches[0].turn) >= decay) {
+      rotted += batches[0].qty;
+      batches.shift();
+    }
+    if (rotted > 0) {
+      const have = player.materials[item] || 0;
+      const newQty = Math.max(0, have - rotted);
+      if (newQty === 0) delete player.materials[item];
+      else player.materials[item] = newQty;
+      const it = STORY.items[item];
+      const display = it?.display || item;
+      write(`[${rotted} ${display} rotted away. Cure or smoke before they spoil.]`, 'error');
+    }
+    if (batches.length === 0) delete player.freshness[item];
+  }
+}
+function freshnessRemaining(item) {
+  // Returns the smallest "turns left" across all batches of this item, or null.
+  if (!player.freshness?.[item]?.length) return null;
+  const decay = STORY.items[item]?.decay_turns;
+  if (!decay) return null;
+  let minLeft = Infinity;
+  for (const b of player.freshness[item]) {
+    const left = decay - (player.turn - b.turn);
+    if (left < minLeft) minLeft = left;
+  }
+  return minLeft === Infinity ? null : Math.max(0, minLeft);
 }
 function getActiveListings(merchantId) {
   const list = [];
@@ -1955,7 +2200,7 @@ function tickTurn() {
   const prevPeriod = dayPart().period;
   const prevDay = dayPart().day;
   player.turn++;
-  // Day rollover → new weather
+  // Day rollover → new weather + new daily quest
   const newDay = dayPart().day;
   if (newDay !== prevDay && newDay !== player.weather_day) {
     rollDailyWeather();
@@ -1965,9 +2210,12 @@ function tickTurn() {
       write(`[${desc}]`, 'system');
     }
   }
+  if (newDay !== prevDay) advanceDailyQuest(newDay);
   // Weather effects
   if (player.weather === 'snow') player.life -= 0.3;
   player.life -= STORY.meta.life_decay_per_turn;
+  // Food rot (raw items decay after meta-defined turns)
+  tickRot();
   const newPeriod = dayPart().period;
   if (newPeriod !== prevPeriod) {
     const transitions = {
@@ -2078,6 +2326,17 @@ function describeRoom() {
   if (noticeCount > 0) write(`A bulletin board holds ${noticeCount} note${noticeCount === 1 ? '' : 's'}. Use "notices".`, 'system');
   // Carvings here (4.11)
   describeCarvingsHere();
+  // 4.5: active combats here that we're not in — players can "assist"
+  const activeCombatsHere = [...combatSessions.values()].filter(s =>
+    !s.ended && s.room_id === player.location && s.opener_pubkey !== pk
+  );
+  if (activeCombatsHere.length) {
+    for (const s of activeCombatsHere) {
+      const ent = STORY.entities[s.entity_id];
+      const name = s.opener_name || s.opener_pubkey.slice(0, 8) + '…';
+      write(`>>> ${name} is fighting a ${ent?.display || s.entity_id} here. Type "assist" to join.`, 'combat');
+    }
+  }
   write('Exits: ' + Object.keys(room.exits).join(', '), 'exits');
 }
 
@@ -2188,7 +2447,13 @@ function showInventory() {
     write('You carry: ' + parts.join(', '));
   }
   const mats = Object.entries(player.materials).filter(([_, q]) => q > 0);
-  if (mats.length) write('Materials: ' + mats.map(([k, q]) => `${itemDisplay(k)} ×${q}`).join(', '), 'gold');
+  if (mats.length) {
+    write('Materials: ' + mats.map(([k, q]) => {
+      const left = freshnessRemaining(k);
+      const fresh = (left != null) ? ` (rots in ${left} turn${left === 1 ? '' : 's'})` : '';
+      return `${itemDisplay(k)} ×${q}${fresh}`;
+    }).join(', '), 'gold');
+  }
   write(`Load: ${Math.round(computeWeight()*10)/10}/${computeMaxCapacity()}`, 'system');
 }
 
@@ -2413,9 +2678,64 @@ function hunt() {
   const pick = pickWeighted(room.spawn_table);
   const ent = STORY.entities[pick.entity];
   player.combat_target = { id: pick.entity, ...structuredClone(ent) };
+  // 4.5: open a shared combat session so others in the room can assist
+  const combat_id = uuid();
+  player.combat_id = combat_id;
+  combatSessions.set(combat_id, {
+    entity_id: pick.entity, room_id: player.location,
+    hp: ent.hp, max_hp: ent.hp,
+    opener_pubkey: pk, opener_name: player.name,
+    participants: new Set([pk]),
+    started_at: Date.now(), ended: false
+  });
+  publishCombat('open', {
+    combat_id, entity_id: pick.entity, room_id: player.location,
+    hp: ent.hp, max_hp: ent.hp, opener_name: player.name
+  });
   write(`You move quietly. A ${ent.display} steps into view.`, 'combat');
   write(`(${ent.summary})`, 'system');
-  write('Type "attack" to engage, "flee" to back off.', 'combat');
+  write('Type "attack" to engage, "flee" to back off. Other players here can "assist" you.', 'combat');
+}
+
+// 4.5 — assist another player's combat session in the same room.
+// `target` may be the opener's name, npub, or empty (auto-pick if only one available).
+function assist(target) {
+  if (combatBlock('assist')) return;
+  if (inCombat()) { write('You are already in a fight.', 'error'); return; }
+  // Eligible: not ours, in this room, not ended
+  const eligible = [...combatSessions.entries()]
+    .filter(([_, s]) => !s.ended && s.room_id === player.location && s.opener_pubkey !== pk)
+    .map(([cid, s]) => [cid, s]);
+  if (eligible.length === 0) {
+    write('No combat to assist with here. (When another player runs "hunt" in this room, you\'ll see them.)', 'error');
+    return;
+  }
+  let picked = null;
+  if (target && target.trim()) {
+    const t = target.toLowerCase().trim();
+    picked = eligible.find(([_, s]) =>
+      (s.opener_name && s.opener_name.toLowerCase().includes(t)) ||
+      s.opener_pubkey.startsWith(t) ||
+      s.opener_pubkey === t
+    );
+    if (!picked) {
+      write(`No combat by "${target}" here. Currently fighting: ${eligible.map(([_,s]) => s.opener_name || s.opener_pubkey.slice(0,8)+'…').join(', ')}.`, 'error');
+      return;
+    }
+  } else if (eligible.length === 1) {
+    picked = eligible[0];
+  } else {
+    write(`Multiple combats here. Specify: ${eligible.map(([_,s]) => s.opener_name || s.opener_pubkey.slice(0,8)+'…').join(', ')}.`, 'error');
+    return;
+  }
+  const [combat_id, sess] = picked;
+  const ent = STORY.entities[sess.entity_id];
+  if (!ent) { write('Cannot determine the entity. (Stale session.)', 'error'); return; }
+  player.combat_target = { id: sess.entity_id, ...structuredClone(ent), hp: sess.hp };
+  player.combat_id = combat_id;
+  sess.participants.add(pk);
+  write(`You join the fight against the ${ent.display}! (${sess.hp}/${sess.max_hp} hp)`, 'combat');
+  write('Type "attack" to strike. The kill is shared; drops go to whoever lands the killing blow.', 'system');
 }
 
 function attack() {
@@ -2432,15 +2752,29 @@ function attack() {
   const crit = Math.random() < critChance;
   const baseDmg = randInt(2, 5) + bestWeaponBonus() + (player.skills.has('hunting') ? 2 : 0);
   const playerDmg = Math.max(1, Math.floor(baseDmg * typeMod * (crit ? 2 : 1)));
+  let didDamage = 0;
   if (Math.random() < (t.evasion || 0)) {
     write(`You miss the ${t.display}.`, 'combat');
   } else {
     t.hp -= playerDmg;
+    didDamage = playerDmg;
     let mod = '';
     if (typeMod === 1.5) mod = ' (effective)';
     else if (typeMod === 0.5) mod = ' (glancing)';
     if (crit) mod += ' — critical strike!';
     write(`You strike the ${t.display} for ${playerDmg} damage${mod}. (${Math.max(0, t.hp)} HP left)`, crit ? 'spark' : 'success');
+  }
+  // 4.5: sync session HP and broadcast damage
+  if (player.combat_id && didDamage > 0) {
+    const sess = combatSessions.get(player.combat_id);
+    if (sess) {
+      sess.hp = Math.min(sess.hp, t.hp);
+      sess.participants.add(pk);
+      publishCombat('damage', {
+        combat_id: player.combat_id, entity_id: t.id, room_id: player.location,
+        hp_after: sess.hp, attacker_pubkey: pk, attacker_name: player.name, dmg: didDamage
+      });
+    }
   }
   // Companion contribution (if alive)
   if (player.companion && player.companion.hp > 0 && t.hp > 0) {
@@ -2473,6 +2807,19 @@ function attack() {
     }
   }
   if (t.hp <= 0) {
+    // 4.5: race-to-kill — if a remote 'end' already arrived for this combat, only credit, no drops
+    const sess = player.combat_id ? combatSessions.get(player.combat_id) : null;
+    if (sess && sess.ended) {
+      write(`The ${t.display} falls — but someone else struck the killing blow first. Kill credit yours, drops to them.`, 'system');
+      player.stats.kills[t.id] = (player.stats.kills[t.id] || 0) + 1;
+      for (const ps of Object.values(player.quests)) {
+        if (ps.state === 'active') ps.kills[t.id] = (ps.kills[t.id] || 0) + 1;
+      }
+      fireEvents('on_kill', { entity: t.id });
+      player.combat_target = null;
+      player.combat_id = null;
+      return;
+    }
     write(`The ${t.display} falls.`, 'success');
     const allDrops = [...t.base_drops];
     if (player.skills.has('skinning')) allDrops.push(...t.skinning_drops);
@@ -2495,6 +2842,16 @@ function attack() {
     if (!player.skills.has('skinning') && t.skinning_drops.length)
       write('(With Skinning, kills also yield hide.)', 'system');
     publishAction('killed', { entity: t.id, location: player.location });
+    // 4.5: announce the kill so all participants get credit on their clients
+    if (player.combat_id) {
+      if (sess) sess.ended = true;
+      publishCombat('end', {
+        combat_id: player.combat_id, entity_id: t.id, room_id: player.location,
+        killer_pubkey: pk, killer_name: player.name
+      });
+      const others = sess ? [...sess.participants].filter(x => x !== pk) : [];
+      if (others.length) write(`(Shared kill credit goes to ${others.length} other ${others.length === 1 ? 'fighter' : 'fighters'} in this combat.)`, 'system');
+    }
     // Track stats
     player.stats.kills[t.id] = (player.stats.kills[t.id] || 0) + 1;
     // Track for active kill quests
@@ -2504,6 +2861,7 @@ function attack() {
     // Trigger any on_kill events
     fireEvents('on_kill', { entity: t.id });
     player.combat_target = null;
+    player.combat_id = null;
     return;
   }
   let enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
@@ -2531,6 +2889,7 @@ function flee() {
   player.life -= enemyDmg;
   write(`You scramble away. The ${t.display} catches you for ${enemyDmg} parting damage.`, 'error');
   player.combat_target = null;
+  player.combat_id = null;  // 4.5: leaving a shared combat doesn't end it for others
   if (player.life <= 0) handleDeath(`killed by ${t.display} while fleeing`);
 }
 
@@ -2678,7 +3037,8 @@ function showQuests() {
   if (active.length) {
     write('-- Active quests --', 'system');
     for (const [qid, q] of active) {
-      write(`  ${qid}  —  ${q.title}`, 'spark');
+      const tag = q.recurrence === 'daily' ? '  [DAILY — expires at dawn]' : '';
+      write(`  ${qid}  —  ${q.title}${tag}`, 'spark');
       write(`    ${q.description}`);
       const prog = questProgress(qid);
       for (const p of prog) {
@@ -2749,6 +3109,13 @@ function turnInQuest(qid) {
   }
   ps.state = 'completed';
   player.stats.quests_completed++;
+  // If this was a daily quest, increment the lifetime daily counter and clear the active slot.
+  // The state stays in player.quests as 'completed' so it's visible in stats; advanceDailyQuest
+  // tomorrow will replace it via the pool rotation, not delete this completed record.
+  if (q.recurrence === 'daily') {
+    player.daily_quests_completed++;
+    player.daily_quest_active = null;
+  }
   fireEvents('on_quest_complete', { quest: qid });
   write(q.completion_message || `Quest complete: ${q.title}`, 'success');
   const reward_parts = [];
@@ -2818,11 +3185,42 @@ function offerQuestsFor(npcId) {
   const offers = [];
   for (const [qid, q] of Object.entries(STORY.quests || {})) {
     if (q.giver !== npcId) continue;
+    if (q.recurrence === 'daily') continue;  // dailies auto-accept; never offered manually
     if (player.quests[qid]) continue;
     if (!questRequiresMet(q)) continue;
     offers.push([qid, q]);
   }
   return offers;
+}
+
+// Daily quest rollover. Picks the next daily from meta.daily_quest_pool deterministically by day,
+// expires the previous one if not turned in, auto-accepts the new one.
+function advanceDailyQuest(currentDay) {
+  const pool = (STORY.meta && Array.isArray(STORY.meta.daily_quest_pool)) ? STORY.meta.daily_quest_pool : [];
+  if (pool.length === 0) return;  // story doesn't define dailies
+  if (player.daily_quest_day === currentDay) return;  // already advanced this day
+  // Expire the previous daily if still active and not completed
+  if (player.daily_quest_active) {
+    const prev = player.quests[player.daily_quest_active];
+    if (prev && prev.state === 'active') {
+      const q = STORY.quests[player.daily_quest_active];
+      delete player.quests[player.daily_quest_active];
+      write(`[The ${q?.title || player.daily_quest_active} expired with the dawn.]`, 'system');
+    }
+  }
+  // Pick next daily deterministically from pool
+  const idx = (currentDay - 1) % pool.length;
+  const nextId = pool[idx];
+  const next = STORY.quests[nextId];
+  if (!next) return;
+  // Auto-accept
+  player.quests[nextId] = { state: 'active', kills: {}, visited: [player.location] };
+  player.daily_quest_active = nextId;
+  player.daily_quest_day = currentDay;
+  write(`>>> Daily quest: ${next.title}`, 'spark');
+  write(`    ${next.description}`);
+  if (next.giver) write(`    Turn it in to ${STORY.npcs[next.giver]?.display || next.giver} before the day ends.`, 'system');
+  else write(`    Complete and turn in before the day ends.`, 'system');
 }
 function matchesNpcCondition(c) {
   if (!c) return true;
@@ -2952,6 +3350,7 @@ const ACHIEVEMENTS = {
   hunter:       { name: 'Hunter',           desc: 'Make 20 kills.',                check: () => totalKills() >= 20 },
   wolfslayer:   { name: 'Wolfslayer',       desc: 'Kill 10 wolves.',               check: () => (player.stats.kills.wolf || 0) >= 10 },
   wise:         { name: 'Wise',             desc: 'Solve 5 riddles.',              check: () => player.riddles_solved.size >= 5 },
+  reliable:     { name: 'Reliable',         desc: 'Complete 7 daily quests.',      check: () => (player.daily_quests_completed || 0) >= 7 },
   craftsman:    { name: 'Master Craftsman', desc: 'Craft 30 things.',              check: () => player.stats.crafts >= 30 },
   survivor:     { name: 'Survivor',         desc: 'Reach day 5.',                  check: () => Math.floor(player.turn / (STORY.meta.turns_per_day || 96)) + 1 >= 5 },
   wealthy:      { name: 'Wealthy',          desc: 'Hold 200 gold at once.',        check: () => player.gold >= 200 },
@@ -2986,6 +3385,7 @@ function showStats() {
   }
   write(`  Riddles solved: ${player.riddles_solved.size}`);
   write(`  Quests completed: ${player.stats.quests_completed}`);
+  write(`  Daily quests completed: ${player.daily_quests_completed || 0}`);
   write(`  Crafts made: ${player.stats.crafts}`);
   write(`  Carvings left: ${player.carvings_left || 0}`);
   write(`  Gold earned (lifetime): ${player.stats.gold_earned}`);
@@ -3647,6 +4047,56 @@ function showNotices() {
   if (localNotices.length > 10) write(`  ...and ${localNotices.length - 10} older notices.`);
 }
 
+function relayCommand(argRaw) {
+  const parts = (argRaw || '').trim().split(/\s+/).filter(Boolean);
+  const sub = (parts[0] || '').toLowerCase();
+  if (!sub || sub === 'list') {
+    write('-- Relays --', 'system');
+    const custom = new Set(loadCustomRelays().map(r => r.replace(/\/+$/, '')));
+    for (const r of RELAYS) {
+      const norm = r.replace(/\/+$/, '');
+      const tag = custom.has(norm) ? '[yours]' : '[default]';
+      write(`  ${tag}  ${r}`);
+    }
+    write('Commands: "relay add <wss://...>", "relay remove <url>", "relay reset"', 'system');
+    write('Note: changes apply on next page reload.', 'system');
+    return;
+  }
+  if (sub === 'add') {
+    const url = parts[1];
+    if (!url || !/^wss?:\/\//i.test(url)) { write('Usage: relay add <wss://your-relay.example>', 'error'); return; }
+    const list = loadCustomRelays();
+    const norm = url.replace(/\/+$/, '');
+    if (list.some(r => r.replace(/\/+$/, '') === norm) || DEFAULT_RELAYS.some(r => r.replace(/\/+$/, '') === norm)) {
+      write(`Already on the list: ${url}`, 'system'); return;
+    }
+    list.push(url);
+    saveCustomRelays(list);
+    write(`Added ${url}.`, 'success');
+    write('Reload the page to connect to it.', 'system');
+    return;
+  }
+  if (sub === 'remove' || sub === 'rm') {
+    const url = parts[1];
+    if (!url) { write('Usage: relay remove <url>', 'error'); return; }
+    const list = loadCustomRelays();
+    const norm = url.replace(/\/+$/, '');
+    const before = list.length;
+    const next = list.filter(r => r.replace(/\/+$/, '') !== norm);
+    if (next.length === before) { write(`Not in your custom list: ${url}`, 'error'); return; }
+    saveCustomRelays(next);
+    write(`Removed ${url}.`, 'success');
+    write('Reload the page to apply.', 'system');
+    return;
+  }
+  if (sub === 'reset') {
+    saveCustomRelays([]);
+    write('Custom relays cleared. Reload the page to use defaults only.', 'success');
+    return;
+  }
+  write(`Unknown relay subcommand "${sub}". Try: relay list / add / remove / reset.`, 'error');
+}
+
 function switchStoryCommand() {
   showStoryPicker(STORY.meta.id).then(id => {
     if (id && id !== STORY.meta.id) {
@@ -3820,18 +4270,20 @@ function showMap() {
 
 function help() {
   const lines = [
-    'Movement:        n/s/e/w · go <dir> · look · map',
+    'Movement:        n/s/e/w · u/d · in · out · go <dir> · look · map',
     'Items:           take <x> · drop <x> · bury <x|qty x> · inv · status',
     'World:           talk <npc> · answer <text>',
     'Skills:          skills · learn <skill>',
     'Gathering:       chop / forage / gather (needs skill)',
     'Crafting:        recipes · craft <recipe>  (each craft awards sparks)',
     'Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest · sleep',
+    '                 assist [<name>]  (join another player\'s fight in the same room)',
     'Equipment:       wear / wield <x> · unwear <slot> · equipment / eq',
     'Smithing:        sharpen <x> · repair <x>  (at the village blacksmith)',
     'Companion:       tame · feed · companion / pet · dismiss',
     'Progress:        quests / q · stats · achievements',
     '                 accept <id> · turn in <id>',
+    '                 (daily quests auto-rotate at dawn — turn in before dawn or they expire)',
     'Storage:         place chest · chest · store <x> · retrieve <x>',
     'Market:          sell <item>          (direct sale, instant gold)',
     '                 sell <qty> <item>    (batch sell at base value)',
@@ -3850,6 +4302,7 @@ function help() {
     'Identity:        soul (show your nsec) · import <nsec> · new character (fresh start)',
     '                 rename <new_name>  (change your visible name)',
     'Worlds:          switch story · stories  (list/switch story files)',
+    'Relays:          relay list · relay add <wss://...> · relay remove <url> · relay reset',
     'Misc:            clear · help'
   ];
   for (const l of lines) write(l, 'system');
@@ -3902,6 +4355,7 @@ function handleCommand(input) {
     case 'hunt':                 hunt(); break;
     case 'attack':               attack(); break;
     case 'flee':                 flee(); break;
+    case 'assist': case 'help_attack': assist(argRaw); break;
     case 'eat':                  eat(arg); break;
     case 'drink':                drink(arg); break;
     case 'wear': case 'equip': case 'wield':   wear(arg); break;
@@ -3932,6 +4386,7 @@ function handleCommand(input) {
     case 'reset':                newCharacter(); consumesTurn = false; break;
     case 'rename':               renameCharacter(argRaw); consumesTurn = false; break;
     case 'switch':               if (arg === 'story' || arg === '') switchStoryCommand(); else write('Did you mean "switch story"?', 'error'); consumesTurn = false; break;
+    case 'relay': case 'relays': relayCommand(argRaw); consumesTurn = false; break;
     case 'stories':              listStoriesCommand(); consumesTurn = false; break;
     case 'place':                if (arg === 'chest') placeChest(); else write('Place what? Try "place chest".', 'error'); break;
     case 'chest':                showChest(); consumesTurn = false; break;
@@ -4051,6 +4506,8 @@ if (!player.weather) {
   rollDailyWeather();
   player.weather_day = dayPart().day;
 }
+// Seed (or rotate) the daily quest for today
+advanceDailyQuest(dayPart().day);
 
 write(`Identity: ${npubShort}`, 'system');
 write(`${Object.keys(STORY.rooms).length} rooms · ${Object.keys(STORY.skills).length} skills · ${Object.keys(STORY.recipes).length} recipes · ${Object.keys(STORY.entities).length} entities`, 'system');
@@ -4088,6 +4545,26 @@ fetchAndRestoreState().then(remoteState => {
     saveLocal();
   }
 });
+
+// Safari ITP nudge: if relays are still not connected after a generous timeout,
+// the most likely cause when served from a real origin (not file://) is Safari's
+// "Prevent cross-site tracking" Privacy setting. Detect and gently suggest fixes.
+setTimeout(() => {
+  if (relayUp) return;
+  const ua = navigator.userAgent || '';
+  const isSafari = /Safari/.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS/.test(ua);
+  const isFile = location.protocol === 'file:';
+  if (isFile) return; // file:// works fine on Safari without ITP
+  write('');
+  write(`[network] Relays haven't connected after 12 seconds.`, 'system');
+  if (isSafari) {
+    write('On Safari this usually means Cross-Site Tracking Prevention is blocking the WebSocket handshake.', 'system');
+    write('  Fix 1: Safari → Settings → Privacy → uncheck "Prevent cross-site tracking", then reload.', 'system');
+    write('  Fix 2: Add a relay you can reach with "relay add wss://your-relay.example", then reload.', 'system');
+  } else {
+    write('Check your network — try "relay list" and "relay add <wss://...>" to use a different relay.', 'system');
+  }
+}, 12000);
 </script>
 </body>
 </html>
