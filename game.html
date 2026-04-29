@@ -168,6 +168,7 @@
     <button class="close-btn" id="drawer-close">close</button>
     <section>
       <h3>Identity</h3>
+      <div class="kv"><span class="k">name</span><span class="v" id="player-name">…</span></div>
       <div class="kv"><span class="k">npub</span><span class="v" id="pubkey">…</span></div>
       <div class="kv"><span class="k"><span class="g">⚡</span> relays</span><span class="v"><span class="dot" id="relayDot"></span><span id="relays">connecting…</span></span></div>
     </section>
@@ -338,11 +339,11 @@ const STORY = {
     }
   },
   items: {
-    rusty_dagger:  { display:'rusty dagger',  article:'a',         value:5,  weight:2, category:'good',       stackable:false, tags:['weapon','metal'], slot:'hand', effects:{attack_bonus:3} },
-    sharpened_dagger:{ display:'sharpened dagger', article:'a',    value:18, weight:2, category:'good',       stackable:false, tags:['weapon','metal','crafted'], slot:'hand', effects:{attack_bonus:5} },
+    rusty_dagger:  { display:'rusty dagger',  article:'a',         value:5,  weight:2, category:'good',       stackable:false, tags:['weapon','metal'], slot:'hand', effects:{attack_bonus:3, damage_type:'pierce'} },
+    sharpened_dagger:{ display:'sharpened dagger', article:'a',    value:18, weight:2, category:'good',       stackable:false, tags:['weapon','metal','crafted'], slot:'hand', effects:{attack_bonus:5, damage_type:'pierce'} },
     broken_sword:  { display:'broken sword',  article:'a',         value:3,  weight:3, category:'good',       stackable:false, tags:['weapon','metal','broken'] },
-    sword:         { display:'fine sword',    article:'a',         value:80, weight:3, category:'good',       stackable:false, tags:['weapon','metal','crafted','rare'], slot:'hand', effects:{attack_bonus:10} },
-    bone_knife:    { display:'bone knife',    article:'a',         value:3,  weight:1, category:'good',       stackable:false, tags:['weapon','bone','fragile'], slot:'hand', effects:{attack_bonus:1} },
+    sword:         { display:'fine sword',    article:'a',         value:80, weight:3, category:'good',       stackable:false, tags:['weapon','metal','crafted','rare'], slot:'hand', effects:{attack_bonus:10, damage_type:'slash'} },
+    bone_knife:    { display:'bone knife',    article:'a',         value:3,  weight:1, category:'good',       stackable:false, tags:['weapon','bone','fragile'], slot:'hand', effects:{attack_bonus:1, damage_type:'pierce'} },
     smooth_stone:  { display:'smooth stone',  article:'a',         value:1,  weight:1, category:'good',       stackable:false, tags:['trinket'] },
     silver_herb:   { display:'silver herb',   article:'a',         value:12, weight:1, category:'good',       stackable:false, tags:['herb','rare'] },
     wood:          { display:'wood log',      article:'a',         value:1,  weight:2, category:'resource',   stackable:true,  tags:['wood','raw'] },
@@ -352,7 +353,7 @@ const STORY = {
     stone_head:    { display:'stone head',    article:'a',         value:6,  weight:2, category:'good',       stackable:false, tags:['crafted','stone'] },
     simple_chest:  { display:'simple chest',  article:'a',         value:15, weight:6, category:'good',       stackable:false, tags:['crafted','container'] },
     healing_salve: { display:'healing salve', article:'a',         value:14, weight:1, category:'consumable', stackable:false, tags:['crafted','herb'], effects:{restore_life:25}, consumable_action:'eat' },
-    simple_axe:    { display:'simple axe',    article:'a',         value:25, weight:4, category:'tool',       stackable:false, tags:['crafted','tool','weapon'], slot:'hand', effects:{attack_bonus:6} },
+    simple_axe:    { display:'simple axe',    article:'a',         value:25, weight:4, category:'tool',       stackable:false, tags:['crafted','tool','weapon'], slot:'hand', effects:{attack_bonus:6, damage_type:'blunt'} },
     raw_meat:      { display:'raw meat',      article:'some',      value:2,  weight:2, category:'resource',   stackable:true,  tags:['food','raw'],     effects:{restore_life:4},  consumable_action:'eat' },
     cooked_meat:   { display:'cooked meat',   article:'some',      value:6,  weight:1, category:'consumable', stackable:false, tags:['food','cooked'],  effects:{restore_life:10}, consumable_action:'eat' },
     smoked_meat:   { display:'smoked meat',   article:'some',      value:11, weight:1, category:'consumable', stackable:false, tags:['food','preserved'],effects:{restore_life:14}, consumable_action:'eat' },
@@ -470,7 +471,8 @@ const STORY = {
     smoking:        { display:'Smoking',        spark_cost:100, prereqs:['cooking'],         tier:3, unlocks:{verbs:[], recipes:['smoke_meat']} },
     curing:         { display:'Curing',         spark_cost:100, prereqs:['cooking'],         tier:3, unlocks:{verbs:[], recipes:['cure_meat']} },
     shoemaking:     { display:'Shoemaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['make_shoes','make_hat','make_clothes']} },
-    packmaking:     { display:'Packmaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['leather_pack','make_belt']} }
+    packmaking:     { display:'Packmaking',     spark_cost:100, prereqs:['tanning'],         tier:3, unlocks:{verbs:[], recipes:['leather_pack','make_belt']} },
+    taming:         { display:'Taming',         spark_cost:120, prereqs:['hunting','skinning'], tier:3, unlocks:{verbs:['tame'], recipes:[]}, tags:['survival'] }
   },
   recipes: {
     wooden_handle: { display:'Wooden handle', skill:'carpentry',  inputs:[{item:'wood',qty:1}],                                  outputs:[{item:'wooden_handle',qty:2}], requires_fire:false, sparks_reward:2 },
@@ -489,9 +491,52 @@ const STORY = {
     make_belt:     { display:'Leather belt',  skill:'packmaking', inputs:[{item:'leather',qty:2}],                               outputs:[{item:'leather_belt',qty:1}],  requires_fire:false, sparks_reward:4 }
   },
   entities: {
-    deer:   { display:'deer',   summary:'A wary forest deer.',   hp:10, attack_damage_range:[1,3], evasion:0.1, hostile:false, base_drops:[{item:'raw_meat',qty:2}], skinning_drops:[{item:'hide',qty:1}], rare_drops:[{item:'bone_knife',qty:1,chance:0.15}] },
-    rabbit: { display:'rabbit', summary:'A small cottontail.',    hp:4,  attack_damage_range:[0,1], evasion:0.2, hostile:false, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[], rare_drops:[{item:'bone_knife',qty:1,chance:0.08}] },
-    wolf:   { display:'wolf',   summary:'A grey wolf, lean from the season. It does not run.', hp:20, attack_damage_range:[3,8], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[{item:'hide',qty:1}] }
+    deer:   { display:'deer',   summary:'A wary forest deer.',   hp:10, attack_damage_range:[1,3], evasion:0.1, hostile:false, base_drops:[{item:'raw_meat',qty:2}], skinning_drops:[{item:'hide',qty:1}], rare_drops:[{item:'bone_knife',qty:1,chance:0.15}], weaknesses:['pierce'] },
+    rabbit: { display:'rabbit', summary:'A small cottontail.',    hp:4,  attack_damage_range:[0,1], evasion:0.2, hostile:false, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[], rare_drops:[{item:'bone_knife',qty:1,chance:0.08}], weaknesses:['pierce'] },
+    wolf:   { display:'wolf',   summary:'A grey wolf, lean from the season. It does not run.', hp:20, attack_damage_range:[3,8], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[{item:'hide',qty:1}], weaknesses:['slash'], resistances:['pierce'], tameable:true }
+  },
+  events: {
+    first_kill_rumor: {
+      trigger: 'on_kill',
+      once: true,
+      effects: [
+        { type:'narrate', text:'[The wind shifts. Word travels through the trees: someone has begun to hunt.]' }
+      ]
+    },
+    day_three_wolves: {
+      trigger: 'on_turn',
+      trigger_params: { turn_gte: 96 * 3 },
+      once: true,
+      effects: [
+        { type:'set_flag', flag:'wolves_active' },
+        { type:'narrate', text:'[The howls in the canyon are closer tonight than they were before. The wolves grow bold.]' }
+      ]
+    },
+    riddle_first: {
+      trigger: 'on_riddle_solve',
+      once: true,
+      effects: [
+        { type:'narrate', text:'[Something in the world notices. A small balance has shifted toward you.]' },
+        { type:'spark_award', qty: 5 }
+      ]
+    },
+    mine_riddle_aftermath: {
+      trigger: 'on_riddle_solve',
+      trigger_params: { riddle: 'mine_riddle' },
+      once: true,
+      effects: [
+        { type:'narrate', text:'[The hermit, somewhere far away, looks up from a bowl. They smile.]' }
+      ]
+    },
+    third_quest_milestone: {
+      trigger: 'on_quest_complete',
+      conditions: [{ type:'quests_completed_gte', qty: 3 }],
+      once: true,
+      effects: [
+        { type:'narrate', text:'[Three quests completed. The traders have begun to know your face.]' },
+        { type:'spark_award', qty: 10 }
+      ]
+    }
   },
   quests: {
     intro: {
@@ -621,7 +666,21 @@ const player = {
   visited: new Set([STORY.meta.starting_location]),
   quests: {},         // questId -> { state: 'active'|'completed', kills: {entity:N}, visited: [room,...] }
   edges: new Map(),   // weapon_id -> remaining durability
-  rooms: structuredClone(STORY.rooms)
+  flags: new Set(),   // story flags set by scripted events
+  companion: null,    // { entity, hp, max_hp, last_fed_turn, attack_bonus }
+  events_fired: new Set(),  // event ids that have fired (for once: true)
+  stats: {
+    kills: {},        // entity_id -> count
+    gold_earned: 0,
+    sparks_earned: 0,
+    deaths: 0,
+    quests_completed: 0,
+    crafts: 0,
+    riddles_solved: 0
+  },
+  achievements: new Set(),  // earned achievement ids
+  rooms: structuredClone(STORY.rooms),
+  name: null   // set on first launch by askName()
 };
 
 // Auto-accept quests at start
@@ -670,6 +729,12 @@ function serializeState() {
     visited: [...player.visited],
     quests: Object.fromEntries(Object.entries(player.quests).map(([k, v]) => [k, { state: v.state, kills: { ...v.kills }, visited: [...v.visited] }])),
     edges: [...player.edges],
+    flags: [...player.flags],
+    companion: player.companion ? { ...player.companion } : null,
+    events_fired: [...player.events_fired],
+    stats: { ...player.stats, kills: { ...player.stats.kills } },
+    achievements: [...player.achievements],
+    name: player.name,
     turn: player.turn,
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
@@ -693,6 +758,13 @@ function applyState(s) {
     player.quests[k] = { state: v.state, kills: { ...(v.kills || {}) }, visited: [...(v.visited || [])] };
   }
   player.edges = new Map(s.edges || []);
+  player.flags = new Set(s.flags || []);
+  player.companion = s.companion || null;
+  player.events_fired = new Set(s.events_fired || []);
+  player.stats = Object.assign({ kills: {}, gold_earned: 0, sparks_earned: 0, deaths: 0, quests_completed: 0, crafts: 0, riddles_solved: 0 }, s.stats || {});
+  player.stats.kills = { ...(s.stats?.kills || {}) };
+  player.achievements = new Set(s.achievements || []);
+  if (s.name) player.name = s.name;
   player.turn = s.turn ?? 0;
   if (s.rooms_state) {
     for (const [rid, rs] of Object.entries(s.rooms_state)) {
@@ -765,6 +837,8 @@ function refreshSidebar() {
   document.getElementById('mh-sparks').textContent = player.sparks;
   document.getElementById('mh-load').textContent = `${wt}/${cap}`;
   document.getElementById('mh-room').textContent = player.rooms[player.location].name;
+  const nameEl = document.getElementById('player-name');
+  if (nameEl) nameEl.textContent = player.name || '—';
   // Equipment
   const eqEl = document.getElementById('equipment');
   if (eqEl) {
@@ -845,7 +919,7 @@ async function publishAction(actionType, payload) {
   const evt = finalizeEvent({
     kind: KIND_ACTION, created_at: Math.floor(Date.now() / 1000),
     tags: [['t', TOPIC], ['action', actionType], ['d', `${actionType}-${Date.now()}`]],
-    content: JSON.stringify(payload)
+    content: JSON.stringify({ ...payload, name: player.name })
   }, sk);
   addToFeed('myEvents', `${actionType}: ${formatActionSummary(actionType, payload)}`, evt.id.slice(0, 8));
   try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
@@ -915,23 +989,32 @@ function subscribe() {
   });
 }
 
+function displayName(pubkey, fromPayload) {
+  if (fromPayload?.name) return fromPayload.name;
+  const known = knownPlayers.get(pubkey);
+  if (known?.name) return known.name;
+  return pubkey.slice(0, 8) + '…';
+}
+
 function handleRemoteAction(event) {
   const action = event.tags.find(t => t[0] === 'action')?.[1] || '?';
   let p = {}; try { p = JSON.parse(event.content); } catch {}
-  const shortPk = event.pubkey.slice(0, 8);
-  if (!knownPlayers.has(event.pubkey)) {
-    knownPlayers.set(event.pubkey, { firstSeen: Date.now(), location: p.to || p.location });
-    write(`[network] New player detected: ${shortPk}…`, 'system');
-  } else if (action === 'move') {
-    knownPlayers.get(event.pubkey).location = p.to;
+  const known = knownPlayers.get(event.pubkey);
+  if (!known) {
+    knownPlayers.set(event.pubkey, { firstSeen: Date.now(), location: p.to || p.location, name: p.name });
+    write(`[network] New traveler appears: ${p.name || event.pubkey.slice(0, 8) + '…'}`, 'system');
+  } else {
+    if (action === 'move') known.location = p.to;
+    if (p.name) known.name = p.name;
   }
-  addToFeed('worldFeed', `${shortPk}…  ${formatActionSummary(action, p)}`, event.id.slice(0, 8));
+  const who = displayName(event.pubkey, p);
+  addToFeed('worldFeed', `${who}  ${formatActionSummary(action, p)}`, event.id.slice(0, 8));
   if (action === 'move' && p.to === player.location)
-    write(`[network] ${shortPk}… enters ${player.rooms[p.to].name}.`, 'system');
+    write(`[network] ${who} enters ${player.rooms[p.to].name}.`, 'system');
   if (action === 'whisper' && p.location === player.location)
-    write(`[${shortPk}…] "${p.text}"`, 'whisper');
+    write(`[${who}] "${p.text}"`, 'whisper');
   if (action === 'died' && p.location === player.location)
-    write(`[network] ${shortPk}… died here. Look for their corpse with "corpses".`, 'system');
+    write(`[network] ${who} died here. Look for their corpse with "corpses".`, 'system');
 }
 function handleRemoteListing(event) {
   const lid = event.tags.find(t => t[0] === 'listing')?.[1];
@@ -944,7 +1027,7 @@ function handleRemoteListing(event) {
     source: event.pubkey === pk ? 'self' : 'remote', event
   });
   if (event.pubkey !== pk)
-    addToFeed('worldFeed', `${event.pubkey.slice(0,8)}… listed ${p.item} @ ${p.price_gold}g`, event.id.slice(0, 8));
+    addToFeed('worldFeed', `${displayName(event.pubkey, p)} listed ${p.item} @ ${p.price_gold}g`, event.id.slice(0, 8));
 }
 function handleRemotePurchase(event) {
   const lid = event.tags.find(t => t[0] === 'listing')?.[1];
@@ -957,13 +1040,13 @@ function handleRemotePurchase(event) {
     if (listing) {
       player.gold += listing.price_gold;
       removeFromInventoryOrMaterials(listing.item);
-      write(`[market] Conflict: ${event.pubkey.slice(0,8)}… bought first. Refunded ${listing.price_gold} gold.`, 'error');
+      write(`[market] Conflict: ${displayName(event.pubkey, p)} bought first. Refunded ${listing.price_gold} gold.`, 'error');
       refreshSidebar();
     }
   }
   marketplace.purchased.set(lid, { buyer_pubkey: event.pubkey, paid_gold: p.paid_gold, purchased_at: event.created_at });
   if (event.pubkey !== pk)
-    addToFeed('worldFeed', `${event.pubkey.slice(0,8)}… bought listing ${lid.slice(0,6)}…`, event.id.slice(0, 8));
+    addToFeed('worldFeed', `${displayName(event.pubkey, p)} bought listing ${lid.slice(0,6)}…`, event.id.slice(0, 8));
 }
 function handleRemoteItemDrop(event) {
   const did = event.tags.find(t => t[0] === 'drop')?.[1];
@@ -976,7 +1059,7 @@ function handleRemoteItemDrop(event) {
     source: event.pubkey === pk ? 'self' : 'remote'
   });
   if (event.pubkey !== pk && room_id === player.location)
-    write(`[network] You see signs of ${event.pubkey.slice(0,8)}…'s ${p.cause || 'drop'}. ("corpses")`, 'system');
+    write(`[network] You see signs of ${displayName(event.pubkey, p)}'s ${p.cause || 'drop'}. ("corpses")`, 'system');
 }
 function handleRemoteLoot(event) {
   const did = event.tags.find(t => t[0] === 'drop')?.[1];
@@ -988,13 +1071,13 @@ function handleRemoteLoot(event) {
     const drop = drops.get(did);
     if (drop) {
       for (const di of drop.items) removeFromInventoryOrMaterials(di.item);
-      write(`[loot] Conflict: ${event.pubkey.slice(0,8)}… looted that drop first.`, 'error');
+      write(`[loot] Conflict: ${displayName(event.pubkey, p)} looted that drop first.`, 'error');
       refreshSidebar();
     }
   }
   looted.set(did, { looter: event.pubkey, looted_at: event.created_at });
   if (event.pubkey !== pk)
-    addToFeed('worldFeed', `${event.pubkey.slice(0,8)}… looted drop ${did.slice(0,6)}…`, event.id.slice(0, 8));
+    addToFeed('worldFeed', `${displayName(event.pubkey, p)} looted drop ${did.slice(0,6)}…`, event.id.slice(0, 8));
 }
 
 function formatActionSummary(action, p) {
@@ -1160,6 +1243,10 @@ function tickTurn() {
       write('Type "attack" to fight, "flee" to escape (you take a parting bite).', 'combat');
     }
   }
+  // Companion hunger check
+  checkCompanionHunger();
+  // Scripted on_turn events
+  fireEvents('on_turn', {});
   if (player.life <= 0) handleDeath('starvation');
   refreshSidebar();
 }
@@ -1176,6 +1263,7 @@ function handleDeath(cause) {
     write(`Your possessions remain in ${player.rooms[player.location].name}.`, 'error');
   }
   publishAction('died', { location: player.location, cause });
+  player.stats.deaths++;
   player.inventory = [];
   player.materials = {};
   player.equipment = {};   // even your clothes drop
@@ -1209,7 +1297,7 @@ function describeRoom() {
   if (room.drink_source) write('Fresh water here. Try "drink".', 'items');
   if (player.chests.has(player.location)) write('Your chest sits here. Try "chest", "store <x>", "retrieve <x>".', 'items');
   const others = [...knownPlayers.entries()].filter(([_, v]) => v.location === player.location);
-  if (others.length) write('Other travelers: ' + others.map(([pk]) => pk.slice(0,8) + '…').join(', '), 'system');
+  if (others.length) write('Other travelers: ' + others.map(([pkOther, info]) => info.name || pkOther.slice(0,8) + '…').join(', '), 'system');
   const localDrops = getDropsInRoom(player.location);
   if (localDrops.length) write(`Dropped here: ${localDrops.length} cache${localDrops.length > 1 ? 's' : ''}. Use "corpses".`, 'system');
   write('Exits: ' + Object.keys(room.exits).join(', '), 'exits');
@@ -1238,6 +1326,7 @@ function move(dir) {
   }
   publishAction('move', { from, to: target });
   if (newRoom) write(`(new place — added to your map)`, 'system');
+  fireEvents('on_room_enter', { room: target });
   describeRoom();
 }
 
@@ -1385,9 +1474,12 @@ function craft(arg) {
   const reward = r.sparks_reward ?? STORY.meta.sparks_per_craft ?? 0;
   if (reward > 0) {
     player.sparks += reward;
+    player.stats.sparks_earned += reward;
     write(`(+${reward} sparks for crafting)`, 'spark');
   }
+  player.stats.crafts++;
   publishAction('craft', { recipe: arg, location: player.location });
+  fireEvents('on_craft', { recipe: arg });
 }
 
 function talk(target) {
@@ -1421,8 +1513,11 @@ function answer(text) {
   if (r.answers.includes(norm)) {
     player.riddles_solved.add(room.riddle);
     player.sparks += r.reward_sparks;
+    player.stats.sparks_earned += r.reward_sparks;
+    player.stats.riddles_solved++;
     write(r.on_solve_message, 'success');
     write(`(+${r.reward_sparks} sparks)`, 'spark');
+    fireEvents('on_riddle_solve', { riddle: room.riddle });
     for (const ri of (r.reward_items || [])) {
       if (canCarry(ri.item, ri.qty)) {
         addItem(ri.item, ri.qty);
@@ -1457,15 +1552,34 @@ function hunt() {
 function attack() {
   if (!inCombat()) { write('There is nothing to attack.', 'error'); return; }
   const t = player.combat_target;
-  const playerDmg = randInt(2, 5) + bestWeaponBonus() + (player.skills.has('hunting') ? 2 : 0);
+  const wielded = player.equipment.hand;
+  const dmgType = STORY.items[wielded]?.effects?.damage_type;
+  // Damage-type modifier vs target
+  let typeMod = 1;
+  if (dmgType && t.weaknesses?.includes(dmgType)) typeMod = 1.5;
+  else if (dmgType && t.resistances?.includes(dmgType)) typeMod = 0.5;
+  // Critical hit roll: base 8% + 7% with hunting skill
+  const critChance = 0.08 + (player.skills.has('hunting') ? 0.07 : 0);
+  const crit = Math.random() < critChance;
+  const baseDmg = randInt(2, 5) + bestWeaponBonus() + (player.skills.has('hunting') ? 2 : 0);
+  const playerDmg = Math.max(1, Math.floor(baseDmg * typeMod * (crit ? 2 : 1)));
   if (Math.random() < (t.evasion || 0)) {
     write(`You miss the ${t.display}.`, 'combat');
   } else {
     t.hp -= playerDmg;
-    write(`You strike the ${t.display} for ${playerDmg} damage. (${Math.max(0, t.hp)} HP left)`, 'success');
+    let mod = '';
+    if (typeMod === 1.5) mod = ' (effective)';
+    else if (typeMod === 0.5) mod = ' (glancing)';
+    if (crit) mod += ' — critical strike!';
+    write(`You strike the ${t.display} for ${playerDmg} damage${mod}. (${Math.max(0, t.hp)} HP left)`, crit ? 'spark' : 'success');
+  }
+  // Companion contribution (if alive)
+  if (player.companion && player.companion.hp > 0 && t.hp > 0) {
+    const cDmg = randInt(player.companion.attack_min, player.companion.attack_max);
+    t.hp -= cDmg;
+    write(`Your ${STORY.entities[player.companion.entity].display} bites the ${t.display} for ${cDmg}.`, 'success');
   }
   // Wear down the wielded weapon's edge
-  const wielded = player.equipment.hand;
   if (wielded && DURABLE_WEAPONS[wielded]) {
     const cur = player.edges.has(wielded) ? player.edges.get(wielded) : DURABLE_WEAPONS[wielded].max;
     const next = cur - 1;
@@ -1512,16 +1626,32 @@ function attack() {
     if (!player.skills.has('skinning') && t.skinning_drops.length)
       write('(With Skinning, kills also yield hide.)', 'system');
     publishAction('killed', { entity: t.id, location: player.location });
+    // Track stats
+    player.stats.kills[t.id] = (player.stats.kills[t.id] || 0) + 1;
     // Track for active kill quests
     for (const ps of Object.values(player.quests)) {
       if (ps.state === 'active') ps.kills[t.id] = (ps.kills[t.id] || 0) + 1;
     }
+    // Trigger any on_kill events
+    fireEvents('on_kill', { entity: t.id });
     player.combat_target = null;
     return;
   }
-  const enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
+  let enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
+  // Companion absorbs 50% of incoming damage if alive
+  if (player.companion && player.companion.hp > 0) {
+    const absorbed = Math.floor(enemyDmg / 2);
+    enemyDmg -= absorbed;
+    player.companion.hp -= absorbed;
+    write(`The ${t.display}'s blow lands partly on your ${STORY.entities[player.companion.entity].display} (${absorbed} dmg, ${Math.max(0, player.companion.hp)} hp left).`, 'error');
+    if (player.companion.hp <= 0) {
+      const name = STORY.entities[player.companion.entity].display;
+      write(`Your ${name} falls. The world is quieter.`, 'error');
+      player.companion = null;
+    }
+  }
   player.life -= enemyDmg;
-  write(`The ${t.display} bites you for ${enemyDmg} damage. (${Math.max(0, Math.floor(player.life))}/${player.life_max} life)`, 'error');
+  write(`The ${t.display} bites you for ${enemyDmg} damage. (${Math.max(0, Math.floor(player.life))}/${computeMaxLife()} life)`, 'error');
   if (player.life <= 0) handleDeath(`killed by ${t.display}`);
 }
 
@@ -1737,13 +1867,15 @@ function turnInQuest(qid) {
   }
   // Apply rewards
   const r = q.rewards || {};
-  if (r.gold)   player.gold   += r.gold;
-  if (r.sparks) player.sparks += r.sparks;
+  if (r.gold)   { player.gold += r.gold; player.stats.gold_earned += r.gold; }
+  if (r.sparks) { player.sparks += r.sparks; player.stats.sparks_earned += r.sparks; }
   for (const ri of (r.items || [])) {
     if (canCarry(ri.item, ri.qty)) addItem(ri.item, ri.qty);
     else (player.rooms[player.location].items ||= []).push(ri.item);
   }
   ps.state = 'completed';
+  player.stats.quests_completed++;
+  fireEvents('on_quest_complete', { quest: qid });
   write(q.completion_message || `Quest complete: ${q.title}`, 'success');
   const reward_parts = [];
   if (r.gold)   reward_parts.push(`${r.gold} gold`);
@@ -1752,6 +1884,58 @@ function turnInQuest(qid) {
   if (reward_parts.length) write(`Rewards: ${reward_parts.join(', ')}`, 'spark');
   publishAction('quest_complete', { quest: qid });
 }
+// ============================================================
+//  SCRIPTED EVENTS
+// ============================================================
+function fireEvents(triggerType, params = {}) {
+  const evts = STORY.events || {};
+  for (const [eid, evt] of Object.entries(evts)) {
+    if (evt.trigger !== triggerType) continue;
+    if (evt.once && player.events_fired.has(eid)) continue;
+    if (!matchesEventParams(evt, params)) continue;
+    if (!checkEventConditions(evt)) continue;
+    runEventEffects(evt);
+    if (evt.once) player.events_fired.add(eid);
+  }
+}
+function matchesEventParams(evt, params) {
+  const tp = evt.trigger_params || {};
+  switch (evt.trigger) {
+    case 'on_kill':           return !tp.entity || tp.entity === params.entity;
+    case 'on_room_enter':     return !tp.room || tp.room === params.room;
+    case 'on_riddle_solve':   return !tp.riddle || tp.riddle === params.riddle;
+    case 'on_quest_complete': return !tp.quest || tp.quest === params.quest;
+    case 'on_turn':           return !tp.turn_gte || player.turn >= tp.turn_gte;
+    case 'on_craft':          return !tp.recipe || tp.recipe === params.recipe;
+  }
+  return true;
+}
+function checkEventConditions(evt) {
+  for (const c of (evt.conditions || [])) {
+    if (c.type === 'has_flag'    && !player.flags.has(c.flag)) return false;
+    if (c.type === '!has_flag'   && player.flags.has(c.flag)) return false;
+    if (c.type === 'has_skill'   && !player.skills.has(c.skill)) return false;
+    if (c.type === 'kills_gte'   && (player.stats.kills[c.entity] || 0) < c.qty) return false;
+    if (c.type === 'day_gte'     && (Math.floor(player.turn / (STORY.meta.turns_per_day || 96)) + 1) < c.qty) return false;
+    if (c.type === 'quests_completed_gte' && Object.values(player.quests).filter(q => q.state === 'completed').length < c.qty) return false;
+  }
+  return true;
+}
+function runEventEffects(evt) {
+  for (const e of (evt.effects || [])) {
+    if (e.type === 'narrate')        write(e.text || '', e.cls || 'spark');
+    else if (e.type === 'set_flag')  player.flags.add(e.flag);
+    else if (e.type === 'unset_flag')player.flags.delete(e.flag);
+    else if (e.type === 'give_item') {
+      if (canCarry(e.item, e.qty || 1)) addItem(e.item, e.qty || 1);
+      else (player.rooms[player.location].items ||= []).push(e.item);
+      write(`You receive ${e.qty || 1} ${itemDisplay(e.item)}.`, 'success');
+    }
+    else if (e.type === 'spark_award') { const n = e.qty || 0; player.sparks += n; player.stats.sparks_earned += n; write(`(+${n} sparks)`, 'spark'); }
+    else if (e.type === 'gold_award')  { const n = e.qty || 0; player.gold += n;   player.stats.gold_earned += n;   write(`(+${n} gold)`, 'gold'); }
+  }
+}
+
 function offerQuestsFor(npcId) {
   // Find quests this NPC gives that the player hasn't accepted/completed
   const offers = [];
@@ -1870,6 +2054,139 @@ function rest() {
   write('You rest a moment.');
 }
 
+// ============================================================
+//  STATS, ACHIEVEMENTS
+// ============================================================
+const ACHIEVEMENTS = {
+  first_blood:  { name: 'First Blood',      desc: 'Kill your first creature.',     check: () => totalKills() >= 1 },
+  hunter:       { name: 'Hunter',           desc: 'Make 20 kills.',                check: () => totalKills() >= 20 },
+  wolfslayer:   { name: 'Wolfslayer',       desc: 'Kill 10 wolves.',               check: () => (player.stats.kills.wolf || 0) >= 10 },
+  wise:         { name: 'Wise',             desc: 'Solve 5 riddles.',              check: () => player.stats.riddles_solved >= 5 },
+  craftsman:    { name: 'Master Craftsman', desc: 'Craft 30 things.',              check: () => player.stats.crafts >= 30 },
+  survivor:     { name: 'Survivor',         desc: 'Reach day 5.',                  check: () => Math.floor(player.turn / (STORY.meta.turns_per_day || 96)) + 1 >= 5 },
+  wealthy:      { name: 'Wealthy',          desc: 'Hold 200 gold at once.',        check: () => player.gold >= 200 },
+  insightful:   { name: 'Insightful',       desc: 'Earn 200 sparks lifetime.',     check: () => player.stats.sparks_earned >= 200 },
+  explorer:     { name: 'Explorer',         desc: 'Visit every room.',             check: () => player.visited.size >= Object.keys(STORY.rooms).length },
+  legend:       { name: 'Legend',           desc: 'Complete every quest.',         check: () => Object.values(player.quests).filter(q => q.state === 'completed').length >= Object.keys(STORY.quests).length },
+  tamer:        { name: 'Tamer',            desc: 'Tame a wolf companion.',        check: () => !!player.companion },
+  trader:       { name: 'Trader',           desc: 'Earn 100 gold lifetime.',       check: () => player.stats.gold_earned >= 100 }
+};
+function totalKills() { return Object.values(player.stats.kills).reduce((a, b) => a + b, 0); }
+function checkAchievements() {
+  for (const [aid, def] of Object.entries(ACHIEVEMENTS)) {
+    if (player.achievements.has(aid)) continue;
+    if (def.check()) {
+      player.achievements.add(aid);
+      write('');
+      write(`🏆  Achievement unlocked: ${def.name}`, 'spark');
+      write(`    ${def.desc}`, 'system');
+    }
+  }
+}
+function showStats() {
+  const day = Math.floor(player.turn / (STORY.meta.turns_per_day || 96)) + 1;
+  write('-- Stats --', 'system');
+  write(`  Day ${day} · Turn ${player.turn}`);
+  write(`  Total kills: ${totalKills()}`);
+  if (Object.keys(player.stats.kills).length) {
+    for (const [e, n] of Object.entries(player.stats.kills)) write(`    ${STORY.entities[e]?.display || e}: ${n}`);
+  }
+  write(`  Riddles solved: ${player.stats.riddles_solved}`);
+  write(`  Quests completed: ${player.stats.quests_completed}`);
+  write(`  Crafts made: ${player.stats.crafts}`);
+  write(`  Gold earned (lifetime): ${player.stats.gold_earned}`);
+  write(`  Sparks earned (lifetime): ${player.stats.sparks_earned}`);
+  write(`  Deaths: ${player.stats.deaths}`);
+  write(`  Rooms discovered: ${player.visited.size} / ${Object.keys(STORY.rooms).length}`);
+}
+function showAchievements() {
+  write('-- Achievements --', 'system');
+  for (const [aid, def] of Object.entries(ACHIEVEMENTS)) {
+    const earned = player.achievements.has(aid);
+    write(`  ${earned ? '🏆' : '·'} ${def.name}${earned ? '' : ` — ${def.desc}`}`, earned ? 'success' : '');
+  }
+  write(`Earned: ${player.achievements.size} / ${Object.keys(ACHIEVEMENTS).length}`, 'system');
+}
+
+// ============================================================
+//  COMPANION (taming)
+// ============================================================
+const HUNGER_DAYS = 3;   // companion needs feeding every 3 in-game days
+const HUNGER_GRACE_TURNS = 24;  // grace period after going hungry before turning wild
+function tameAttempt() {
+  if (!player.skills.has('taming')) { write('You need the Taming skill.', 'error'); return; }
+  if (player.companion) { write('You already have a companion. "dismiss" first.', 'error'); return; }
+  if (!inCombat()) { write('Tame what? You\'re not in combat.', 'error'); return; }
+  const t = player.combat_target;
+  const ent = STORY.entities[t.id];
+  if (!ent.tameable) { write(`A ${t.display} cannot be tamed.`, 'error'); return; }
+  // Need raw meat
+  const meatIdx = findItemIn(player.inventory, 'raw_meat');
+  const meatInMat = (player.materials.raw_meat || 0) > 0;
+  if (meatIdx === -1 && !meatInMat) { write('You need raw meat to offer.', 'error'); return; }
+  // Consume meat
+  removeFromInventoryOrMaterials('raw_meat', 1);
+  // Roll: 0.3 base + 0.5 * (1 - hp/maxhp)
+  const fullHp = ent.hp;
+  const successChance = 0.3 + 0.5 * (1 - t.hp / fullHp);
+  if (Math.random() < successChance) {
+    player.companion = {
+      entity: t.id, hp: t.hp, max_hp: fullHp,
+      last_fed_turn: player.turn,
+      attack_min: 2, attack_max: 5
+    };
+    player.combat_target = null;
+    write(`The ${t.display} sniffs the meat, hesitates, and lowers its hackles. It follows you now.`, 'success');
+    publishAction('tamed', { entity: t.id });
+  } else {
+    write(`The ${t.display} snatches the meat and lunges anyway.`, 'error');
+    // Counter-attack
+    const enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
+    player.life -= enemyDmg;
+    write(`The ${t.display} bites you for ${enemyDmg} damage.`, 'error');
+    if (player.life <= 0) handleDeath(`mauled by ${t.display} (taming failed)`);
+  }
+}
+function feedCompanion() {
+  if (!player.companion) { write('No companion to feed.', 'error'); return; }
+  const meatIdx = findItemIn(player.inventory, 'raw_meat');
+  const matMeat = (player.materials.raw_meat || 0) > 0;
+  if (meatIdx === -1 && !matMeat) { write('No raw meat to give.', 'error'); return; }
+  removeFromInventoryOrMaterials('raw_meat', 1);
+  player.companion.last_fed_turn = player.turn;
+  // Some healing too
+  player.companion.hp = Math.min(player.companion.max_hp, player.companion.hp + 5);
+  write(`Your ${STORY.entities[player.companion.entity].display} eats. Looks at you with loyal eyes.`, 'success');
+}
+function showCompanion() {
+  if (!player.companion) { write('You travel alone.'); return; }
+  const c = player.companion;
+  const daysSinceFed = (player.turn - c.last_fed_turn) / (STORY.meta.turns_per_day || 96);
+  let mood = 'content';
+  if (daysSinceFed >= HUNGER_DAYS) mood = 'hungry — feed it soon';
+  else if (daysSinceFed >= HUNGER_DAYS * 0.66) mood = 'getting hungry';
+  write(`Companion: ${STORY.entities[c.entity].display}  ·  hp ${c.hp}/${c.max_hp}  ·  ${mood} (fed ${daysSinceFed.toFixed(1)} days ago)`);
+}
+function dismissCompanion() {
+  if (!player.companion) { write('No companion.', 'error'); return; }
+  const name = STORY.entities[player.companion.entity].display;
+  player.companion = null;
+  write(`You release your ${name}. It looks at you once and is gone into the trees.`, 'system');
+  publishAction('dismissed', { entity: name });
+}
+function checkCompanionHunger() {
+  if (!player.companion) return;
+  const daysSinceFed = (player.turn - player.companion.last_fed_turn) / (STORY.meta.turns_per_day || 96);
+  if (daysSinceFed >= HUNGER_DAYS + HUNGER_GRACE_TURNS / (STORY.meta.turns_per_day || 96)) {
+    // Turn wild
+    const c = player.companion;
+    const ent = STORY.entities[c.entity];
+    write(`Your ${ent.display} has gone too long without food. It bares its teeth and circles. It is no longer yours.`, 'error');
+    player.combat_target = { id: c.entity, ...structuredClone(ent), hp: c.hp };
+    player.companion = null;
+  }
+}
+
 function sleep() {
   if (combatBlock('sleep')) return;
   const room = player.rooms[player.location];
@@ -1943,6 +2260,26 @@ function newCharacter() {
   } catch {}
   write('Wiping local data. Reloading with a fresh keypair…', 'system');
   setTimeout(() => location.reload(), 600);
+}
+
+function askName(reason) {
+  const msg = reason || 'What is your name, traveler?\n(2-32 characters; you can change it any time with "rename <new_name>")';
+  let raw = '';
+  try { raw = (typeof prompt === 'function' ? prompt(msg) : null) || ''; } catch {}
+  raw = raw.trim();
+  if (!raw) raw = 'Wanderer';
+  // Sanitize: trim to 32, remove control chars
+  raw = raw.replace(/[\x00-\x1f]/g, '').slice(0, 32) || 'Wanderer';
+  player.name = raw;
+}
+
+function renameCharacter(arg) {
+  const newName = (arg || '').trim().replace(/[\x00-\x1f]/g, '').slice(0, 32);
+  if (!newName) { write('Usage: rename <new_name>', 'error'); return; }
+  const old = player.name;
+  player.name = newName;
+  write(`You change your name from "${old}" to "${newName}".`, 'success');
+  publishAction('rename', { from: old, to: newName });
 }
 
 // --- chests (personal storage) ---
@@ -2115,6 +2452,7 @@ async function sell(args) {
   const value = STORY.items[itemId].value;
   if (idx !== -1) player.inventory.splice(idx, 1); else player.materials[itemId]--;
   player.gold += value;
+  player.stats.gold_earned += value;
   write(`${STORY.npcs[buyer].display} takes ${itemDisplay(itemId, true)} for ${value} gold.`, 'success');
 }
 
@@ -2139,10 +2477,11 @@ function whisper(text) {
 
 function who() {
   if (knownPlayers.size === 0) { write('No other players seen yet.'); return; }
-  write(`Known players: ${knownPlayers.size}`);
+  write(`Known travelers: ${knownPlayers.size}`);
   for (const [pkOther, info] of knownPlayers) {
     const ago = Math.round((Date.now() - info.firstSeen) / 1000);
-    write(`  ${pkOther.slice(0, 16)}…  loc=${info.location || '?'}  (seen ${ago}s ago)`);
+    const nm = info.name || pkOther.slice(0, 12) + '…';
+    write(`  ${nm}  loc=${info.location || '?'}  (seen ${ago}s ago)`);
   }
 }
 
@@ -2259,8 +2598,10 @@ function help() {
     'Crafting:        recipes · craft <recipe>  (each craft awards sparks)',
     'Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest · sleep',
     'Equipment:       wear / wield <x> · unwear <slot> · equipment / eq',
-    'Smithing:        sharpen <x> · repair <x>  (at any merchant)',
-    'Quests:          quests / q · accept <id> · turn in <id>',
+    'Smithing:        sharpen <x> · repair <x>  (at the village blacksmith)',
+    'Companion:       tame · feed · companion / pet · dismiss',
+    'Progress:        quests / q · stats · achievements',
+    '                 accept <id> · turn in <id>',
     'Storage:         place chest · chest · store <x> · retrieve <x>',
     'Market:          sell <item>     (direct sale to merchant, instant gold)',
     '                 sell <item> <price>  (list on player marketplace)',
@@ -2268,6 +2609,7 @@ function help() {
     'Drops:           corpses · loot <#>',
     'Network:         whisper <text> · who',
     'Identity:        soul (show your nsec) · import <nsec> · new character (fresh start)',
+    '                 rename <new_name>  (change your visible name)',
     'Misc:            clear · help'
   ];
   for (const l of lines) write(l, 'system');
@@ -2301,7 +2643,7 @@ function handleCommand(input) {
     case 'take': case 'get':     take(arg); break;
     case 'drop':                 drop(arg); break;
     case 'inv': case 'inventory': case 'i': showInventory(); consumesTurn = false; break;
-    case 'status': case 'stats': showStatus(); consumesTurn = false; break;
+    case 'status':               showStatus(); consumesTurn = false; break;
     case 'skills': case 'sk':    showSkills(); consumesTurn = false; break;
     case 'learn':                learn(arg); break;
     case 'recipes': case 'rec':  showRecipes(); consumesTurn = false; break;
@@ -2322,6 +2664,12 @@ function handleCommand(input) {
     case 'equipment': case 'eq': showEquipment(); consumesTurn = false; break;
     case 'sharpen':              sharpen(arg); break;
     case 'repair':               repair(arg); break;
+    case 'tame':                 tameAttempt(); break;
+    case 'feed':                 feedCompanion(); break;
+    case 'companion': case 'pet':showCompanion(); consumesTurn = false; break;
+    case 'dismiss':              dismissCompanion(); break;
+    case 'stats':                showStats(); consumesTurn = false; break;
+    case 'achievements': case 'ach': showAchievements(); consumesTurn = false; break;
     case 'quests': case 'q':     showQuests(); consumesTurn = false; break;
     case 'accept':               acceptQuest(arg); break;
     case 'turn':                 // "turn in <qid>" or "turnin <qid>"
@@ -2337,6 +2685,7 @@ function handleCommand(input) {
     case 'import':               importSoul(argRaw); consumesTurn = false; break;
     case 'new':                  if (arg === 'character' || arg === '') newCharacter(); else write('Did you mean "new character"?', 'error'); consumesTurn = false; break;
     case 'reset':                newCharacter(); consumesTurn = false; break;
+    case 'rename':               renameCharacter(argRaw); consumesTurn = false; break;
     case 'place':                if (arg === 'chest') placeChest(); else write('Place what? Try "place chest".', 'error'); break;
     case 'chest':                showChest(); consumesTurn = false; break;
     case 'store':                storeItem(arg); break;
@@ -2363,6 +2712,7 @@ function handleCommand(input) {
       consumesTurn = false;
   }
   if (consumesTurn) tickTurn();
+  checkAchievements();
   refreshSidebar();
   saveLocal();
   maybePublishState();
@@ -2387,7 +2737,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${STORY.meta.title} — Nostr PoC v0.8 ===`, 'title');
+write(`=== ${STORY.meta.title} — Nostr PoC v0.10 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
@@ -2410,6 +2760,10 @@ try {
     write('[restored from local storage]', 'system');
   }
 } catch {}
+
+// If we don't have a name yet (new character or legacy save), ask now
+if (!player.name) askName();
+write(`You are ${player.name}.`, 'system');
 
 write(`Identity: ${npubShort}`, 'system');
 write(`${Object.keys(STORY.rooms).length} rooms · ${Object.keys(STORY.skills).length} skills · ${Object.keys(STORY.recipes).length} recipes · ${Object.keys(STORY.entities).length} entities`, 'system');
