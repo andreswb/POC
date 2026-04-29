@@ -180,6 +180,7 @@
       <div class="kv"><span class="k"><span class="g">📦</span> load</span><span class="v load" id="load">0/40</span></div>
       <div class="kv"><span class="k">turn</span><span class="v" id="turn">0</span></div>
       <div class="kv"><span class="k">🕒 time</span><span class="v" id="time">Day 1, morning</span></div>
+      <div class="kv"><span class="k">weather</span><span class="v" id="weather">clear</span></div>
     </section>
     <section>
       <h3>Equipment</h3>
@@ -238,18 +239,28 @@ const STORY = {
     },
     deep_forest: {
       name: 'The Deep Forest',
-      summary: 'The pines crowd close, taller and older. The path narrows to a track. Eyes catch the light between the trunks. South leads back to the clearing.',
-      exits: { south: 'forest_clearing' },
+      summary: 'The pines crowd close, taller and older. The path narrows to a track. North leads further into colder country; south, back to the clearing.',
+      exits: { south: 'forest_clearing', north: 'frozen_north' },
       items: [], npcs: [], riddle: null,
       resources: [{ id:'wood', skill:'woodcutting', verb:'chop', yield_qty:2, regenerates:true, regen_seconds:50 }],
-      spawn_table: [{ entity:'deer', weight:3 }, { entity:'rabbit', weight:2 }],
+      spawn_table: [{ entity:'deer', weight:3 }, { entity:'rabbit', weight:2 }, { entity:'boar', weight:2 }, { entity:'fox', weight:1 }],
       hazards: { wolves: { encounter_chance: 0.20, entity: 'wolf' } },
+      drink_source: null
+    },
+    frozen_north: {
+      name: 'The Frozen North',
+      summary: 'A grey cold ground, half-snow even in the mild months. Gnarled birches lean from the wind. South leads back to the deep forest.',
+      exits: { south: 'deep_forest' },
+      items: [], npcs: [], riddle: null,
+      resources: [{ id:'wood', skill:'woodcutting', verb:'chop', yield_qty:1, regenerates:true, regen_seconds:80 }],
+      spawn_table: [{ entity:'boar', weight:3 }, { entity:'rabbit', weight:1 }],
+      hazards: { wolves: { encounter_chance: 0.30, entity: 'bear' } },
       drink_source: null
     },
     hilltop_ruins: {
       name: 'The Hilltop Ruins',
-      summary: 'Stone columns lean against an empty sky. An old altar at the center catches the wind, and the wind catches it back. A voice in the stones whispers a question. A narrow path leads north into a hillside opening.',
-      exits: { down: 'red_canyon', north: 'old_mine' },
+      summary: 'Stone columns lean against an empty sky. An old altar at the center catches the wind, and the wind catches it back. A voice in the stones whispers a question. A narrow path leads north into a hillside opening, and a steeper switchback climbs up toward the mountain peak.',
+      exits: { down: 'red_canyon', north: 'old_mine', up: 'mountain_peak' },
       items: [], npcs: [], riddle: 'echo_riddle',
       resources: [{ id:'stone', skill:'stone_knapping', verb:'gather', yield_qty:2, regenerates:true, regen_seconds:50 }],
       spawn_table: [],
@@ -286,12 +297,30 @@ const STORY = {
     },
     salt_marsh: {
       name: 'The Salt Marsh',
-      summary: 'Shallow brackish water and tall reeds. The smell of salt and mud. Birds rise in clouds when you step. North leads back to the river camp.',
-      exits: { north: 'riverside_camp' },
+      summary: 'Shallow brackish water and tall reeds. The smell of salt and mud. Birds rise in clouds when you step. North leads back to the river camp; east the ground rises toward dark cliffs.',
+      exits: { north: 'riverside_camp', east: 'wave_cliffs' },
       items: [], npcs: [], riddle: 'marsh_riddle',
       resources: [{ id:'marsh_reed', skill:'foraging', verb:'forage', yield_qty:2, regenerates:true, regen_seconds:60 }],
       spawn_table: [{ entity:'rabbit', weight:2 }],
       hazards: {}, drink_source: null
+    },
+    mountain_peak: {
+      name: 'The Mountain Peak',
+      summary: 'Wind, blue sky, and three full quarters of the world below you. A cairn of stones at the summit. A voice in the wind asks a question. Down leads back to the ruins.',
+      exits: { down: 'hilltop_ruins' },
+      items: [], npcs: [], riddle: 'peak_riddle',
+      resources: [{ id:'stone', skill:'stone_knapping', verb:'gather', yield_qty:2, regenerates:true, regen_seconds:60 }],
+      spawn_table: [],
+      hazards: {}, drink_source: null
+    },
+    wave_cliffs: {
+      name: 'The Wave-Worn Cliffs',
+      summary: 'Sheer black cliffs over surf. Salt spray rises in slow gusts. A weathered shape on a flat stone speaks once and falls silent. West leads back to the marsh.',
+      exits: { west: 'salt_marsh' },
+      items: [], npcs: [], riddle: 'cliff_riddle',
+      resources: [],
+      spawn_table: [],
+      hazards: {}, drink_source: { restore_life: 3, cooldown_seconds: 90 }
     },
     red_canyon: {
       name: 'The Red Canyon',
@@ -365,6 +394,7 @@ const STORY = {
     leather_clothes:{ display:'leather tunic',article:'a',         value:36, weight:2, category:'good',       stackable:false, tags:['crafted','equipment'], slot:'torso', effects:{life_max_bonus:15} },
     leather_belt:  { display:'leather belt',  article:'a',         value:18, weight:1, category:'good',       stackable:false, tags:['crafted','equipment'], slot:'belt',  effects:{carry_capacity_bonus:10} },
     leather_pack:  { display:'leather pack',  article:'a',         value:30, weight:2, category:'tool',       stackable:false, tags:['crafted','equipment','container'], effects:{carry_capacity_bonus:15} },
+    rope:          { display:'rope',          article:'a',         value:5,  weight:1, category:'good',       stackable:true,  tags:['crafted','rope'] },
     iron_ore:      { display:'iron ore',      article:'an',        value:4,  weight:2, category:'resource',   stackable:true,  tags:['ore','raw'] },
     marsh_reed:    { display:'marsh reed',    article:'a',         value:2,  weight:1, category:'resource',   stackable:true,  tags:['herb','raw','rope'] }
   },
@@ -412,7 +442,12 @@ const STORY = {
     hermit: {
       display:'the hermit', location:'hermits_glade',
       summary:'A small wiry person with kind, watchful eyes. Robes patched many times. Speaks slowly and looks at you a long time.',
-      dialogue_seeds: ['The forest brings what the forest brings.', 'Few wander this way. Fewer return.', 'I keep what I do not need for those who do.', 'The mine to the north is very old. The questions in there are older.'],
+      dialogue_seeds: ['The forest brings what the forest brings.', 'Few wander this way. Fewer return.', 'I keep what I do not need for those who do.'],
+      conditional_dialogue: [
+        { if: [{ type:'quest_completed', quest:'hermits_pilgrimage' }], lines: ['You stood at the peak and came back. The wind knows your name now.', 'The pack I gave you remembers, even if you forget.'] },
+        { if: [{ type:'quest_active', quest:'hermits_pilgrimage' }], lines: ['Have you climbed yet? The peak is patient, but it does not call twice.', 'Up. Then down. Then back here.'] },
+        { if: [{ type:'quest_completed', quest:'hermits_silver' }], lines: ['Now there is a path I would have you walk. Up through the ruins, and higher.', 'The mountain peak. It asks a question of every visitor. I would have you stand where it asks.'] }
+      ],
       behaviors: ['buys_items','tells_rumors'],
       buys_tags: ['herb','rare','crafted','ore'],
       is_marketplace: true,
@@ -453,11 +488,23 @@ const STORY = {
       prompt:'What is so fragile that saying its name breaks it?',
       answers:['silence'], reward_sparks:90,
       on_solve_message:'The marsh goes still. Even the birds hold for a moment. The reeds bow once toward you.', repeatable:false
+    },
+    peak_riddle: {
+      location:'mountain_peak',
+      prompt:'I never was, I am always to be. None ever saw me, nor ever will. What am I?',
+      answers:['tomorrow','the future'], reward_sparks:100,
+      on_solve_message:'The wind on the peak holds for a long second, then lets out a long warm sigh.', repeatable:false
+    },
+    cliff_riddle: {
+      location:'wave_cliffs',
+      prompt:'I have a head, a tail, but no body. I shine without a heart. What am I?',
+      answers:['a coin','coin'], reward_sparks:80,
+      on_solve_message:'A wave breaks below. Salt-light glints across the rock at your feet.', repeatable:false
     }
   },
   skills: {
     woodcutting:    { display:'Woodcutting',    spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['chop'],   recipes:[]} },
-    foraging:       { display:'Foraging',       spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['forage'], recipes:[]} },
+    foraging:       { display:'Foraging',       spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['forage'], recipes:['weave_rope']} },
     stone_knapping: { display:'Stone-knapping', spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['gather'], recipes:[]} },
     hunting:        { display:'Hunting',        spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['hunt'],   recipes:[]} },
     firemaking:     { display:'Firemaking',     spark_cost:10,  prereqs:[],                  tier:1, unlocks:{verbs:['light'],  recipes:[]} },
@@ -488,12 +535,16 @@ const STORY = {
     make_hat:      { display:'Leather hat',   skill:'shoemaking', inputs:[{item:'leather',qty:1}],                               outputs:[{item:'leather_hat',qty:1}],   requires_fire:false, sparks_reward:3 },
     make_clothes:  { display:'Leather tunic', skill:'shoemaking', inputs:[{item:'leather',qty:4}],                               outputs:[{item:'leather_clothes',qty:1}], requires_fire:false, sparks_reward:6 },
     leather_pack:  { display:'Leather pack',  skill:'packmaking', inputs:[{item:'leather',qty:3}],                               outputs:[{item:'leather_pack',qty:1}],  requires_fire:false, sparks_reward:5 },
-    make_belt:     { display:'Leather belt',  skill:'packmaking', inputs:[{item:'leather',qty:2}],                               outputs:[{item:'leather_belt',qty:1}],  requires_fire:false, sparks_reward:4 }
+    make_belt:     { display:'Leather belt',  skill:'packmaking', inputs:[{item:'leather',qty:2}],                               outputs:[{item:'leather_belt',qty:1}],  requires_fire:false, sparks_reward:4 },
+    weave_rope:    { display:'Rope',          skill:'foraging',   inputs:[{item:'marsh_reed',qty:2}],                            outputs:[{item:'rope',qty:1}],          requires_fire:false, sparks_reward:2 }
   },
   entities: {
     deer:   { display:'deer',   summary:'A wary forest deer.',   hp:10, attack_damage_range:[1,3], evasion:0.1, hostile:false, base_drops:[{item:'raw_meat',qty:2}], skinning_drops:[{item:'hide',qty:1}], rare_drops:[{item:'bone_knife',qty:1,chance:0.15}], weaknesses:['pierce'] },
     rabbit: { display:'rabbit', summary:'A small cottontail.',    hp:4,  attack_damage_range:[0,1], evasion:0.2, hostile:false, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[], rare_drops:[{item:'bone_knife',qty:1,chance:0.08}], weaknesses:['pierce'] },
-    wolf:   { display:'wolf',   summary:'A grey wolf, lean from the season. It does not run.', hp:20, attack_damage_range:[3,8], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[{item:'hide',qty:1}], weaknesses:['slash'], resistances:['pierce'], tameable:true }
+    wolf:   { display:'wolf',   summary:'A grey wolf, lean from the season. It does not run.', hp:20, attack_damage_range:[3,8], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[{item:'hide',qty:1}], weaknesses:['slash'], resistances:['pierce'], tameable:true },
+    boar:   { display:'wild boar', summary:'Heavy-bodied, low-slung, tusks the colour of old bone.', hp:16, attack_damage_range:[2,5], evasion:0.05, hostile:false, base_drops:[{item:'raw_meat',qty:3}], skinning_drops:[{item:'hide',qty:1}], rare_drops:[], weaknesses:['blunt'], resistances:[] },
+    fox:    { display:'fox',    summary:'Russet, quick, eyes that miss nothing.', hp:6, attack_damage_range:[1,2], evasion:0.3, hostile:false, base_drops:[{item:'raw_meat',qty:1}], skinning_drops:[{item:'hide',qty:1}], rare_drops:[{item:'bone_knife',qty:1,chance:0.20}], weaknesses:['pierce'] },
+    bear:   { display:'bear',   summary:'A great brown shape, slow and unhurried. Eyes calm.', hp:35, attack_damage_range:[5,12], evasion:0.0, hostile:true, base_drops:[{item:'raw_meat',qty:4}], skinning_drops:[{item:'hide',qty:2}], weaknesses:['slash','pierce'], resistances:[], tameable:false }
   },
   events: {
     first_kill_rumor: {
@@ -583,6 +634,18 @@ const STORY = {
       ],
       rewards: { gold: 0, sparks: 15, items: [{ item:'healing_salve', qty:1 }] },
       completion_message: 'The hermit smells the herb, smiles, and presses a small jar of salve into your hand.'
+    },
+    hermits_pilgrimage: {
+      title: 'The Hermit\'s Pilgrimage',
+      description: 'The hermit asks you to climb to the mountain peak. The wind there asks a question; bring back what it taught.',
+      giver: 'hermit',
+      auto_accept: false,
+      requires: ['hermits_silver'],
+      objectives: [
+        { type:'visited', room:'mountain_peak' }
+      ],
+      rewards: { gold: 30, sparks: 25, items: [{ item:'leather_pack', qty:1 }] },
+      completion_message: 'The hermit looks at you a long time. "You stood where the wind asks. That changes a person. The pack is yours; carry it well."'
     },
     wolf_culler: {
       title: 'Quiet the Howling',
@@ -688,6 +751,8 @@ const player = {
   outgoing_offers: new Map(), // offer_id -> { item, qty, recipient_pubkey, recipient_name, offered_at }
   incoming_offers: new Map(), // offer_id -> { item, qty, sender_pubkey, sender_name, message, offered_at }
   rooms: structuredClone(STORY.rooms),
+  weather: null,    // current weather; rolled at dawn
+  weather_day: -1,  // last day a weather was rolled
   name: null   // set on first launch by askName()
 };
 
@@ -747,6 +812,8 @@ function serializeState() {
     name: player.name,
     outgoing_offers: [...player.outgoing_offers],
     incoming_offers: [...player.incoming_offers],
+    weather: player.weather,
+    weather_day: player.weather_day,
     turn: player.turn,
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
@@ -779,6 +846,8 @@ function applyState(s) {
   if (s.name) player.name = s.name;
   player.outgoing_offers = new Map(s.outgoing_offers || []);
   player.incoming_offers = new Map(s.incoming_offers || []);
+  if (s.weather !== undefined) player.weather = s.weather;
+  if (s.weather_day !== undefined) player.weather_day = s.weather_day;
   player.turn = s.turn ?? 0;
   if (s.rooms_state) {
     for (const [rid, rs] of Object.entries(s.rooms_state)) {
@@ -845,6 +914,12 @@ function refreshSidebar() {
   document.getElementById('turn').textContent = player.turn;
   const dp = dayPart();
   document.getElementById('time').textContent = `Day ${dp.day}, ${dp.period} (${String(dp.hour).padStart(2,'0')}h)`;
+  const wEl = document.getElementById('weather');
+  if (wEl) {
+    const w = player.weather || 'clear';
+    const icon = { clear: '☀️', rain: '🌧️', fog: '🌫️', snow: '❄️' }[w] || '';
+    wEl.textContent = `${icon} ${w}`;
+  }
   // mobile mirrors
   document.getElementById('mh-life').textContent = Math.max(0, Math.floor(player.life));
   document.getElementById('mh-gold').textContent = player.gold;
@@ -1291,10 +1366,14 @@ function addToFeed(id, msg, sigPrefix) {
 // ============================================================
 //  HELPERS
 // ============================================================
+function isShortGlyph(s) {
+  return typeof s === 'string' && s.length > 0 && s.length <= 4 && !/^https?:|^data:/i.test(s);
+}
 function itemDisplay(id, withArticle = false) {
   const it = STORY.items[id];
   if (!it) return id;
-  return withArticle ? `${it.article} ${it.display}` : it.display;
+  const glyph = isShortGlyph(it.image) ? it.image + ' ' : '';
+  return withArticle ? `${it.article} ${glyph}${it.display}` : `${glyph}${it.display}`;
 }
 function findItemIn(list, query) {
   return list.findIndex(i => {
@@ -1358,6 +1437,12 @@ function bestWeaponBonus() {
   return wielded ? (STORY.items[wielded]?.effects?.attack_bonus ?? 0) : 0;
 }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+const WEATHER_LABELS = { clear: 'clear', rain: 'rain', fog: 'fog', snow: 'snow' };
+const DEFAULT_WEATHER_POOL = ['clear', 'clear', 'clear', 'clear', 'rain', 'rain', 'fog'];
+function rollDailyWeather() {
+  const pool = (STORY.meta.weather_pool && STORY.meta.weather_pool.length) ? STORY.meta.weather_pool : DEFAULT_WEATHER_POOL;
+  player.weather = pool[Math.floor(Math.random() * pool.length)];
+}
 function dayPart() {
   const tpd = STORY.meta.turns_per_day || 96;
   const fraction = (player.turn % tpd) / tpd;
@@ -1391,7 +1476,20 @@ for (const room of Object.values(STORY.rooms)) {
 // ============================================================
 function tickTurn() {
   const prevPeriod = dayPart().period;
+  const prevDay = dayPart().day;
   player.turn++;
+  // Day rollover → new weather
+  const newDay = dayPart().day;
+  if (newDay !== prevDay && newDay !== player.weather_day) {
+    rollDailyWeather();
+    player.weather_day = newDay;
+    if (player.weather && player.weather !== 'clear') {
+      const desc = { rain: 'Rain begins to fall.', fog: 'A thick fog rolls in.', snow: 'Snow drifts down silently.' }[player.weather] || `Weather: ${player.weather}.`;
+      write(`[${desc}]`, 'system');
+    }
+  }
+  // Weather effects
+  if (player.weather === 'snow') player.life -= 0.3;
   player.life -= STORY.meta.life_decay_per_turn;
   const newPeriod = dayPart().period;
   if (newPeriod !== prevPeriod) {
@@ -1457,7 +1555,8 @@ function describeRoom() {
   const room = player.rooms[player.location];
   write('');
   const adornments = (fireActive(player.location) ? '  🔥' : '') + (room.hazards?.wolves ? '  ⚠' : '') + (player.chests.has(player.location) ? '  📦' : '');
-  write(room.name + adornments, 'room-name');
+  const roomGlyph = isShortGlyph(room.image) ? room.image + ' ' : '';
+  write(roomGlyph + room.name + adornments, 'room-name');
   write(room.summary, 'room-desc');
   if (room.items?.length)
     write('You see: ' + room.items.map(i => itemDisplay(i, true)).join(', '), 'items');
@@ -1543,6 +1642,33 @@ function drop(arg) {
   publishAction('drop', { item, location: player.location });
 }
 
+function bury(arg) {
+  if (combatBlock('bury')) return;
+  if (!arg) { write('Bury what? Usage: bury <item>  or  bury <qty> <item>', 'error'); return; }
+  // Allow "bury 5 wood" syntax
+  const parts = arg.trim().split(/\s+/);
+  let qty = 1, query = parts[0];
+  if (parts.length >= 2 && /^\d+$/.test(parts[0])) {
+    qty = parseInt(parts[0], 10);
+    query = parts[1];
+  }
+  if (qty < 1) { write('Bury at least 1.', 'error'); return; }
+  // Try inventory then materials
+  let buried = 0;
+  for (let n = 0; n < qty; n++) {
+    const idx = findItemIn(player.inventory, query);
+    if (idx !== -1) { player.inventory.splice(idx, 1); buried++; continue; }
+    const matKey = findMaterialKey(query);
+    if (matKey && (player.materials[matKey] || 0) > 0) { player.materials[matKey]--; buried++; continue; }
+    break;
+  }
+  if (buried === 0) { write(`You don't have "${query}".`, 'error'); return; }
+  if (buried === 1) write(`You bury it in the soil. It is gone.`, 'system');
+  else write(`You bury ${buried}× in the soil. They are gone.`, 'system');
+  publishAction('bury', { item: query, qty: buried, location: player.location });
+  refreshSidebar();
+}
+
 function showInventory() {
   if (!player.inventory.length) write('You carry no discrete items.');
   else write('You carry: ' + player.inventory.map(i => itemDisplay(i, true)).join(', '));
@@ -1604,10 +1730,14 @@ function gather(verb) {
   const next = player.resource_cooldowns.get(cdKey) || 0;
   if (Date.now() < next) { write(`Wait ${Math.ceil((next - Date.now()) / 1000)}s.`, 'error'); return; }
   if (!canCarry(res.id, res.yield_qty)) { write(`Too heavy to carry the ${itemDisplay(res.id)}.`, 'error'); return; }
-  addItem(res.id, res.yield_qty);
+  // Weather modifier on yield
+  let yield_qty = res.yield_qty;
+  if (player.weather === 'rain') yield_qty = Math.max(1, Math.floor(yield_qty * 0.5));
+  addItem(res.id, yield_qty);
   if (res.regenerates) player.resource_cooldowns.set(cdKey, Date.now() + (res.regen_seconds || 0) * 1000);
-  write(`You ${verb} and gain ${res.yield_qty} ${itemDisplay(res.id)}.`, 'success');
-  publishAction('gather', { verb, item: res.id, qty: res.yield_qty, location: player.location });
+  const note = (yield_qty < res.yield_qty) ? ' (rain reduces the catch)' : '';
+  write(`You ${verb} and gain ${yield_qty} ${itemDisplay(res.id)}.${note}`, 'success');
+  publishAction('gather', { verb, item: res.id, qty: yield_qty, location: player.location });
 }
 
 function showRecipes() {
@@ -1666,7 +1796,18 @@ function talk(target) {
   const room = player.rooms[player.location];
   if (!room.npcs?.includes(target)) { write(`There's no "${target}" here.`, 'error'); return; }
   const npc = STORY.npcs[target];
-  const line = npc.dialogue_seeds[Math.floor(Math.random() * npc.dialogue_seeds.length)];
+  // Pick conditional dialogue if any condition matches; else default seeds.
+  let lines = npc.dialogue_seeds || ['...'];
+  if (Array.isArray(npc.conditional_dialogue)) {
+    for (const cd of npc.conditional_dialogue) {
+      const conds = cd.if || [];
+      if (conds.every(matchesNpcCondition) && Array.isArray(cd.lines) && cd.lines.length) {
+        lines = cd.lines;
+        break;
+      }
+    }
+  }
+  const line = lines[Math.floor(Math.random() * lines.length)];
   write(`${npc.display} says: "${line}"`, 'npc');
   // Mention any quests this NPC offers, plus any ready-to-turn-in
   const offers = offerQuestsFor(target);
@@ -2012,6 +2153,11 @@ function acceptQuest(qid) {
   const q = STORY.quests[qid];
   if (!q) { write(`No such quest "${qid}".`, 'error'); return; }
   if (player.quests[qid]) { write('You already have that quest.'); return; }
+  if (!questRequiresMet(q)) {
+    const missing = (q.requires || []).filter(r => player.quests[r]?.state !== 'completed');
+    write(`That quest isn't available yet. First complete: ${missing.join(', ')}.`, 'error');
+    return;
+  }
   if (q.giver) {
     const room = player.rooms[player.location];
     if (!(room.npcs || []).includes(q.giver)) {
@@ -2115,13 +2261,29 @@ function runEventEffects(evt) {
   }
 }
 
+function questRequiresMet(q) {
+  if (!q.requires || q.requires.length === 0) return true;
+  return q.requires.every(req => player.quests[req]?.state === 'completed');
+}
 function offerQuestsFor(npcId) {
-  // Find quests this NPC gives that the player hasn't accepted/completed
   const offers = [];
   for (const [qid, q] of Object.entries(STORY.quests || {})) {
-    if (q.giver === npcId && !player.quests[qid]) offers.push([qid, q]);
+    if (q.giver !== npcId) continue;
+    if (player.quests[qid]) continue;
+    if (!questRequiresMet(q)) continue;
+    offers.push([qid, q]);
   }
   return offers;
+}
+function matchesNpcCondition(c) {
+  if (!c) return true;
+  if (c.type === 'has_flag') return player.flags.has(c.flag);
+  if (c.type === '!has_flag') return !player.flags.has(c.flag);
+  if (c.type === 'quest_completed') return player.quests[c.quest]?.state === 'completed';
+  if (c.type === 'quest_active') return player.quests[c.quest]?.state === 'active';
+  if (c.type === 'has_skill') return player.skills.has(c.skill);
+  if (c.type === 'has_item') return player.inventory.includes(c.item) || (player.materials[c.item] || 0) >= (c.qty || 1);
+  return true;
 }
 
 function lightFire() {
@@ -2638,29 +2800,79 @@ async function sell(args) {
   const directNpc  = (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('buys_items'));
   const buyer = merchantId || directNpc;
   if (!buyer) { write('There is no one here to sell to.', 'error'); return; }
+  // Parse: "sell <item> [price]" OR "sell <qty> <item> [price]"
   const parts = args.trim().split(/\s+/);
-  const itemQuery = parts[0];
-  const price = parts[1] ? Number(parts[1]) : null;
-  if (!itemQuery) { write('Sell what? Usage: sell <item> [price]', 'error'); return; }
+  if (!parts[0]) { write('Sell what? Usage: sell <item> [price]  or  sell <qty> <item> [price]', 'error'); return; }
+  let qty = 1, ofs = 0;
+  // If first token is a positive integer, treat as qty
+  if (/^\d+$/.test(parts[0])) {
+    qty = parseInt(parts[0], 10);
+    if (qty < 1) { write('Quantity must be at least 1.', 'error'); return; }
+    ofs = 1;
+  }
+  const itemQuery = parts[ofs];
+  if (!itemQuery) { write('Sell what?', 'error'); return; }
+  const priceRaw = parts[ofs + 1];
+  let price = null;
+  if (priceRaw !== undefined && priceRaw !== '') {
+    const parsed = Number(priceRaw);
+    if (!Number.isFinite(parsed) || parsed < 1 || !Number.isInteger(parsed)) {
+      write('Price must be a positive integer (≥ 1). Try: sell raw_meat 5', 'error');
+      return;
+    }
+    price = parsed;
+  }
+  // Resolve which item id (and confirm we have enough)
   const idx = findItemIn(player.inventory, itemQuery);
-  let itemId;
-  if (idx !== -1) itemId = player.inventory[idx];
-  else { const matKey = findMaterialKey(itemQuery); if (!matKey) { write(`You don't have "${itemQuery}".`, 'error'); return; } itemId = matKey; }
-  // With explicit price AND a marketplace merchant: list for player-to-player sale
+  let itemId, kind;
+  if (idx !== -1) { itemId = player.inventory[idx]; kind = 'inv'; }
+  else {
+    const matKey = findMaterialKey(itemQuery);
+    if (!matKey) { write(`You don't have "${itemQuery}".`, 'error'); return; }
+    itemId = matKey; kind = 'mat';
+  }
+  // Stock check
+  const have = kind === 'inv' ? player.inventory.filter(i => i === itemId).length : (player.materials[itemId] || 0);
+  if (have < qty) { write(`You only have ${have} ${itemDisplay(itemId)}.`, 'error'); return; }
+  // Listing path (price + marketplace)
   if (price !== null && merchantId) {
-    if (price <= 0) { write('Price must be > 0.', 'error'); return; }
-    if (idx !== -1) player.inventory.splice(idx, 1); else player.materials[itemId]--;
-    await publishListing(merchantId, itemId, 1, price);
-    write(`You list ${itemDisplay(itemId, true)} on the market for ${price} gold.`, 'success');
-    write(`(You'll receive gold when another player buys it.)`, 'system');
+    let listed = 0;
+    for (let n = 0; n < qty; n++) {
+      // Remove one
+      if (kind === 'inv') {
+        const i = player.inventory.indexOf(itemId);
+        if (i === -1) break;
+        player.inventory.splice(i, 1);
+      } else {
+        if ((player.materials[itemId] || 0) <= 0) break;
+        player.materials[itemId]--;
+      }
+      await publishListing(merchantId, itemId, 1, price);
+      listed++;
+    }
+    write(`You list ${listed}× ${itemDisplay(itemId)} on the market for ${price} gold each.`, 'success');
+    if (listed > 1) write(`(${listed} separate listings; each pays out independently when bought.)`, 'system');
     return;
   }
-  // Otherwise: direct sale to the merchant for immediate gold at base value
+  // Direct sale path (no price): immediate gold at base value, sum across qty
   const value = STORY.items[itemId].value;
-  if (idx !== -1) player.inventory.splice(idx, 1); else player.materials[itemId]--;
-  player.gold += value;
-  player.stats.gold_earned += value;
-  write(`${STORY.npcs[buyer].display} takes ${itemDisplay(itemId, true)} for ${value} gold.`, 'success');
+  let sold = 0;
+  for (let n = 0; n < qty; n++) {
+    if (kind === 'inv') {
+      const i = player.inventory.indexOf(itemId);
+      if (i === -1) break;
+      player.inventory.splice(i, 1);
+    } else {
+      if ((player.materials[itemId] || 0) <= 0) break;
+      player.materials[itemId]--;
+    }
+    sold++;
+  }
+  const total = value * sold;
+  player.gold += total;
+  player.stats.gold_earned += total;
+  if (sold === 1) write(`${STORY.npcs[buyer].display} takes ${itemDisplay(itemId, true)} for ${total} gold.`, 'success');
+  else write(`${STORY.npcs[buyer].display} takes ${sold}× ${itemDisplay(itemId)} for ${total} gold (${value} each).`, 'success');
 }
 
 function showListings() {
@@ -2794,14 +3006,19 @@ function healCommand(target) {
     }
   }
   if (!recipient_pubkey) { write(`No traveler named "${target}" known.`, 'error'); return; }
-  if (recipient_pubkey === pk) { write('Use "eat healing_salve" to heal yourself.', 'error'); return; }
-  const idx = findItemIn(player.inventory, 'healing_salve');
-  if (idx === -1) { write('You need a healing salve.', 'error'); return; }
-  const restore = STORY.items.healing_salve.effects?.restore_life || 25;
-  player.inventory.splice(idx, 1);
-  publishHeal(recipient_pubkey, restore);
+  if (recipient_pubkey === pk) { write('Heal yourself with "eat <healing item>".', 'error'); return; }
+  // Find any item with restore_life > 0 in inventory (prefer highest restore for generosity)
+  let bestIdx = -1, bestItem = null, bestRestore = 0;
+  for (let i = 0; i < player.inventory.length; i++) {
+    const it = STORY.items[player.inventory[i]];
+    const r = it?.effects?.restore_life || 0;
+    if (r > bestRestore) { bestRestore = r; bestIdx = i; bestItem = player.inventory[i]; }
+  }
+  if (bestIdx === -1) { write('You have no item that restores life. Try crafting a healing salve.', 'error'); return; }
+  player.inventory.splice(bestIdx, 1);
+  publishHeal(recipient_pubkey, bestRestore);
   const recipientName = knownPlayers.get(recipient_pubkey)?.name || target;
-  write(`💚 You crush the salve and bind it to ${recipientName}'s life. (+${restore} life sent)`, 'success');
+  write(`💚 You consume ${itemDisplay(bestItem, true)} and bind its virtue to ${recipientName}. (+${bestRestore} life sent)`, 'success');
   refreshSidebar();
 }
 
@@ -2884,7 +3101,10 @@ const SHORT_NAMES = {
   moss_grotto: 'Grotto',
   hermits_glade: 'Glade',
   old_mine: 'Mine',
-  salt_marsh: 'Marsh'
+  salt_marsh: 'Marsh',
+  mountain_peak: 'Peak',
+  frozen_north: 'North',
+  wave_cliffs: 'Cliffs'
 };
 function shortRoomName(rid) {
   if (SHORT_NAMES[rid]) return SHORT_NAMES[rid];
@@ -2978,7 +3198,7 @@ function showMap() {
 function help() {
   const lines = [
     'Movement:        n/s/e/w · go <dir> · look · map',
-    'Items:           take <x> · drop <x> · inv · status',
+    'Items:           take <x> · drop <x> · bury <x|qty x> · inv · status',
     'World:           talk <npc> · answer <text>',
     'Skills:          skills · learn <skill>',
     'Gathering:       chop / forage / gather (needs skill)',
@@ -2990,8 +3210,10 @@ function help() {
     'Progress:        quests / q · stats · achievements',
     '                 accept <id> · turn in <id>',
     'Storage:         place chest · chest · store <x> · retrieve <x>',
-    'Market:          sell <item>     (direct sale to merchant, instant gold)',
+    'Market:          sell <item>          (direct sale, instant gold)',
+    '                 sell <qty> <item>    (batch sell at base value)',
     '                 sell <item> <price>  (list on player marketplace)',
+    '                 sell <qty> <item> <price>  (list batch)',
     '                 buy <#> · market · listings',
     'Drops:           corpses · loot <#>',
     'Network:         whisper <text>  (broadcast to your room)',
@@ -3035,6 +3257,7 @@ function handleCommand(input) {
     case 'w': case 'west':       move('west'); break;
     case 'take': case 'get':     take(arg); break;
     case 'drop':                 drop(arg); break;
+    case 'bury':                 bury(argRaw); break;
     case 'inv': case 'inventory': case 'i': showInventory(); consumesTurn = false; break;
     case 'status':               showStatus(); consumesTurn = false; break;
     case 'skills': case 'sk':    showSkills(); consumesTurn = false; break;
@@ -3139,7 +3362,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${STORY.meta.title} — Nostr PoC v0.12 ===`, 'title');
+write(`=== ${STORY.meta.title} — Nostr PoC v0.13 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
@@ -3166,6 +3389,12 @@ try {
 // If we don't have a name yet (new character or legacy save), ask now
 if (!player.name) askName();
 write(`You are ${player.name}.`, 'system');
+
+// Initialize weather if not yet set
+if (!player.weather) {
+  rollDailyWeather();
+  player.weather_day = dayPart().day;
+}
 
 write(`Identity: ${npubShort}`, 'system');
 write(`${Object.keys(STORY.rooms).length} rooms · ${Object.keys(STORY.skills).length} skills · ${Object.keys(STORY.recipes).length} recipes · ${Object.keys(STORY.entities).length} entities`, 'system');
