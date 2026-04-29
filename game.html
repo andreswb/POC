@@ -433,7 +433,7 @@ const STORY_WHISPERING_FOREST = {
     leather_hat:   { display:'leather hat',   article:'a',         value:14, weight:1, category:'good',       stackable:false, tags:['crafted','equipment'], slot:'head',  effects:{life_max_bonus:5} },
     leather_clothes:{ display:'leather tunic',article:'a',         value:36, weight:2, category:'good',       stackable:false, tags:['crafted','equipment'], slot:'torso', effects:{life_max_bonus:15} },
     leather_belt:  { display:'leather belt',  article:'a',         value:18, weight:1, category:'good',       stackable:false, tags:['crafted','equipment'], slot:'belt',  effects:{carry_capacity_bonus:10} },
-    leather_pack:  { display:'leather pack',  article:'a',         value:30, weight:2, category:'tool',       stackable:false, tags:['crafted','equipment','container'], effects:{carry_capacity_bonus:15} },
+    leather_pack:  { display:'leather pack',  article:'a',         value:30, weight:2, category:'tool',       stackable:false, tags:['crafted','equipment','container'], slot:'back', effects:{carry_capacity_bonus:15} },
     rope:          { display:'rope',          article:'a',         value:5,  weight:1, category:'good',       stackable:true,  tags:['crafted','rope'] },
     iron_ore:      { display:'iron ore',      article:'an',        value:4,  weight:2, category:'resource',   stackable:true,  tags:['ore','raw'] },
     marsh_reed:    { display:'marsh reed',    article:'a',         value:2,  weight:1, category:'resource',   stackable:true,  tags:['herb','raw','rope'] },
@@ -1234,6 +1234,43 @@ async function maybePublishState(force = false) {
     Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
   } catch (e) { console.warn('publish state failed', e); }
 }
+// One-time content migration: when STORY adds new items in rooms that an existing
+// character has never seen (because their saved state was published before the
+// addition), restore those items to the room. Safe heuristic: an item is "new
+// content" only if it appears in STORY for some room AND doesn't exist anywhere
+// in the player's current state (inventory, materials, equipment, or any room's
+// items list). This handles the cartwheel case and any future content drops
+// without re-adding items the player has already taken.
+function migrateNewRoomContent() {
+  const held = new Set();
+  for (const it of player.inventory) held.add(it);
+  for (const [it, qty] of Object.entries(player.materials || {})) if ((qty || 0) > 0) held.add(it);
+  for (const it of Object.values(player.equipment || {})) held.add(it);
+  for (const r of Object.values(player.rooms || {})) {
+    for (const it of (r.items || [])) held.add(it);
+  }
+  // For drops/gifts/loot that left items in flight, also count them
+  for (const drop of drops.values()) {
+    for (const d of (drop.items || [])) held.add(d.item);
+  }
+  let added = 0;
+  for (const [rid, room] of Object.entries(STORY.rooms || {})) {
+    const here = player.rooms[rid];
+    if (!here) continue;
+    for (const it of (room.items || [])) {
+      if (held.has(it)) continue;
+      // New content for this player — restore it to its STORY-defined room
+      if (!Array.isArray(here.items)) here.items = [];
+      if (!here.items.includes(it)) {
+        here.items.push(it);
+        held.add(it);
+        added++;
+      }
+    }
+  }
+  if (added > 0) write(`[content updated: ${added} new item${added===1?'':'s'} restocked in the world]`, 'system');
+}
+
 async function fetchAndRestoreState(timeoutMs = 5000) {
   return new Promise(resolve => {
     let resolved = false;
@@ -2540,7 +2577,7 @@ function drink(arg) {
   publishAction('drink', { item: itemId, restore });
 }
 
-const EQUIP_SLOTS = ['head','torso','feet','belt','neck','hand'];
+const EQUIP_SLOTS = ['head','torso','feet','belt','neck','hand','back'];
 
 function wear(arg) {
   if (combatBlock('wear')) return;
@@ -3960,6 +3997,7 @@ try {
   const saved = localStorage.getItem(STORAGE_STATE);
   if (saved) {
     applyState(JSON.parse(saved));
+    migrateNewRoomContent();
     write('[restored from local storage]', 'system');
   }
 } catch {}
@@ -4024,6 +4062,7 @@ publishAction('look', { location: player.location });
 fetchAndRestoreState().then(remoteState => {
   if (remoteState && (remoteState.turn ?? 0) > player.turn) {
     applyState(remoteState);
+    migrateNewRoomContent();
     refreshSidebar();
     write('');
     write(`[synced] character state restored from relays (turn ${remoteState.turn}).`, 'system');
