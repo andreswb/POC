@@ -2951,7 +2951,7 @@ const ACHIEVEMENTS = {
   first_blood:  { name: 'First Blood',      desc: 'Kill your first creature.',     check: () => totalKills() >= 1 },
   hunter:       { name: 'Hunter',           desc: 'Make 20 kills.',                check: () => totalKills() >= 20 },
   wolfslayer:   { name: 'Wolfslayer',       desc: 'Kill 10 wolves.',               check: () => (player.stats.kills.wolf || 0) >= 10 },
-  wise:         { name: 'Wise',             desc: 'Solve 5 riddles.',              check: () => player.stats.riddles_solved >= 5 },
+  wise:         { name: 'Wise',             desc: 'Solve 5 riddles.',              check: () => player.riddles_solved.size >= 5 },
   craftsman:    { name: 'Master Craftsman', desc: 'Craft 30 things.',              check: () => player.stats.crafts >= 30 },
   survivor:     { name: 'Survivor',         desc: 'Reach day 5.',                  check: () => Math.floor(player.turn / (STORY.meta.turns_per_day || 96)) + 1 >= 5 },
   wealthy:      { name: 'Wealthy',          desc: 'Hold 200 gold at once.',        check: () => player.gold >= 200 },
@@ -2984,7 +2984,7 @@ function showStats() {
   if (Object.keys(player.stats.kills).length) {
     for (const [e, n] of Object.entries(player.stats.kills)) write(`    ${STORY.entities[e]?.display || e}: ${n}`);
   }
-  write(`  Riddles solved: ${player.stats.riddles_solved}`);
+  write(`  Riddles solved: ${player.riddles_solved.size}`);
   write(`  Quests completed: ${player.stats.quests_completed}`);
   write(`  Crafts made: ${player.stats.crafts}`);
   write(`  Carvings left: ${player.carvings_left || 0}`);
@@ -3223,7 +3223,21 @@ function showChest() {
   write(`-- chest in ${player.rooms[player.location].name} --`, 'system');
   if (chest.items.length === 0 && Object.values(chest.materials).every(q => q === 0))
     write('  (empty)');
-  if (chest.items.length) write('  Items: ' + chest.items.map(i => itemDisplay(i, true)).join(', '));
+  if (chest.items.length) {
+    // Group identical items so a chest of 12 cooked meats shows as "cooked meat ×12"
+    // Items with durability (tracked in player.edges) keep their own line so
+    // each weapon's remaining-uses count stays distinct.
+    const groups = new Map();
+    const unique = [];
+    for (const i of chest.items) {
+      if (player.edges?.has(i)) unique.push(i);
+      else groups.set(i, (groups.get(i) || 0) + 1);
+    }
+    const parts = [];
+    for (const [iid, n] of groups) parts.push(n > 1 ? `${itemDisplay(iid, true)} ×${n}` : itemDisplay(iid, true));
+    for (const i of unique) parts.push(itemDisplay(i, true));
+    write('  Items: ' + parts.join(', '));
+  }
   const mats = Object.entries(chest.materials).filter(([_, q]) => q > 0);
   if (mats.length) write('  Materials: ' + mats.map(([k, q]) => `${itemDisplay(k)} ×${q}`).join(', '));
   write('"store <item>" to deposit, "retrieve <item>" to take.', 'system');
@@ -3852,7 +3866,7 @@ function handleCommand(input) {
   const cmd = parts[0].toLowerCase();
   const argRaw = parts.slice(1).join(' ');
   const arg = argRaw.toLowerCase();
-  const dirAlias = { n:'north', s:'south', e:'east', w:'west' };
+  const dirAlias = { n:'north', s:'south', e:'east', w:'west', u:'up', d:'down' };
 
   if (dynamicVerbs.has(cmd) && dynamicVerbs.get(cmd) === 'gather') {
     gather(cmd); tickTurn(); return;
@@ -3866,6 +3880,10 @@ function handleCommand(input) {
     case 's': case 'south':      move('south'); break;
     case 'e': case 'east':       move('east'); break;
     case 'w': case 'west':       move('west'); break;
+    case 'u': case 'up':         move('up'); break;
+    case 'd': case 'down':       move('down'); break;
+    case 'in':                   move('in'); break;
+    case 'out':                  move('out'); break;
     case 'take': case 'get':     take(arg); break;
     case 'drop':                 drop(arg); break;
     case 'bury':                 bury(argRaw); break;
