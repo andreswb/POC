@@ -5918,6 +5918,7 @@ const CHROME_STRINGS = {
   ' — critical strike!': { de: ' — kritischer Treffer!' },
   'The {0} falls.': { de: '{0} fällt.' },
   'You gain: {0}.': { de: 'Du erhältst: {0}.' },
+  '(Shared kill credit goes to {0} other fighter{1} in this combat.)': { de: '(Geteilter Tötungserfolg geht an {0} anderen Kämpfer{1} in diesem Kampf.)' },
   'The {0} bites you for {1} damage. ({2}/{3} life)': { de: '{0} beißt dich für {1} Schaden. ({2}/{3} Leben)' },
   'There is nothing to attack.': { de: 'Nichts zum Angreifen hier.' },
   'There is nothing to flee from.': { de: 'Nichts zum Fliehen hier.' },
@@ -7108,6 +7109,7 @@ function freshCombatsForRoom(roomId, excludeSelf = false) {
     if (s.ended) continue;
     if (s.room_id !== roomId) continue;
     if (excludeSelf && s.opener_pubkey === pk) continue;
+    if ((s.hp ?? 1) <= 0) continue;  // entity already dying — don't advertise to assist
     const lastActivity = s.last_activity_at || s.started_at || 0;
     if (now - lastActivity > COMBAT_STALE_MS) continue;
     live.push(s);
@@ -8143,8 +8145,8 @@ function assist(target) {
   player.combat_target = { id: sess.entity_id, ...structuredClone(ent), hp: sess.hp };
   player.combat_id = combat_id;
   sess.participants.add(pk);
-  write(`You join the fight against the ${ent.display}! (${sess.hp}/${sess.max_hp} hp)`, 'combat');
-  write('Type "attack" to strike. The kill is shared; drops go to whoever lands the killing blow.', 'system');
+  write(T('You join the fight against the {0}! ({1}/{2} hp)', ent.display, sess.hp, sess.max_hp), 'combat');
+  write(T('Type "attack" to strike. The kill is shared; drops go to whoever lands the killing blow.'), 'system');
 }
 
 function attack() {
@@ -8241,7 +8243,7 @@ function attack() {
       if (canCarry(d.item, d.qty)) { addItem(d.item, d.qty); summary.push(`${d.qty} ${itemDisplay(d.item)}`); }
       else leftBehind.push(`${d.qty} ${itemDisplay(d.item)}`);
     }
-    if (summary.length) write(`You gain: ${summary.join(', ')}.`, 'success');
+    if (summary.length) write(T('You gain: {0}.', summary.join(', ')), 'success');
     if (leftBehind.length) {
       // overflow becomes a drop in the room
       const overflowItems = allDrops.filter((_, i) => leftBehind.length > 0).map(d => ({ item: d.item, qty: d.qty }));
@@ -8259,7 +8261,7 @@ function attack() {
         killer_pubkey: pk, killer_name: player.name
       });
       const others = sess ? [...sess.participants].filter(x => x !== pk) : [];
-      if (others.length) write(`(Shared kill credit goes to ${others.length} other ${others.length === 1 ? 'fighter' : 'fighters'} in this combat.)`, 'system');
+      if (others.length) write(T('(Shared kill credit goes to {0} other fighter{1} in this combat.)', others.length, others.length === 1 ? '' : 's'), 'system');
     }
     // Track stats
     player.stats.kills[t.id] = (player.stats.kills[t.id] || 0) + 1;
@@ -9910,7 +9912,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.19 ===`, 'title');
+write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.21 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
