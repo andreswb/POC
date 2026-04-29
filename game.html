@@ -1321,7 +1321,7 @@ async function maybePublishState(force = false) {
       tags: [['d', `character:${STORY.meta.id}`]],
       content: ciphertext
     }, sk);
-    Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+    tryPublish(evt);
   } catch (e) { console.warn('publish state failed', e); }
 }
 // One-time content migration: when STORY adds new items in rooms that an existing
@@ -1526,10 +1526,79 @@ function uuid() {
       });
 }
 function markRelayUp() {
-  if (relayUp) return;
-  relayUp = true;
-  document.getElementById('relayDot').classList.add('on');
-  document.getElementById('relays').textContent = RELAYS.length + ' relays · live';
+  if (!relayUp) {
+    relayUp = true;
+    document.getElementById('relayDot').classList.add('on');
+  }
+  refreshRelayLabel();
+}
+function markRelayDown() {
+  if (relayUp) {
+    relayUp = false;
+    document.getElementById('relayDot').classList.remove('on');
+  }
+  refreshRelayLabel();
+}
+function refreshRelayLabel() {
+  const el = document.getElementById('relays');
+  if (!el) return;
+  const queued = loadOutbox().length;
+  if (relayUp) {
+    el.textContent = RELAYS.length + ' relays · live' + (queued ? ` · ${queued} queued` : '');
+  } else {
+    el.textContent = navigator.onLine === false
+      ? 'offline' + (queued ? ` · ${queued} queued` : '')
+      : 'connecting…' + (queued ? ` · ${queued} queued` : '');
+  }
+}
+
+// ---- Offline outbox: queue signed events that fail to publish, replay on reconnect ----
+const STORAGE_OUTBOX = `nstadv:${STORY.meta.id}:outbox`;
+function loadOutbox() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_OUTBOX) || '[]'); } catch { return []; }
+}
+function saveOutbox(arr) {
+  try { localStorage.setItem(STORAGE_OUTBOX, JSON.stringify(arr)); } catch {}
+}
+function queueOutbox(evt) {
+  if (!evt) return;
+  const out = loadOutbox();
+  // Dedupe by event id
+  if (out.some(e => e && e.id === evt.id)) return;
+  out.push(evt);
+  saveOutbox(out);
+  refreshRelayLabel();
+}
+async function drainOutbox(silent = false) {
+  const out = loadOutbox();
+  if (out.length === 0) return;
+  const remaining = [];
+  let sent = 0;
+  for (const evt of out) {
+    try {
+      await Promise.any(pool.publish(RELAYS, evt));
+      sent++;
+    } catch {
+      remaining.push(evt);
+    }
+  }
+  saveOutbox(remaining);
+  if (sent > 0) {
+    markRelayUp();
+    if (!silent) write(`[synced ${sent} queued event${sent === 1 ? '' : 's'}]`, 'system');
+  }
+  refreshRelayLabel();
+}
+// Centralised publish wrapper: tries to publish; on failure, queues the signed event.
+function tryPublish(evt) {
+  if (!evt) return;
+  try {
+    Promise.any(pool.publish(RELAYS, evt))
+      .then(markRelayUp)
+      .catch(() => queueOutbox(evt));
+  } catch {
+    queueOutbox(evt);
+  }
 }
 async function publishAction(actionType, payload) {
   const evt = finalizeEvent({
@@ -1538,7 +1607,7 @@ async function publishAction(actionType, payload) {
     content: JSON.stringify({ ...payload, name: player.name, title: playerTitle() })
   }, sk);
   addToFeed('myEvents', `${actionType}: ${formatActionSummary(actionType, payload)}`, evt.id.slice(0, 8));
-  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  tryPublish(evt);
   return evt;
 }
 async function publishListing(merchant, item, qty, price_gold) {
@@ -1550,7 +1619,7 @@ async function publishListing(merchant, item, qty, price_gold) {
   }, sk);
   marketplace.listings.set(lid, { merchant, item, qty, price_gold, seller_pubkey: pk, listed_at: Date.now(), source: 'self', event: evt });
   addToFeed('myEvents', `list ${item} @ ${price_gold}g`, evt.id.slice(0, 8));
-  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  tryPublish(evt);
   return lid;
 }
 async function publishPurchase(lid, listing) {
@@ -1560,7 +1629,7 @@ async function publishPurchase(lid, listing) {
     content: JSON.stringify({ buyer: pk, paid_gold: listing.price_gold, purchased_at: new Date().toISOString() })
   }, sk);
   addToFeed('myEvents', `buy listing ${lid.slice(0, 6)}…`, evt.id.slice(0, 8));
-  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  tryPublish(evt);
   return evt;
 }
 async function publishItemDrop(items, cause = 'death') {
@@ -1572,7 +1641,7 @@ async function publishItemDrop(items, cause = 'death') {
   }, sk);
   drops.set(did, { roomId: player.location, dropper: pk, items, dropped_at: Date.now(), source: 'self' });
   addToFeed('myEvents', `dropped ${items.length} items (${cause})`, evt.id.slice(0, 8));
-  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  tryPublish(evt);
   return did;
 }
 async function publishLoot(did) {
@@ -1582,7 +1651,7 @@ async function publishLoot(did) {
     content: JSON.stringify({ looter: pk, looted_at: new Date().toISOString() })
   }, sk);
   addToFeed('myEvents', `loot ${did.slice(0, 8)}…`, evt.id.slice(0, 8));
-  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  tryPublish(evt);
   return evt;
 }
 
@@ -1595,7 +1664,7 @@ async function publishDM(recipient_pubkey, text) {
       content: ciphertext
     }, sk);
     addToFeed('myEvents', `dm to ${recipient_pubkey.slice(0,8)}…`, evt.id.slice(0, 8));
-    Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+    tryPublish(evt);
     return evt;
   } catch (e) { console.warn('dm failed', e); }
 }
@@ -1609,7 +1678,7 @@ async function publishGiftOffer(recipient_pubkey, item, qty, message) {
   }, sk);
   player.outgoing_offers.set(offer_id, { item, qty, recipient_pubkey, recipient_name: knownPlayers.get(recipient_pubkey)?.name, offered_at: Date.now() });
   addToFeed('myEvents', `gift ${item} → ${recipient_pubkey.slice(0,8)}…`, evt.id.slice(0, 8));
-  Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+  tryPublish(evt);
   return offer_id;
 }
 
@@ -1619,7 +1688,7 @@ async function publishGiftAccept(offer_id, sender_pubkey) {
     tags: [['t', TOPIC], ['p', sender_pubkey], ['offer', offer_id]],
     content: JSON.stringify({ accepter_name: player.name })
   }, sk);
-  Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+  tryPublish(evt);
   return evt;
 }
 
@@ -1629,7 +1698,7 @@ async function publishGiftDecline(offer_id, sender_pubkey) {
     tags: [['t', TOPIC], ['p', sender_pubkey], ['offer', offer_id]],
     content: JSON.stringify({ decliner_name: player.name })
   }, sk);
-  Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+  tryPublish(evt);
   return evt;
 }
 
@@ -1640,7 +1709,7 @@ async function publishHeal(recipient_pubkey, restore) {
     tags: [['t', TOPIC], ['p', recipient_pubkey], ['heal', heal_id]],
     content: JSON.stringify({ from_name: player.name, restore, item: 'healing_salve' })
   }, sk);
-  Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {});
+  tryPublish(evt);
   return evt;
 }
 
@@ -1653,7 +1722,7 @@ async function publishNotice(text) {
   }, sk);
   notices.set(notice_id, { roomId: player.location, author: pk, name: player.name, text, posted_at: Date.now() });
   addToFeed('myEvents', `pin notice in ${player.location}`, evt.id.slice(0, 8));
-  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  tryPublish(evt);
   return notice_id;
 }
 
@@ -1664,7 +1733,7 @@ async function publishCombat(phase, payload) {
     tags: [['t', TOPIC], ['phase', phase], ['combat', payload.combat_id]],
     content: JSON.stringify(payload)
   }, sk);
-  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  tryPublish(evt);
   return evt;
 }
 
@@ -1681,7 +1750,7 @@ async function publishCarve(text) {
   });
   player.carvings_left = (player.carvings_left || 0) + 1;
   addToFeed('myEvents', `carve "${text.slice(0, 24)}${text.length > 24 ? '…' : ''}" in ${player.location}`, evt.id.slice(0, 8));
-  try { Promise.any(pool.publish(RELAYS, evt)).then(markRelayUp).catch(() => {}); } catch {}
+  tryPublish(evt);
   return carving_id;
 }
 
@@ -4303,6 +4372,7 @@ function help() {
     '                 rename <new_name>  (change your visible name)',
     'Worlds:          switch story · stories  (list/switch story files)',
     'Relays:          relay list · relay add <wss://...> · relay remove <url> · relay reset',
+    'Offline:         (no command — events queue automatically when offline, sync on reconnect)',
     'Misc:            clear · help'
   ];
   for (const l of lines) write(l, 'system');
@@ -4450,7 +4520,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${STORY.meta.title} — Nostr PoC v0.13 ===`, 'title');
+write(`=== ${STORY.meta.title} — Nostr PoC v0.17 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
@@ -4565,6 +4635,39 @@ setTimeout(() => {
     write('Check your network — try "relay list" and "relay add <wss://...>" to use a different relay.', 'system');
   }
 }, 12000);
+
+// ============================================================
+//  OFFLINE-FIRST (3.6)
+// ============================================================
+// Service worker registration — caches HTML + nostr-tools for cold-load offline.
+// Silently fails on file:// or older browsers; the engine works either way.
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+// React to network state changes: drain the outbox, re-establish subscriptions,
+// republish character state so other devices see the latest. The browser's
+// `online` event fires when connectivity returns (e.g. flight mode off, wi-fi reconnects).
+window.addEventListener('online', () => {
+  refreshRelayLabel();
+  // Re-create subscriptions in case the SimplePool dropped them while offline
+  try { subscribe(); } catch {}
+  // Publish current state immediately so any other device synced to your nsec sees it
+  maybePublishState(true);
+  // Drain queued events (signed during offline play)
+  drainOutbox();
+});
+window.addEventListener('offline', () => {
+  markRelayDown();
+  const queued = loadOutbox().length;
+  write(`[offline — your actions will queue and sync when network returns${queued ? ` (${queued} already queued)` : ''}]`, 'system');
+});
+
+// Initial label refresh (in case there's already a pending outbox from a previous session)
+refreshRelayLabel();
+// Try to drain any leftover outbox from a previous session shortly after boot,
+// once the relay pool has had a moment to dial out.
+setTimeout(() => { if (loadOutbox().length) drainOutbox(true); }, 5000);
 </script>
 </body>
 </html>
