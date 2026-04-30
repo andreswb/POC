@@ -8945,56 +8945,157 @@ function showChest() {
   write('"store <item>" to deposit, "retrieve <item>" to take.', 'system');
 }
 
-function storeItem(arg) {
+// 5.8: store/retrieve accept an optional quantity prefix.
+//   "store wood"          → 1 wood
+//   "store 5 wood"        → 5 wood (stops early if you only have fewer)
+//   "store all wood"      → as many as you have
+//   "store all"           → every stackable resource you carry (skips uniques)
+// Same shape for retrieve. Word "all" matches "everything available".
+function _parseQtyArg(argRaw) {
+  const parts = (argRaw || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { qty: null, name: '' };
+  const head = parts[0].toLowerCase();
+  if (head === 'all' || head === '*') {
+    if (parts.length === 1) return { qty: 'all', name: '' };  // store/retrieve everything
+    return { qty: 'all', name: parts.slice(1).join(' ').toLowerCase() };
+  }
+  if (/^\d+$/.test(parts[0])) {
+    const n = parseInt(parts[0], 10);
+    if (n < 1) return { error: 'Quantity must be ≥ 1.' };
+    return { qty: n, name: parts.slice(1).join(' ').toLowerCase() };
+  }
+  return { qty: 1, name: argRaw.trim().toLowerCase() };
+}
+
+function storeItem(argRaw) {
   if (combatBlock('store')) return;
   const chest = player.chests.get(player.location);
   if (!chest) { write('No chest here.', 'error'); return; }
-  const idx = findItemIn(player.inventory, arg);
-  if (idx !== -1) {
-    const item = player.inventory.splice(idx, 1)[0];
-    chest.items.push(item);
-    write(`You store ${itemDisplay(item, true)}.`, 'success');
+  const parsed = _parseQtyArg(argRaw);
+  if (parsed.error) { write(parsed.error, 'error'); return; }
+  if (parsed.qty == null) { write('Store what? Try "store <item>", "store 5 <item>", or "store all".', 'error'); return; }
+
+  // "store all" with no name = store every stackable material the player carries
+  if (parsed.qty === 'all' && !parsed.name) {
+    let total = 0;
+    const summary = [];
+    for (const [id, n] of Object.entries(player.materials)) {
+      if (n <= 0) continue;
+      chest.materials[id] = (chest.materials[id] || 0) + n;
+      summary.push(`${n} ${itemDisplay(id)}`);
+      total += n;
+      player.materials[id] = 0;
+    }
+    if (total === 0) { write('Nothing stackable to store. Specify an item id for unique items.', 'error'); return; }
+    write(`You store: ${summary.join(', ')}. (${total} total)`, 'success');
     return;
   }
-  const matKey = findMaterialKey(arg);
+
+  const name = parsed.name;
+  // Stackable material path
+  const matKey = findMaterialKey(name);
   if (matKey) {
-    player.materials[matKey]--;
-    chest.materials[matKey] = (chest.materials[matKey] || 0) + 1;
-    write(`You store ${itemDisplay(matKey)}.`, 'success');
+    const have = player.materials[matKey] || 0;
+    const want = parsed.qty === 'all' ? have : Math.min(parsed.qty, have);
+    if (want < 1) { write(`You don't have any ${itemDisplay(matKey)}.`, 'error'); return; }
+    player.materials[matKey] -= want;
+    chest.materials[matKey] = (chest.materials[matKey] || 0) + want;
+    if (parsed.qty !== 'all' && want < parsed.qty) write(`(only had ${want})`, 'system');
+    write(`You store ${want} ${itemDisplay(matKey)}.`, 'success');
     return;
   }
-  write(`You don't have "${arg}".`, 'error');
+  // Unique-item path: each match is a single object in inventory
+  const movedCount = (() => {
+    const wantQty = parsed.qty === 'all' ? Infinity : parsed.qty;
+    let n = 0;
+    while (n < wantQty) {
+      const idx = findItemIn(player.inventory, name);
+      if (idx === -1) break;
+      const item = player.inventory.splice(idx, 1)[0];
+      chest.items.push(item);
+      n++;
+    }
+    return n;
+  })();
+  if (movedCount === 0) { write(`You don't have "${name}".`, 'error'); return; }
+  write(movedCount === 1 ? `You store ${name}.` : `You store ${movedCount} of ${name}.`, 'success');
 }
 
-function retrieveItem(arg) {
+function retrieveItem(argRaw) {
   if (combatBlock('retrieve')) return;
   const chest = player.chests.get(player.location);
   if (!chest) { write('No chest here.', 'error'); return; }
-  // Try items first
-  const idx = chest.items.findIndex(i => {
-    const it = STORY.items[i];
-    return i === arg || (it && it.display.includes(arg));
-  });
-  if (idx !== -1) {
-    const item = chest.items[idx];
-    if (!canCarry(item, 1)) { write(`Too heavy to take ${itemDisplay(item)} now.`, 'error'); return; }
-    chest.items.splice(idx, 1);
-    addItem(item, 1);
-    write(`You retrieve ${itemDisplay(item, true)}.`, 'success');
+  const parsed = _parseQtyArg(argRaw);
+  if (parsed.error) { write(parsed.error, 'error'); return; }
+  if (parsed.qty == null) { write('Retrieve what? Try "retrieve <item>", "retrieve 5 <item>", or "retrieve all".', 'error'); return; }
+
+  // "retrieve all" with no name = pull every stackable from the chest (capacity-permitting)
+  if (parsed.qty === 'all' && !parsed.name) {
+    const summary = [];
+    let totalMoved = 0;
+    let stoppedDueToWeight = false;
+    for (const [id, n] of Object.entries(chest.materials)) {
+      if (n <= 0) continue;
+      let canTake = n;
+      // canCarry checks against current weight + qty added
+      while (canTake > 0 && !canCarry(id, 1)) canTake--;
+      // canCarry doesn't compose well in a loop — use the proper math
+      const w = STORY.items[id]?.weight ?? 1;
+      const room = computeMaxCapacity() - computeWeight();
+      const fit = Math.max(0, Math.min(canTake, Math.floor(room / Math.max(0.0001, w))));
+      if (fit < n) stoppedDueToWeight = true;
+      if (fit > 0) {
+        chest.materials[id] -= fit;
+        addItem(id, fit);
+        summary.push(`${fit} ${itemDisplay(id)}`);
+        totalMoved += fit;
+      }
+    }
+    if (totalMoved === 0) { write('Nothing stackable to retrieve from the chest.', 'error'); return; }
+    write(`You retrieve: ${summary.join(', ')}. (${totalMoved} total)`, 'success');
+    if (stoppedDueToWeight) write('(some left in the chest — too heavy to carry)', 'system');
     return;
   }
-  // Try materials
+
+  const name = parsed.name;
+  // Stackable material path
   for (const [id, qty] of Object.entries(chest.materials)) {
     if (qty <= 0) continue;
-    if (id === arg || STORY.items[id]?.display.includes(arg)) {
-      if (!canCarry(id, 1)) { write(`Too heavy to take ${itemDisplay(id)} now.`, 'error'); return; }
-      chest.materials[id]--;
-      addItem(id, 1);
-      write(`You retrieve ${itemDisplay(id)}.`, 'success');
-      return;
-    }
+    if (id !== name && !(STORY.items[id]?.display.toLowerCase().includes(name))) continue;
+    const want = parsed.qty === 'all' ? qty : Math.min(parsed.qty, qty);
+    const w = STORY.items[id]?.weight ?? 1;
+    const room = computeMaxCapacity() - computeWeight();
+    const fit = Math.max(0, Math.min(want, Math.floor(room / Math.max(0.0001, w))));
+    if (fit < 1) { write(`Too heavy to take ${itemDisplay(id)} now.`, 'error'); return; }
+    chest.materials[id] -= fit;
+    addItem(id, fit);
+    if (fit < want) write(`(took ${fit}, the rest is too heavy for now)`, 'system');
+    else if (parsed.qty !== 'all' && want < parsed.qty) write(`(chest only had ${want})`, 'system');
+    write(`You retrieve ${fit} ${itemDisplay(id)}.`, 'success');
+    return;
   }
-  write(`No "${arg}" in the chest.`, 'error');
+  // Unique-item path: take up to qty matching items
+  const wantQty = parsed.qty === 'all' ? Infinity : parsed.qty;
+  let moved = 0;
+  while (moved < wantQty) {
+    const idx = chest.items.findIndex(i => {
+      const it = STORY.items[i];
+      return i === name || (it && it.display.toLowerCase().includes(name));
+    });
+    if (idx === -1) break;
+    const item = chest.items[idx];
+    if (!canCarry(item, 1)) {
+      if (moved === 0) { write(`Too heavy to take ${itemDisplay(item)} now.`, 'error'); return; }
+      write('(stopped — carry capacity reached)', 'system');
+      break;
+    }
+    chest.items.splice(idx, 1);
+    addItem(item, 1);
+    moved++;
+  }
+  if (moved === 0) { write(`No "${name}" in the chest.`, 'error'); return; }
+  write(`You retrieve ${moved} of ${name}.`, 'success');
+  return;
 }
 
 function showCorpses() {
@@ -9553,14 +9654,21 @@ function showMap() {
     positions.set(seed, [0, 0]);
     const queue = [seed];
     const inLayer = new Set(ids);
-    const dirOffset = { north:[0,-1], south:[0,1], east:[1,0], west:[-1,0] };
+    // Same-layer connections use all eight directions. up/down/in/out get
+    // ~2× offsets so they don't visually conflict with adjacent N/S/E/W
+    // boxes — but they STILL lay out in the 2D grid, otherwise rooms only
+    // reachable via in/out/up/down become orphans and cascade.
+    const dirOffset = {
+      north:[0,-1], south:[0,1], east:[1,0], west:[-1,0],
+      up:[0,-2], down:[0,2], in:[2,0], out:[-2,0]
+    };
     while (queue.length) {
       const cur = queue.shift();
       const [cx, cy] = positions.get(cur);
       for (const [dir, rawTarget] of Object.entries(rooms[cur].exits || {})) {
         const r = resolveExit(rawTarget); if (!r) continue;
         const target = r.target;
-        if (!inLayer.has(target)) continue;       // ignore inter-layer exits here
+        if (!inLayer.has(target)) continue;       // inter-layer = handled as marker, not 2D edge
         if (positions.has(target)) continue;
         const off = dirOffset[dir]; if (!off) continue;
         positions.set(target, [cx + off[0], cy + off[1]]);
@@ -9620,7 +9728,7 @@ function showMap() {
       put(cy + 1, cx, '│' + inner + '│');
       put(cy + 2, cx, '└' + '─'.repeat(boxW - 2) + '┘');
     }
-    // Connectors (intra-layer only)
+    // Connectors (intra-layer only). Includes the 2× offsets for up/down/in/out.
     for (const [room, [x, y]] of positions) {
       const cx = (x - minX) * cellW, cy = (y - minY) * cellH;
       for (const [dir, rawTarget] of Object.entries(rooms[room].exits || {})) {
@@ -9629,8 +9737,17 @@ function showMap() {
         if (!positions.has(target)) continue;
         const [tx, ty] = positions.get(target);
         const dx = tx - x, dy = ty - y;
-        if (dx === 1 && dy === 0)      put(cy + 1, cx + boxW, '──');
-        else if (dx === 0 && dy === 1) put(cy + 3, cx + Math.floor(boxW/2), '│');
+        // Adjacent N/S/E/W
+        if      (dx ===  1 && dy ===  0) put(cy + 1, cx + boxW, '──');
+        else if (dx ===  0 && dy ===  1) put(cy + 3, cx + Math.floor(boxW/2), '│');
+        // up (dy=-2): vertical pair of dotted-bar above
+        else if (dx ===  0 && dy === -2) { put(cy - 1, cx + Math.floor(boxW/2), '╎'); }
+        // down (dy=2): dotted-bar below
+        else if (dx ===  0 && dy ===  2) { put(cy + 5, cx + Math.floor(boxW/2), '╎'); }
+        // in (dx=2): horizontal dotted to the right
+        else if (dx ===  2 && dy ===  0) { put(cy + 1, cx + boxW, '┊┊'); }
+        // out (dx=-2): horizontal dotted to the left
+        else if (dx === -2 && dy ===  0) { put(cy + 1, cx - 2, '┊┊'); }
       }
     }
     return grid.map(row => row.join('').replace(/\s+$/, '')).join('\n');
@@ -9821,7 +9938,7 @@ function help() {
     T('Progress:        quests / q · stats · achievements'),
     T('                 accept <id> · turn in <id>'),
     T('                 (daily quests auto-rotate at dawn — turn in before dawn or they expire)'),
-    T('Storage:         place chest · chest · store <x> · retrieve <x>'),
+    T('Storage:         place chest · chest · store [<n>] <x> · retrieve [<n>] <x>  (also "store all" / "retrieve all")'),
     T('Market:          sell <item>          (direct sale, instant gold)'),
     T('                 sell <qty> <item>    (batch sell at base value)'),
     T('                 sell <item> <price>  (list on player marketplace)'),
@@ -9973,8 +10090,8 @@ function handleCommand(input) {
     case 'stories':              listStoriesCommand(); consumesTurn = false; break;
     case 'place':                if (arg === 'chest') placeChest(); else write('Place what? Try "place chest".', 'error'); break;
     case 'chest':                showChest(); consumesTurn = false; break;
-    case 'store':                storeItem(arg); break;
-    case 'retrieve': case 'unstore': retrieveItem(arg); break;
+    case 'store':                storeItem(argRaw); break;
+    case 'retrieve': case 'unstore': retrieveItem(argRaw); break;
     case 'corpses':              showCorpses(); consumesTurn = false; break;
     case 'loot':                 loot(arg); break;
     case 'whisper': case 'shout':whisper(argRaw); break;
