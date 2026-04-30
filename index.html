@@ -110,6 +110,23 @@
     .play-btn { width: 100%; padding: 16px 24px; }   /* full-width thumb-friendly button */
     .play-cta { margin: 28px 0 22px; }
   }
+  /* Live world strip — Nostr-derived stats; hidden until ≥5 travelers */
+  .live-strip {
+    text-align: center;
+    font-size: 13px;
+    color: var(--moss);
+    margin: -8px 0 28px;
+    letter-spacing: 0.3px;
+    min-height: 18px;
+    opacity: 0;
+    transition: opacity 600ms ease;
+  }
+  .live-strip.visible { opacity: 0.85; }
+  .live-strip .sep { color: var(--rule); margin: 0 8px; }
+  @media (max-width: 600px) {
+    .live-strip { font-size: 12px; margin: -2px 0 18px; }
+    .live-strip .sep { margin: 0 5px; }
+  }
   .features {
     margin: 28px 0;
     padding: 22px;
@@ -204,6 +221,9 @@
     <a class="play-btn" href="game.html">▶ PLAY</a>
   </div>
 
+  <!-- Live world strip — populated by inline script below; hidden until ≥5 travelers -->
+  <div class="live-strip" id="live-strip" aria-live="polite"></div>
+
   <section class="features">
     <h2>What it is</h2>
     <ul>
@@ -238,5 +258,113 @@ Exits: north, south.
     Built as a proof of concept. <a href="game.html">Play</a> · <a href="story-builder.html">Build your own</a>.
   </footer>
 </div>
+<script>
+// Live world strip — counts unique pubkeys from kind 30420 action events
+// (last 30 days) and unique story IDs from kind 30441 listings on public
+// Nostr relays. Strip stays hidden until travelers ≥ MIN_TRAVELERS so a
+// fresh deploy with no players doesn't surface a sad "0 travelers" line.
+// Cached in localStorage with 6h TTL; cached value renders immediately on
+// page load while a fresh query refreshes in the background.
+(function () {
+  const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band'];
+  const KIND_ACTION = 30420;
+  const KIND_STORY_LISTING = 30441;
+  const TOPIC_LISTINGS = 'nta:story-listings';
+  const CACHE_KEY = 'taleforge:live-stats:v1';
+  const CACHE_TTL = 6 * 60 * 60 * 1000;       // 6 hours
+  const QUERY_TIMEOUT = 8000;                 // give up after 8s
+  const MIN_TRAVELERS = 5;                    // hide strip below this
+
+  function loadCache() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj.travelers !== 'number') return null;
+      return obj;
+    } catch { return null; }
+  }
+  function saveCache(stats) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ...stats, ts: Date.now() })); } catch {}
+  }
+  function isFresh(c) { return c && (Date.now() - (c.ts || 0)) < CACHE_TTL; }
+
+  function render(stats) {
+    if (!stats || stats.travelers < MIN_TRAVELERS) return;
+    const el = document.getElementById('live-strip');
+    if (!el) return;
+    const parts = [];
+    if (stats.stories > 0) parts.push(stats.stories + (stats.stories === 1 ? ' story' : ' stories'));
+    parts.push(stats.travelers + (stats.travelers === 1 ? ' traveler' : ' travelers'));
+    if (stats.activeWeek > 0) parts.push(stats.activeWeek + ' active this week');
+    el.innerHTML = parts.join('<span class="sep">·</span>');
+    el.classList.add('visible');
+  }
+
+  function queryRelay(url, since, sinceWeek, travelers, activeWeek, storyIds) {
+    return new Promise(resolve => {
+      let resolved = false;
+      const finish = () => { if (!resolved) { resolved = true; resolve(); } };
+      let ws;
+      try { ws = new WebSocket(url); } catch { return finish(); }
+      const t = setTimeout(() => { try { ws.close(); } catch {} finish(); }, QUERY_TIMEOUT - 500);
+      let eoseCount = 0;
+      const subA = 'a' + Math.random().toString(36).slice(2, 8);
+      const subS = 's' + Math.random().toString(36).slice(2, 8);
+      ws.onopen = () => {
+        try {
+          ws.send(JSON.stringify(['REQ', subA, { kinds: [KIND_ACTION], since, limit: 5000 }]));
+          ws.send(JSON.stringify(['REQ', subS, { kinds: [KIND_STORY_LISTING], '#t': [TOPIC_LISTINGS], limit: 200 }]));
+        } catch {}
+      };
+      ws.onmessage = (msg) => {
+        try {
+          const d = JSON.parse(msg.data);
+          if (d[0] === 'EVENT') {
+            const ev = d[2];
+            if (ev.kind === KIND_ACTION) {
+              travelers.add(ev.pubkey);
+              if (ev.created_at >= sinceWeek) activeWeek.add(ev.pubkey);
+            } else if (ev.kind === KIND_STORY_LISTING) {
+              const dt = (ev.tags || []).find(x => x[0] === 'd');
+              if (dt && dt[1]) storyIds.add(dt[1]);
+            }
+          } else if (d[0] === 'EOSE') {
+            eoseCount++;
+            if (eoseCount >= 2) {
+              try { ws.close(); } catch {}
+              clearTimeout(t);
+              finish();
+            }
+          }
+        } catch {}
+      };
+      ws.onerror = () => { clearTimeout(t); try { ws.close(); } catch {} finish(); };
+      ws.onclose = () => { clearTimeout(t); finish(); };
+    });
+  }
+
+  async function fetchStats() {
+    const since = Math.floor((Date.now() - 30 * 86400000) / 1000);
+    const sinceWeek = Math.floor((Date.now() - 7 * 86400000) / 1000);
+    const travelers = new Set();
+    const activeWeek = new Set();
+    const storyIds = new Set();
+    await Promise.all(RELAYS.map(u => queryRelay(u, since, sinceWeek, travelers, activeWeek, storyIds)));
+    return { travelers: travelers.size, activeWeek: activeWeek.size, stories: storyIds.size };
+  }
+
+  // Stage 1: render cached value immediately so visitors see something on load
+  const cached = loadCache();
+  if (cached) render(cached);
+  // Stage 2: refresh in background if cache is stale (or absent)
+  if (!cached || !isFresh(cached)) {
+    fetchStats().then(stats => {
+      saveCache(stats);
+      render(stats);
+    }).catch(() => { /* silent — keep showing cached value if any */ });
+  }
+})();
+</script>
 </body>
 </html>
