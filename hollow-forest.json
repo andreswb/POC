@@ -5,7 +5,7 @@
     "title": "The Hollow Forest",
     "author": "AWB_",
     "author_pubkey": null,
-    "version": "1.1.1",
+    "version": "1.1.2",
     "created_at": "2026-04-30T00:00:00Z",
     "language": "en",
     "languages": [
@@ -90,7 +90,10 @@
           "cursed"
         ]
       }
-    }
+    },
+    "world_event_pool": [
+      "blood_moon"
+    ]
   },
   "rooms": {
     "chapel": {
@@ -2186,5 +2189,31 @@
       ]
     }
   },
-  "signature": null
+  "signature": null,
+  "world_events": {
+    "blood_moon": {
+      "title": "Blood Moon",
+      "description": "The moon is full and red over the lake. Werewolves rage tonight; the Count is twice as patient.",
+      "recurrence": {
+        "every_days": 6
+      },
+      "trigger_day_offset": 2,
+      "duration_days": 1,
+      "objective": {
+        "type": "kill",
+        "entity": "werewolf",
+        "qty": 2
+      },
+      "rewards": {
+        "gold": 60,
+        "sparks": 20,
+        "renown": 5
+      },
+      "narration": {
+        "on_start": "[A red moon climbs over the lake. The forest exhales. Werewolves move tonight, and not as wolves do.]",
+        "on_complete": ">>> The pack grows quiet around you. The moon dims a shade. The village will whisper of you again.",
+        "on_expire": "[The moon pales toward dawn. Whatever passed, passed without you.]"
+      }
+    }
+  }
 }

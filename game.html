@@ -241,7 +241,7 @@ const STORY_WHISPERING_FOREST = {
     "title": "The Whispering Forest",
     "author": "Andres",
     "author_pubkey": null,
-    "version": "1.14.1",
+    "version": "1.14.2",
     "created_at": "2026-04-28T00:00:00Z",
     "language": "en",
     "tone": "eerie, sensory, hopeful undertones; never explain too much; favor sound and texture over exposition",
@@ -283,7 +283,11 @@ const STORY_WHISPERING_FOREST = {
       "notes": "Free to play, fork, and continue. Attribution appreciated.",
       "price_sats": 0,
       "trial_rooms": []
-    }
+    },
+    "world_event_pool": [
+      "wolf_invasion",
+      "merchants_caravan"
+    ]
   },
   "rooms": {
     "forest_clearing": {
@@ -4650,7 +4654,57 @@ const STORY_WHISPERING_FOREST = {
       "completion_message": "He breathes out long and slow. \"You've done well, traveller. Take the cloak — the cold takes me first now, but you've bought me a winter.\""
     }
   },
-  "signature": null
+  "signature": null,
+  "world_events": {
+    "wolf_invasion": {
+      "title": "Wolf Invasion",
+      "description": "The forest has gone restless. Wolves push closer to the village. Cull at least three to push them back.",
+      "recurrence": {
+        "every_days": 5
+      },
+      "trigger_day_offset": 3,
+      "duration_days": 2,
+      "objective": {
+        "type": "kill",
+        "entity": "wolf",
+        "qty": 3
+      },
+      "rewards": {
+        "gold": 40,
+        "sparks": 15,
+        "renown": 5
+      },
+      "narration": {
+        "on_start": "[Howling carries from the deep forest. Villagers bar their shutters early. The wolves grow bold.]",
+        "on_complete": ">>> The wolves retreat into the trees. The village gathers gold and gratitude for you.",
+        "on_expire": "[The pack thins on its own. Whatever was coming has gone back into the forest.]"
+      }
+    },
+    "merchants_caravan": {
+      "title": "Merchant's Caravan",
+      "description": "A caravan of southern goods reaches the village square. Visit before they pack up.",
+      "recurrence": {
+        "every_days": 7
+      },
+      "trigger_day_offset": 4,
+      "duration_days": 1,
+      "objective": {
+        "type": "visit",
+        "room": "greenmeadow_village"
+      },
+      "rewards": {
+        "gold": 25,
+        "sparks": 5,
+        "renown": 1,
+        "items": []
+      },
+      "narration": {
+        "on_start": "[A caravan from the south reaches the village square. New cloth, salt, glass.]",
+        "on_complete": ">>> You greet the caravan-leader. He nods, pleased to see you. Trade is brisk for both of you today.",
+        "on_expire": "[The caravan packs up at first light. They do not wait.]"
+      }
+    }
+  }
 };
 
 // ============================================================
@@ -4659,20 +4713,40 @@ const STORY_WHISPERING_FOREST = {
 const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 
-// 5.9: extra stories fetched from same-origin URLs at boot, treated like
-// built-ins. Drop the JSON files next to the HTML on GitHub Pages (or any
-// HTTP host) and add the relative path here. Fetches fail silently on
-// file:// or 404, so dev-mode local-file usage still works.
+// 5.9 / 5.12: extra stories fetched from same-origin URLs at boot, treated
+// like built-ins. Two discovery paths, in order:
+//   1. ./manifest.json — the preferred path (5.12). { stories: [url, ...] }.
+//      Edit the manifest, drop the JSON, no engine redeploy.
+//   2. EXTRA_STORY_URLS fallback — hardcoded list, used only when no manifest
+//      exists or it's empty/malformed.
+// Both paths fail silently on file:// / 404 / CORS, so dev-mode local-file
+// usage still works.
+const MANIFEST_URL = './manifest.json';
 const EXTRA_STORY_URLS = ['./hollow-forest.json'];
 
 const BUILTIN_STORIES = {
   'whispering-forest-v1': STORY_WHISPERING_FOREST
 };
 
-// Async loader for EXTRA_STORY_URLS. Validates minimal shape before adding
-// to BUILTIN_STORIES so a malformed file can't break the picker.
+// Async loader. Tries manifest first; falls back to hardcoded list.
+// Validates minimal shape before adding to BUILTIN_STORIES so a malformed
+// file can't break the picker.
 async function loadExtraStoriesIntoBuiltin() {
-  for (const url of EXTRA_STORY_URLS) {
+  let urls = [];
+  // 1) Manifest discovery
+  try {
+    const res = await fetch(MANIFEST_URL, { cache: 'no-cache' });
+    if (res.ok) {
+      const m = await res.json();
+      if (m && Array.isArray(m.stories) && m.stories.length > 0) {
+        urls = m.stories.filter(u => typeof u === 'string');
+      }
+    }
+  } catch { /* silent */ }
+  // 2) Fallback to hardcoded list
+  if (urls.length === 0) urls = EXTRA_STORY_URLS;
+
+  for (const url of urls) {
     try {
       const res = await fetch(url, { cache: 'no-cache' });
       if (!res.ok) continue;
@@ -5103,7 +5177,9 @@ const player = {
   transformed_at_day: 0,       // 5.9: in-game day when transformation started (for dawn auto-revert)
   renown: 0,                   // 5.11: cumulative reputation; affects merchant prices, NPC dialogue tone, world-feed star rating
   recent_kills: [],            // 5.11: last 10 entries [{ entity, turn }] — used to verify bounty claims
-  bounty_claims: new Set()     // 5.11: bounty ids the player has already claimed locally (prevents double-claim)
+  bounty_claims: new Set(),    // 5.11: bounty ids the player has already claimed locally (prevents double-claim)
+  world_events_progress: {},   // 5.12: { event_id: { active_day, kills:{}, items_seen:[], visited:[], completed:bool, expired:bool, completion_day } }
+  world_events_seen: new Set() // 5.12: event ids first-announced to this character
 };
 
 // ---- i18n helpers (5.3) ---------------------------------------------------
@@ -6081,6 +6157,8 @@ function serializeState() {
     renown: player.renown || 0,
     recent_kills: [...(player.recent_kills || [])].slice(-10),
     bounty_claims: [...(player.bounty_claims || [])],
+    world_events_progress: JSON.parse(JSON.stringify(player.world_events_progress || {})),
+    world_events_seen: [...(player.world_events_seen || [])],
     freshness: Object.fromEntries(Object.entries(player.freshness || {}).map(([k, batches]) => [k, batches.map(b => ({ turn: b.turn, qty: b.qty }))])),
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
@@ -6142,6 +6220,9 @@ function applyState(s) {
   player.renown = s.renown || 0;
   player.recent_kills = Array.isArray(s.recent_kills) ? [...s.recent_kills] : [];
   player.bounty_claims = new Set(s.bounty_claims || []);
+  // 5.12: world-event progress
+  player.world_events_progress = (s.world_events_progress && typeof s.world_events_progress === 'object') ? JSON.parse(JSON.stringify(s.world_events_progress)) : {};
+  player.world_events_seen = new Set(s.world_events_seen || []);
   player.freshness = {};
   for (const [k, batches] of Object.entries(s.freshness || {})) {
     if (Array.isArray(batches)) player.freshness[k] = batches.map(b => ({ turn: b.turn, qty: b.qty }));
@@ -7121,6 +7202,8 @@ function addItem(itemId, qty = 1) {
   if (it.stackable) player.materials[itemId] = (player.materials[itemId] || 0) + qty;
   else for (let i = 0; i < qty; i++) player.inventory.push(itemId);
   addFreshness(itemId, qty);
+  // 5.12: world-event progress check on inventory change (have_item objectives)
+  if (typeof tickWorldEventProgress === 'function') tickWorldEventProgress('have_check', { item: itemId });
   return true;
 }
 
@@ -7270,6 +7353,8 @@ function tickTurn() {
     }
   }
   if (newDay !== prevDay) advanceDailyQuest(newDay);
+  // 5.12: world events — announce just-started, expire just-finished
+  if (newDay !== prevDay) advanceWorldEvents(newDay);
   // Weather effects
   if (player.weather === 'snow') player.life -= 0.3;
   player.life -= STORY.meta.life_decay_per_turn;
@@ -7519,6 +7604,8 @@ function move(dir) {
   publishAction('move', { from, to: target });
   if (newRoom) write(`(new place — added to your map)`, 'system');
   fireEvents('on_room_enter', { room: target });
+  // 5.12: world-event progress on visit
+  tickWorldEventProgress('visit', { room: target });
   describeRoom();
 }
 
@@ -8300,6 +8387,8 @@ function attack() {
     if (player.recent_kills.length > 10) player.recent_kills.shift();
     // 5.11: any active bounty on this entity? Prompt the player to claim.
     notifyBountyClaimable(t.id);
+    // 5.12: world-event progress on kill
+    tickWorldEventProgress('kill', { entity: t.id });
     // Trigger any on_kill events
     fireEvents('on_kill', { entity: t.id });
     player.combat_target = null;
@@ -8804,6 +8893,177 @@ function advanceDailyQuest(currentDay) {
   if (next.giver) write(`    Turn it in to ${STORY.npcs[next.giver]?.display || next.giver} before the day ends.`, 'system');
   else write(`    Complete and turn in before the day ends.`, 'system');
 }
+
+// ============================================================
+//  WORLD EVENTS (5.12) — global, day-recurring narrative beats
+// ============================================================
+// Stories declare a pool of recurring "stir" events; the engine schedules
+// them deterministically by in-game day. Every player at the same day-count
+// sees the same event active, without needing Nostr coordination — the
+// determinism IS the coordination. Personal participation: each player
+// completes locally for their own rewards.
+function isWorldEventActiveOnDay(eventId, day) {
+  const ev = STORY.world_events?.[eventId];
+  if (!ev) return false;
+  const offset = ev.trigger_day_offset || 1;       // start no earlier than this day
+  const period = ev.recurrence?.every_days || 0;   // 0 = one-shot
+  const duration = ev.duration_days || 1;
+  if (day < offset) return false;
+  if (period <= 0) {
+    // One-shot: active only on day === offset
+    return day >= offset && day < offset + duration;
+  }
+  const since = day - offset;
+  const cyclePos = since % period;
+  return cyclePos < duration;
+}
+function worldEventStartedOnDay(eventId, day) {
+  return isWorldEventActiveOnDay(eventId, day) && !isWorldEventActiveOnDay(eventId, day - 1);
+}
+function worldEventExpiredOnDay(eventId, day) {
+  return !isWorldEventActiveOnDay(eventId, day) && isWorldEventActiveOnDay(eventId, day - 1);
+}
+function advanceWorldEvents(currentDay) {
+  const pool = (STORY.meta && Array.isArray(STORY.meta.world_event_pool)) ? STORY.meta.world_event_pool : [];
+  if (!pool.length) return;
+  for (const eid of pool) {
+    const ev = STORY.world_events?.[eid];
+    if (!ev) continue;
+    if (worldEventStartedOnDay(eid, currentDay)) {
+      // Reset progress and announce
+      player.world_events_progress[eid] = {
+        active_day: currentDay, kills: {}, items_seen: [], visited: [],
+        completed: false, expired: false, completion_day: null
+      };
+      const narr = ev.narration?.on_start || `>>> A stir runs through the world: ${t(ev.title || eid)}.`;
+      write('');
+      write(t(narr), 'spark');
+      if (ev.description) write(`    ${t(ev.description)}`, 'system');
+      const obj = ev.objective;
+      if (obj) write(`    Objective: ${describeWorldEventObjective(obj)}`, 'system');
+      const dur = ev.duration_days || 1;
+      write(`    Active for ${dur} day${dur === 1 ? '' : 's'}.`, 'system');
+      player.world_events_seen.add(eid);
+    }
+    if (worldEventExpiredOnDay(eid, currentDay)) {
+      const prog = player.world_events_progress[eid];
+      if (prog && !prog.completed && !prog.expired) {
+        prog.expired = true;
+        const narr = ev.narration?.on_expire || `[The ${t(ev.title || eid)} passes without resolution.]`;
+        write('');
+        write(t(narr), 'system');
+      }
+    }
+  }
+}
+function describeWorldEventObjective(obj) {
+  if (!obj) return '(none)';
+  if (obj.type === 'kill') return `kill ${obj.qty || 1} ${STORY.entities[obj.entity]?.display || obj.entity}`;
+  if (obj.type === 'have_item') return `have ${obj.qty || 1} ${STORY.items[obj.item]?.display || obj.item}`;
+  if (obj.type === 'visit') {
+    const r = obj.room ? STORY.rooms[obj.room]?.name : null;
+    return `visit ${t(r) || obj.room || '?'}`;
+  }
+  return '(custom)';
+}
+// Called from kill/loot/visit hooks to update progress on any active event.
+function tickWorldEventProgress(kind, params) {
+  const day = dayPart().day;
+  const pool = (STORY.meta && Array.isArray(STORY.meta.world_event_pool)) ? STORY.meta.world_event_pool : [];
+  for (const eid of pool) {
+    if (!isWorldEventActiveOnDay(eid, day)) continue;
+    const ev = STORY.world_events?.[eid];
+    if (!ev) continue;
+    const prog = player.world_events_progress[eid];
+    if (!prog || prog.completed || prog.expired) continue;
+    const obj = ev.objective; if (!obj) continue;
+    let nowMet = false;
+    if (kind === 'kill' && obj.type === 'kill' && obj.entity === params.entity) {
+      prog.kills[obj.entity] = (prog.kills[obj.entity] || 0) + 1;
+      if ((prog.kills[obj.entity] || 0) >= (obj.qty || 1)) nowMet = true;
+    }
+    if (kind === 'have_check' && obj.type === 'have_item') {
+      const have = player.inventory.filter(i => i === obj.item).length + (player.materials[obj.item] || 0);
+      if (have >= (obj.qty || 1)) nowMet = true;
+    }
+    if (kind === 'visit' && obj.type === 'visit' && obj.room === params.room) {
+      nowMet = true;
+    }
+    if (nowMet) completeWorldEvent(eid);
+  }
+}
+function completeWorldEvent(eid) {
+  const ev = STORY.world_events?.[eid]; if (!ev) return;
+  const prog = player.world_events_progress[eid];
+  if (!prog || prog.completed) return;
+  prog.completed = true;
+  prog.completion_day = dayPart().day;
+  const r = ev.rewards || {};
+  if (r.gold) { player.gold += r.gold; player.stats.gold_earned += r.gold; }
+  if (r.sparks) { player.sparks += r.sparks; player.stats.sparks_earned += r.sparks; }
+  if (r.renown) gainRenown('world_event', r.renown);
+  for (const ri of (r.items || [])) {
+    if (canCarry(ri.item, ri.qty)) addItem(ri.item, ri.qty);
+    else (player.rooms[player.location].items ||= []).push(ri.item);
+  }
+  const narr = ev.narration?.on_complete || `>>> You answered the call.`;
+  write('');
+  write(t(narr), 'spark');
+  const parts = [];
+  if (r.gold) parts.push(`${r.gold} gold`);
+  if (r.sparks) parts.push(`${r.sparks} sparks`);
+  if (r.renown) parts.push(`+${r.renown} renown`);
+  for (const ri of (r.items || [])) parts.push(`${ri.qty} ${itemDisplay(ri.item)}`);
+  if (parts.length) write(`Reward: ${parts.join(', ')}`, 'success');
+  publishAction('world_event_complete', { event: eid });
+}
+// User-facing news listing
+function showNews() {
+  const day = dayPart().day;
+  const pool = (STORY.meta && Array.isArray(STORY.meta.world_event_pool)) ? STORY.meta.world_event_pool : [];
+  if (pool.length === 0) { write('There is no news.', 'system'); return; }
+  const active = [], upcoming = [];
+  for (const eid of pool) {
+    const ev = STORY.world_events?.[eid]; if (!ev) continue;
+    if (isWorldEventActiveOnDay(eid, day)) active.push(eid);
+    else {
+      // Find next active day up to 30 days ahead
+      for (let d = day + 1; d <= day + 30; d++) {
+        if (isWorldEventActiveOnDay(eid, d)) { upcoming.push({ eid, day: d }); break; }
+      }
+    }
+  }
+  if (active.length) {
+    write('-- The world stirs --', 'title');
+    for (const eid of active) {
+      const ev = STORY.world_events[eid];
+      const prog = player.world_events_progress[eid] || {};
+      const status = prog.completed ? ' ✓ done' : (prog.expired ? ' (expired)' : '');
+      write(`  ${t(ev.title || eid)}${status}`, prog.completed ? 'success' : 'spark');
+      if (ev.description) write(`    ${t(ev.description)}`, 'system');
+      const obj = ev.objective;
+      if (obj && !prog.completed) {
+        let progStr = '';
+        if (obj.type === 'kill') {
+          const got = prog.kills?.[obj.entity] || 0;
+          progStr = ` (${got}/${obj.qty || 1})`;
+        }
+        write(`    Objective: ${describeWorldEventObjective(obj)}${progStr}`, 'system');
+      }
+    }
+  } else {
+    write('All quiet. No active stirs in the world.', 'system');
+  }
+  if (upcoming.length) {
+    upcoming.sort((a, b) => a.day - b.day);
+    write('-- Coming soon --', 'system');
+    for (const u of upcoming.slice(0, 4)) {
+      const ev = STORY.world_events[u.eid];
+      write(`  Day ${u.day}: ${t(ev.title || u.eid)}`, 'system');
+    }
+  }
+}
+
 function matchesNpcCondition(c) {
   if (!c) return true;
   if (c.type === 'has_flag') return player.flags.has(c.flag);
@@ -10514,6 +10774,7 @@ function help() {
     T('                 (daily quests auto-rotate at dawn — turn in before dawn or they expire)'),
     T('Storage:         place chest · chest · store [<n>] <x> · retrieve [<n>] <x>  (also "store all" / "retrieve all")'),
     T('Bestiary:        bestiary  (list creatures the story defines, with kill counts)'),
+    T('World news:      news  (active world events + their progress)'),
     T('Bounties:        bounties · bounty post <entity> <gold> · bounty claim <id> · bounty cancel <id>'),
     T('Market:          sell <item>          (direct sale, instant gold)'),
     T('                 sell <qty> <item>    (batch sell at base value)'),
@@ -10620,6 +10881,7 @@ function handleCommand(input) {
     case 'bounty':               bountyCommand(argRaw); consumesTurn = false; break;
     case 'bounties':             showBounties(); consumesTurn = false; break;
     case 'bestiary':             showBestiary(); consumesTurn = false; break;
+    case 'news': case 'worldevents': showNews(); consumesTurn = false; break;
     case 'assist': case 'help_attack': assist(argRaw); break;
     case 'eat':                  eat(arg); break;
     case 'drink':                drink(arg); break;
@@ -10737,7 +10999,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.28 ===`, 'title');
+write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.29 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
