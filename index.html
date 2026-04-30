@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>The Whispering Forest — a text adventure on Nostr</title>
-<meta name="description" content="A persistent, multiplayer text adventure played in your browser. Your character lives on a Nostr key — bring it anywhere.">
+<title>Taleforge — shared text adventures on Nostr</title>
+<meta name="description" content="A platform of persistent, multiplayer text adventures. Pick a world, or build your own. Your character lives on a Nostr key — bring it anywhere.">
 <meta name="theme-color" content="#0c0e10">
 <style>
   :root {
@@ -191,13 +191,13 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>The Whispering Forest<span class="sub">A text adventure on Nostr</span></h1>
-    <p class="tag">developed by AWB_ 🇨🇭</p>
+    <h1>Taleforge<span class="sub">Shared text adventures on Nostr</span></h1>
+    <p class="tag">awb_🇨🇭 · 2026</p>
   </header>
 
   <section class="intro">
-    <p>You wake on the edge of a forgotten forest. There is a village nearby, and a path that leads deeper in. Wolves haunt the riverbank. A blacksmith hammers in the dark.</p>
-    <p>Type commands. Walk between rooms. Hunt, craft, learn skills, solve riddles, leave marks for strangers to find. <span class="spark">Your character lives on a Nostr key</span> — write it down and you can return on any device, anywhere.</p>
+    <p>A small forge of original worlds, all sharing one engine and one identity layer. Walk through forests where other players have left marks. Hunt, craft, learn skills, solve riddles. Pick a tale, or write your own.</p>
+    <p>Type commands. Walk between rooms. Trade with strangers, fight beside them, or leave them mysteries to find. <span class="spark">Your character lives on a Nostr key</span> — write it down and you can return on any device, anywhere.</p>
   </section>
 
   <div class="play-cta">
@@ -207,15 +207,17 @@
   <section class="features">
     <h2>What it is</h2>
     <ul>
-      <li>A persistent, asynchronous, multiplayer text adventure — played in your browser, no install.</li>
+      <li>A platform of persistent, asynchronous, multiplayer text adventures — played in your browser, no install.</li>
+      <li>Multiple worlds ready to explore: bundled stories ship in the engine, more are discoverable over Nostr.</li>
       <li>Other players share your world. You may pass them in the woods, or join their fights.</li>
-      <li>20 rooms, 20 skills, 16 quests, 10 riddles, 9 entities to hunt, daily quests that rotate at dawn.</li>
+      <li>Each story is its own world with its own character — switch between them any time, your keys stay yours.</li>
       <li>No accounts, no email. Your character is a Nostr keypair — own it, bring it anywhere.</li>
       <li>Works offline once loaded. Your moves queue and sync when you're back online.</li>
+      <li>Build your own world with the Story Builder — author rooms, NPCs, quests, riddles, then publish to the marketplace.</li>
     </ul>
   </section>
 
-  <div class="preview"><span class="title-line">=== The Whispering Forest — Nostr PoC ===</span>
+  <div class="preview"><span class="title-line">=== Taleforge — text adventures on Nostr ===</span>
 === WELCOME, TRAVELER ===
 This is a shared, persistent world. Other players may pass through your room.
 
@@ -229,11 +231,11 @@ Exits: north, south.
 <span class="echo">&gt; north</span></div>
 
   <div class="nostr-note">
-    <strong>What is Nostr?</strong> A decentralized, signed-event protocol — like email for cryptographic identities. The game uses it as a transport: every action you take is a signed event broadcast over public relays, so other players see you, and your character is portable. You don't need to know anything about Nostr to play. Just save your nsec.
+    <strong>What is Nostr?</strong> A decentralized, signed-event protocol — like email for cryptographic identities. Taleforge uses it as a transport: every action you take is a signed event broadcast over public relays, so other players see you, your character is portable, and stories can be published without any central server. You don't need to know anything about Nostr to play. Just save your nsec.
   </div>
 
   <footer>
-    Built as a proof of concept. <a href="game.html">Play the game</a>.
+    Built as a proof of concept. <a href="game.html">Play</a> · <a href="story-builder.html">Build your own</a>.
   </footer>
 </div>
 </body>
