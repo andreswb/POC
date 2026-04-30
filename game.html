@@ -4898,15 +4898,7 @@ function showStoryPicker(currentId = null) {
       <div style="font-size:20px;font-weight:bold;margin-bottom:6px;">Pick a story</div>
       <div style="color:#9c9388;font-size:13px;margin-bottom:16px;">Each story is its own world with its own character. You can switch any time with the <code>switch story</code> command.</div>
       <div id="story-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;"></div>
-      <div style="border-top:1px solid #3a352e;padding-top:16px;">
-        <div style="font-weight:bold;margin-bottom:8px;font-size:14px;">Or load your own</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button id="btn-paste" style="padding:8px 14px;background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;cursor:pointer;">Paste JSON</button>
-          <button id="btn-upload" style="padding:8px 14px;background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;cursor:pointer;">Upload .json file</button>
-          <input type="file" id="file-input" accept=".json,application/json" style="display:none;" />
-        </div>
-        <div id="picker-msg" style="margin-top:10px;color:#f0b54a;font-size:13px;min-height:16px;"></div>
-      </div>
+      <div id="picker-msg" style="margin-top:10px;color:#f0b54a;font-size:13px;min-height:16px;"></div>
     `;
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
@@ -5041,40 +5033,10 @@ function showStoryPicker(currentId = null) {
     }
     renderList();
 
+    // msgEl is used by the marketplace fetch flow above (paid-story import,
+    // free-story import). The "paste / upload your own JSON" entry points
+    // were removed in favor of curated-only sources (built-in + marketplace).
     const msgEl = panel.querySelector('#picker-msg');
-    panel.querySelector('#btn-paste').onclick = () => {
-      const raw = prompt('Paste the story JSON:');
-      if (!raw) return;
-      try {
-        const obj = JSON.parse(raw);
-        const err = validateStoryShape(obj);
-        if (err) { msgEl.textContent = 'Story rejected: ' + err; return; }
-        const id = saveCustomStory(obj);
-        msgEl.textContent = `Added "${obj.meta.title}". Click it below to play.`;
-        renderList();
-      } catch (e) {
-        msgEl.textContent = 'Could not parse JSON: ' + e.message;
-      }
-    };
-    panel.querySelector('#btn-upload').onclick = () => panel.querySelector('#file-input').click();
-    panel.querySelector('#file-input').onchange = (ev) => {
-      const file = ev.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const obj = JSON.parse(reader.result);
-          const err = validateStoryShape(obj);
-          if (err) { msgEl.textContent = 'Story rejected: ' + err; return; }
-          const id = saveCustomStory(obj);
-          msgEl.textContent = `Added "${obj.meta.title}". Click it below to play.`;
-          renderList();
-        } catch (e) {
-          msgEl.textContent = 'Could not load file: ' + e.message;
-        }
-      };
-      reader.readAsText(file);
-    };
   });
 }
 
