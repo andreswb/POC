@@ -5,7 +5,7 @@
     "title": "The Hollow Forest",
     "author": "AWB_",
     "author_pubkey": null,
-    "version": "1.0.1",
+    "version": "1.0.2",
     "created_at": "2026-04-30T00:00:00Z",
     "language": "en",
     "languages": [
@@ -691,7 +691,7 @@
     "raw_meat": {
       "display": "raw meat",
       "article": "some",
-      "description": "Stringy, dark, cooling fast. Best cured before it turns.",
+      "description": "Stringy, dark, cooling fast. Better than nothing — barely. Best eaten before it turns.",
       "value": 3,
       "weight": 0.5,
       "tags": [
@@ -701,7 +701,11 @@
       "category": "resource",
       "stackable": true,
       "decay_turns": 50,
-      "image": "🥩"
+      "image": "🥩",
+      "effects": {
+        "restore_life": 4
+      },
+      "consumable_action": "eat"
     },
     "wood": {
       "display": "wood",
