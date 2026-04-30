@@ -4901,6 +4901,8 @@ const KIND_GIFT_DECLINE = 30430;
 const KIND_HEAL         = 30431;
 const KIND_CARVE        = 30432;  // 4.11: persistent player marks tagged to a room
 const KIND_COMBAT       = 30435;  // 4.5: shared combat sessions (open/damage/end phases)
+const KIND_BOUNTY       = 30437;  // 5.11: bounty post — gold reward on entity kills
+const KIND_BOUNTY_CLAIM = 30438;  // 5.11: bounty claim — first-to-claim wins
 const TOPIC = 'story:' + STORY.meta.id;
 const FIRE_DURATION_TURNS = 20;
 
@@ -5030,7 +5032,10 @@ const player = {
   profile_id: null,            // 5.6: chosen character profile (race/class) if story defines meta.character_profiles
   dialog_session: null,        // 5.6: { npc_id, node_id } when in a branching-dialog conversation
   transformed: null,           // 5.9: 'wolf' | 'bat' | null — current shape if cursed
-  transformed_at_day: 0        // 5.9: in-game day when transformation started (for dawn auto-revert)
+  transformed_at_day: 0,       // 5.9: in-game day when transformation started (for dawn auto-revert)
+  renown: 0,                   // 5.11: cumulative reputation; affects merchant prices, NPC dialogue tone, world-feed star rating
+  recent_kills: [],            // 5.11: last 10 entries [{ entity, turn }] — used to verify bounty claims
+  bounty_claims: new Set()     // 5.11: bounty ids the player has already claimed locally (prevents double-claim)
 };
 
 // ---- i18n helpers (5.3) ---------------------------------------------------
@@ -5684,6 +5689,7 @@ const looted = new Map();
 const notices = new Map();   // notice_id -> { roomId, author, name, text, posted_at }
 const carvings = new Map();  // carving_id -> { roomId, author, name, title, text, posted_at }
 const dmInbox = [];          // received DMs (most recent first), { from_pubkey, from_name, text, received_at }
+const bounties = new Map();  // 5.11: bounty_id -> { entity, gold, poster_pubkey, poster_name, posted_at, expires_at, claimed_by? }
 
 // ============================================================
 //  LOGIN STREAKS + TITLES (4.8)
@@ -5707,6 +5713,194 @@ function streakTitle(n) {
   if (n >= 7)   return 'the Persistent';
   if (n >= 3)   return 'the Returning';
   return null;
+}
+// 5.11: renown / reputation. Lifetime accumulating points; controls merchant
+// pricing and dialog tone via the renown_gte condition. Star tiers are also
+// sent in action broadcasts so other players see "Andres ★★★ killed a wolf".
+const RENOWN_GAINS = {
+  kill: 1,             // any hostile entity
+  kill_unique: 5,      // entity with `unique` tag (boss-tier)
+  riddle: 5,
+  quest: 10,
+  sale: 1,             // direct sale to NPC OR marketplace listing purchased
+  bounty_claim: 5
+};
+function renownTier(r) {
+  if (r >= 300) return { stars: 5, label: 'Legendary' };
+  if (r >= 150) return { stars: 4, label: 'Famed' };
+  if (r >= 70)  return { stars: 3, label: 'Renowned' };
+  if (r >= 30)  return { stars: 2, label: 'Recognized' };
+  if (r >= 10)  return { stars: 1, label: 'Known' };
+  return { stars: 0, label: 'Unknown' };
+}
+function renownStars(r) {
+  const n = renownTier(r ?? player.renown).stars;
+  return n > 0 ? '★'.repeat(n) : '';
+}
+function gainRenown(kind, qty) {
+  const before = player.renown;
+  const amount = qty != null ? qty : (RENOWN_GAINS[kind] || 0);
+  if (amount <= 0) return;
+  player.renown = before + amount;
+  const beforeTier = renownTier(before);
+  const afterTier = renownTier(player.renown);
+  if (afterTier.stars > beforeTier.stars) {
+    write(T('>>> Your reputation grows: now {0} ({1}).', afterTier.label, '★'.repeat(afterTier.stars)), 'spark');
+  }
+}
+// ============================================================
+//  BOUNTY SYSTEM (5.11)
+// ============================================================
+// Players post bounties on hostile entities, escrowing gold up front and
+// broadcasting a kind-30437 event over Nostr. Anyone in the world who kills
+// the targeted entity within the bounty's expiry window can claim it (first
+// kind-30438 by created_at wins). The poster's gold is gone the moment they
+// post — failed bounties auto-refund on expiry.
+const BOUNTY_EXPIRY_SEC = 7 * 24 * 3600;   // bounties live 7 days
+const BOUNTY_KILL_WINDOW_TURNS = 200;       // a kill counts toward a bounty if it was within the last 200 turns
+
+function freshBountiesForEntity(entityId) {
+  const now = Math.floor(Date.now() / 1000);
+  const out = [];
+  for (const [bid, b] of bounties) {
+    if (b.entity !== entityId) continue;
+    if (b.claimed_by) continue;
+    if (b.expires_at && b.expires_at < now) continue;
+    out.push({ bid, ...b });
+  }
+  return out.sort((a, b) => b.gold - a.gold);
+}
+
+function notifyBountyClaimable(entityId) {
+  const fresh = freshBountiesForEntity(entityId);
+  if (fresh.length === 0) return;
+  for (const b of fresh) {
+    if (player.bounty_claims.has(b.bid)) continue;
+    write(T('>>> Bounty available: {0} gold for the {1} ({2}). Type "bounty claim {3}" to collect.',
+      b.gold, STORY.entities[entityId]?.display || entityId, b.poster_name || '?', b.bid.slice(0, 8)), 'spark');
+  }
+}
+
+async function publishBounty(bountyId, payload) {
+  const evt = finalizeEvent({
+    kind: KIND_BOUNTY, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['bounty', bountyId], ['entity', payload.entity], ['d', `bounty:${bountyId}`]],
+    content: JSON.stringify({ ...payload, poster_name: player.name })
+  }, sk);
+  tryPublish(evt);
+  return evt;
+}
+async function publishBountyClaim(bountyId, entityId) {
+  const evt = finalizeEvent({
+    kind: KIND_BOUNTY_CLAIM, created_at: Math.floor(Date.now() / 1000),
+    tags: [['t', TOPIC], ['bounty', bountyId], ['entity', entityId]],
+    content: JSON.stringify({ claimer: pk, claimer_name: player.name, entity: entityId })
+  }, sk);
+  tryPublish(evt);
+  return evt;
+}
+
+function bountyCommand(argRaw) {
+  const args = (argRaw || '').trim().split(/\s+/).filter(Boolean);
+  const sub = (args[0] || '').toLowerCase();
+  if (!sub || sub === 'list') return showBounties();
+  if (sub === 'post')   return bountyPost(args.slice(1));
+  if (sub === 'claim')  return bountyClaim(args[1]);
+  if (sub === 'cancel') return bountyCancel(args[1]);
+  write('Usage: bounty list / bounty post <entity> <gold> / bounty claim <id> / bounty cancel <id>', 'error');
+}
+
+function showBounties() {
+  const now = Math.floor(Date.now() / 1000);
+  const active = [];
+  for (const [bid, b] of bounties) {
+    if (b.claimed_by) continue;
+    if (b.expires_at && b.expires_at < now) continue;
+    active.push({ bid, ...b });
+  }
+  if (active.length === 0) { write('No active bounties.', 'system'); return; }
+  active.sort((a, b) => b.gold - a.gold);
+  write(`-- Active bounties (${active.length}) --`, 'system');
+  for (const b of active) {
+    const ent = STORY.entities[b.entity];
+    const remHrs = Math.max(0, Math.round(((b.expires_at || 0) - now) / 3600));
+    const mine = b.poster_pubkey === pk ? '  (yours)' : '';
+    write(`  [${b.bid.slice(0, 8)}]  ${b.gold}g for ${ent?.display || b.entity}  by ${b.poster_name || '?'} · ${remHrs}h left${mine}`, 'gold');
+  }
+  write('Use: bounty post <entity> <gold> · bounty claim <id> · bounty cancel <id>', 'system');
+}
+
+function bountyPost(args) {
+  if (combatBlock('bounty post')) return;
+  if (transformBlock('bounty post')) return;
+  if (!args[0] || !args[1]) { write('Usage: bounty post <entity> <gold>', 'error'); return; }
+  const entityId = args[0].toLowerCase();
+  const gold = parseInt(args[1], 10);
+  if (!STORY.entities[entityId]) { write(`No such entity "${entityId}". See "bestiary" or watch the world.`, 'error'); return; }
+  if (!STORY.entities[entityId].hostile) { write(`Bounties are for hostile entities only.`, 'error'); return; }
+  if (!Number.isInteger(gold) || gold < 1) { write('Gold amount must be ≥ 1.', 'error'); return; }
+  if (player.gold < gold) { write(`Not enough gold (need ${gold}, have ${player.gold}).`, 'error'); return; }
+  player.gold -= gold;
+  const bountyId = uuid();
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    entity: entityId,
+    gold,
+    poster_pubkey: pk,
+    posted_at: now,
+    expires_at: now + BOUNTY_EXPIRY_SEC
+  };
+  bounties.set(bountyId, { ...payload, poster_name: player.name });
+  write(`📜 You post a ${gold}g bounty on the ${STORY.entities[entityId].display}. (Expires in 7 days. Gold escrowed.)`, 'success');
+  publishBounty(bountyId, payload);
+  refreshSidebar();
+}
+
+function bountyClaim(idPrefix) {
+  if (combatBlock('bounty claim')) return;
+  if (transformBlock('bounty claim')) return;
+  if (!idPrefix) { write('Usage: bounty claim <id>', 'error'); return; }
+  // Resolve prefix → full id
+  let bid = null;
+  for (const id of bounties.keys()) {
+    if (id === idPrefix || id.startsWith(idPrefix)) { bid = id; break; }
+  }
+  if (!bid) { write(`No bounty matching "${idPrefix}". Type "bounties".`, 'error'); return; }
+  const b = bounties.get(bid);
+  if (b.claimed_by) { write('That bounty was already claimed.', 'error'); return; }
+  if (player.bounty_claims.has(bid)) { write('You already claimed that bounty.', 'error'); return; }
+  const now = Math.floor(Date.now() / 1000);
+  if (b.expires_at && b.expires_at < now) { write('That bounty has expired.', 'error'); return; }
+  // Verify the player has a recent kill on the bounty's entity
+  const recent = (player.recent_kills || []).slice().reverse();
+  const matchingKill = recent.find(k => k.entity === b.entity && (player.turn - k.turn) <= BOUNTY_KILL_WINDOW_TURNS);
+  if (!matchingKill) {
+    write(`You have no recent kill of ${STORY.entities[b.entity]?.display || b.entity}. The bounty wants proof.`, 'error'); return;
+  }
+  // Optimistic local: mark claimed, gain gold, broadcast
+  b.claimed_by = pk;
+  player.bounty_claims.add(bid);
+  player.gold += b.gold;
+  player.stats.gold_earned += b.gold;
+  gainRenown('bounty_claim');
+  write(`💰 You claim the ${b.gold}g bounty on the ${STORY.entities[b.entity].display}. (+${RENOWN_GAINS.bounty_claim} renown)`, 'spark');
+  publishBountyClaim(bid, b.entity);
+  refreshSidebar();
+}
+
+function bountyCancel(idPrefix) {
+  if (!idPrefix) { write('Usage: bounty cancel <id>', 'error'); return; }
+  let bid = null;
+  for (const id of bounties.keys()) if (id === idPrefix || id.startsWith(idPrefix)) { bid = id; break; }
+  if (!bid) { write(`No bounty matching "${idPrefix}".`, 'error'); return; }
+  const b = bounties.get(bid);
+  if (b.poster_pubkey !== pk) { write('You can only cancel your own bounties.', 'error'); return; }
+  if (b.claimed_by) { write('That bounty was already claimed — too late.', 'error'); return; }
+  // Refund and remove (locally; the relay still has the post event but no claim will succeed since we won't process it)
+  player.gold += b.gold;
+  bounties.delete(bid);
+  write(`Bounty cancelled. ${b.gold} gold refunded.`, 'system');
+  refreshSidebar();
 }
 function playerTitle() {
   return streakTitle(player.login_streak);
@@ -5781,6 +5975,9 @@ function serializeState() {
     profile_id: player.profile_id || null,
     transformed: player.transformed || null,
     transformed_at_day: player.transformed_at_day || 0,
+    renown: player.renown || 0,
+    recent_kills: [...(player.recent_kills || [])].slice(-10),
+    bounty_claims: [...(player.bounty_claims || [])],
     freshness: Object.fromEntries(Object.entries(player.freshness || {}).map(([k, batches]) => [k, batches.map(b => ({ turn: b.turn, qty: b.qty }))])),
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
@@ -5838,6 +6035,10 @@ function applyState(s) {
   // 5.9: re-establish flags after restore so content gates work immediately
   if (player.transformed === 'wolf') player.flags.add('is_wolf');
   else if (player.transformed === 'bat') player.flags.add('is_bat');
+  // 5.11: renown / bounty state
+  player.renown = s.renown || 0;
+  player.recent_kills = Array.isArray(s.recent_kills) ? [...s.recent_kills] : [];
+  player.bounty_claims = new Set(s.bounty_claims || []);
   player.freshness = {};
   for (const [k, batches] of Object.entries(s.freshness || {})) {
     if (Array.isArray(batches)) player.freshness[k] = batches.map(b => ({ turn: b.turn, qty: b.qty }));
@@ -6174,7 +6375,7 @@ async function publishAction(actionType, payload) {
   const evt = finalizeEvent({
     kind: KIND_ACTION, created_at: Math.floor(Date.now() / 1000),
     tags: [['t', TOPIC], ['action', actionType], ['d', `${actionType}-${Date.now()}`]],
-    content: JSON.stringify({ ...payload, name: player.name, title: playerTitle(), profile: player.profile_id || undefined })
+    content: JSON.stringify({ ...payload, name: player.name, title: playerTitle(), profile: player.profile_id || undefined, renown: renownTier(player.renown).stars || undefined })
   }, sk);
   addToFeed('myEvents', `${actionType}: ${formatActionSummary(actionType, payload)}`, evt.id.slice(0, 8));
   tryPublish(evt);
@@ -6335,7 +6536,8 @@ function subscribe() {
     { kinds: [KIND_CARVE],    '#t': [TOPIC] },  // carvings are forever (no since filter)
     { kinds: [KIND_COMBAT],   '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 600 }, // 4.5: short window — combats are ephemeral
     { kinds: [KIND_DM],       '#p': [pk],    since: Math.floor(Date.now() / 1000) - 7 * 24 * 3600 },
-    { kinds: [KIND_GIFT_OFFER, KIND_GIFT_ACCEPT, KIND_GIFT_DECLINE, KIND_HEAL], '#p': [pk], since: Math.floor(Date.now() / 1000) - 7 * 24 * 3600 }
+    { kinds: [KIND_GIFT_OFFER, KIND_GIFT_ACCEPT, KIND_GIFT_DECLINE, KIND_HEAL], '#p': [pk], since: Math.floor(Date.now() / 1000) - 7 * 24 * 3600 },
+    { kinds: [KIND_BOUNTY, KIND_BOUNTY_CLAIM], '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - BOUNTY_EXPIRY_SEC }
   ], {
     onevent(event) {
       if (event.pubkey === pk && event.kind === KIND_ACTION) return;
@@ -6352,8 +6554,59 @@ function subscribe() {
       if (event.kind === KIND_GIFT_ACCEPT)  handleRemoteGiftAccept(event);
       if (event.kind === KIND_GIFT_DECLINE) handleRemoteGiftDecline(event);
       if (event.kind === KIND_HEAL)         handleRemoteHeal(event);
+      if (event.kind === KIND_BOUNTY)       handleRemoteBounty(event);
+      if (event.kind === KIND_BOUNTY_CLAIM) handleRemoteBountyClaim(event);
     }
   });
+}
+
+// 5.11: bounty event handlers
+function handleRemoteBounty(event) {
+  const bid = event.tags.find(t => t[0] === 'bounty')?.[1];
+  if (!bid) return;
+  if (bounties.has(bid)) return;  // already known
+  let p = {}; try { p = JSON.parse(event.content); } catch { return; }
+  if (!p.entity || !p.gold) return;
+  bounties.set(bid, {
+    entity: p.entity,
+    gold: p.gold,
+    poster_pubkey: p.poster_pubkey || event.pubkey,
+    poster_name: p.poster_name || (event.pubkey?.slice(0, 8) + '…'),
+    posted_at: p.posted_at || event.created_at,
+    expires_at: p.expires_at || (event.created_at + BOUNTY_EXPIRY_SEC),
+    claimed_by: null
+  });
+  // Optional flavor: announce a fresh bounty if it's not ours
+  if (event.pubkey !== pk) {
+    write(`📜 [bounty board] ${p.poster_name || '?'} posts ${p.gold}g for ${STORY.entities[p.entity]?.display || p.entity}.`, 'gold');
+  }
+}
+function handleRemoteBountyClaim(event) {
+  const bid = event.tags.find(t => t[0] === 'bounty')?.[1];
+  if (!bid) return;
+  const b = bounties.get(bid);
+  if (!b) return;
+  // Earliest claim wins. If we already claimed locally and we're not the
+  // earliest, roll back: refund our gold and mark this bounty as claimed by them.
+  if (b.claimed_by && b.claimed_by === pk && event.pubkey !== pk) {
+    // Rolling back: another claim arrived earlier
+    let other = {}; try { other = JSON.parse(event.content); } catch {}
+    if (event.created_at < (b.claim_event_created_at || Infinity)) {
+      player.gold = Math.max(0, player.gold - b.gold);
+      player.bounty_claims.delete(bid);
+      write(`⚠ Bounty ${bid.slice(0, 8)} was claimed by ${other.claimer_name || event.pubkey.slice(0, 8)} before your claim landed. ${b.gold} gold rolled back.`, 'error');
+      b.claimed_by = event.pubkey;
+      b.claim_event_created_at = event.created_at;
+    }
+    return;
+  }
+  if (b.claimed_by) return;  // already settled
+  b.claimed_by = event.pubkey;
+  b.claim_event_created_at = event.created_at;
+  if (b.poster_pubkey === pk && event.pubkey !== pk) {
+    let other = {}; try { other = JSON.parse(event.content); } catch {}
+    write(`📜 ${other.claimer_name || event.pubkey.slice(0, 8)} claimed your ${b.gold}g bounty on the ${STORY.entities[b.entity]?.display || b.entity}.`, 'system');
+  }
 }
 
 function handleRemoteGiftOffer(event) {
@@ -7665,6 +7918,7 @@ function answer(text) {
     player.sparks += r.reward_sparks;
     player.stats.sparks_earned += r.reward_sparks;
     player.stats.riddles_solved++;
+    gainRenown('riddle');  // 5.11
     write(r.on_solve_message, 'success');
     write(`(+${r.reward_sparks} sparks)`, 'spark');
     fireEvents('on_riddle_solve', { riddle: room.riddle });
@@ -7935,6 +8189,14 @@ function attack() {
     for (const ps of Object.values(player.quests)) {
       if (ps.state === 'active') ps.kills[t.id] = (ps.kills[t.id] || 0) + 1;
     }
+    // 5.11: renown gain — bigger reward for unique/boss-tier kills
+    const isUnique = (STORY.entities[t.id]?.tags || []).includes('unique');
+    gainRenown(isUnique ? 'kill_unique' : 'kill');
+    // 5.11: track recent kills (last 10) so the player can claim bounties on them
+    player.recent_kills.push({ entity: t.id, turn: player.turn });
+    if (player.recent_kills.length > 10) player.recent_kills.shift();
+    // 5.11: any active bounty on this entity? Prompt the player to claim.
+    notifyBountyClaimable(t.id);
     // Trigger any on_kill events
     fireEvents('on_kill', { entity: t.id });
     player.combat_target = null;
@@ -8286,6 +8548,7 @@ function turnInQuest(qid) {
   }
   ps.state = 'completed';
   player.stats.quests_completed++;
+  gainRenown('quest');  // 5.11
   // If this was a daily quest, increment the lifetime daily counter and clear the active slot.
   // The state stays in player.quests as 'completed' so it's visible in stats; advanceDailyQuest
   // tomorrow will replace it via the pool rotation, not delete this completed record.
@@ -8345,6 +8608,9 @@ function checkEventConditions(evt) {
     if (c.type === 'kills_gte'   && (player.stats.kills[c.entity] || 0) < c.qty) return false;
     if (c.type === 'day_gte'     && (Math.floor(player.turn / (STORY.meta.turns_per_day || 96)) + 1) < c.qty) return false;
     if (c.type === 'quests_completed_gte' && Object.values(player.quests).filter(q => q.state === 'completed').length < c.qty) return false;
+    // 5.11: renown-gated event firing
+    if (c.type === 'renown_gte' && (player.renown || 0) < (c.qty || 0)) return false;
+    if (c.type === 'renown_lt'  && (player.renown || 0) >= (c.qty || 0)) return false;
     // 5.5: per-recipe craft counter (e.g. "20× cure_meat → master_curer")
     if (c.type === 'crafts_of_gte') {
       const n = (player.stats.crafts_per_recipe && player.stats.crafts_per_recipe[c.recipe]) || 0;
@@ -8443,6 +8709,9 @@ function matchesNpcCondition(c) {
   if (c.type === 'quest_active') return player.quests[c.quest]?.state === 'active';
   if (c.type === 'has_skill') return player.skills.has(c.skill);
   if (c.type === 'has_item') return player.inventory.includes(c.item) || (player.materials[c.item] || 0) >= (c.qty || 1);
+  // 5.11: reputation-gated dialog
+  if (c.type === 'renown_gte') return (player.renown || 0) >= (c.qty || 0);
+  if (c.type === 'renown_lt')  return (player.renown || 0) <  (c.qty || 0);
   return true;
 }
 
@@ -8605,7 +8874,9 @@ function showStats() {
   const day = Math.floor(player.turn / (STORY.meta.turns_per_day || 96)) + 1;
   write('-- Stats --', 'system');
   const ttl = playerTitle();
-  write(`  ${player.name || '—'}${ttl ? ' ' + ttl : ''}`);
+  const tier = renownTier(player.renown);
+  write(`  ${player.name || '—'}${ttl ? ' ' + ttl : ''}${tier.stars ? ' ' + '★'.repeat(tier.stars) : ''}`);
+  write(`  Renown: ${player.renown} (${tier.label})`);
   write(`  Login streak: ${player.login_streak} day${player.login_streak === 1 ? '' : 's'} (lifetime logins: ${player.total_logins})`);
   write(`  Day ${day} · Turn ${player.turn}`);
   write(`  Total kills: ${totalKills()}`);
@@ -9317,13 +9588,20 @@ async function buy(arg) {
   const listings = getActiveListings(merchantId);
   const listing = listings[idx];
   if (!listing) { write('No such listing.', 'error'); return; }
-  if (player.gold < listing.price_gold) { write(`Not enough gold (need ${listing.price_gold}).`, 'error'); return; }
+  // 5.11: renown discount — house listings only (player listings ignore renown).
+  // -2%/star up to -10%. Floor to integer.
+  const stars = renownTier(player.renown).stars;
+  const isHouse = listing.source === 'system';
+  const discount = isHouse ? Math.floor(listing.price_gold * (0.02 * stars)) : 0;
+  const finalPrice = Math.max(0, listing.price_gold - discount);
+  if (player.gold < finalPrice) { write(`Not enough gold (need ${finalPrice}).`, 'error'); return; }
   if (listing.seller_pubkey === pk) { write("You can't buy your own listing.", 'error'); return; }
   if (!canCarry(listing.item, listing.qty)) { write(`Too heavy. ${itemDisplay(listing.item)} weighs ${(STORY.items[listing.item]?.weight ?? 1) * listing.qty}; you have ${computeMaxCapacity() - computeWeight()} room.`, 'error'); return; }
-  player.gold -= listing.price_gold;
+  player.gold -= finalPrice;
   addItem(listing.item, listing.qty);
-  marketplace.purchased.set(listing.id, { buyer_pubkey: pk, paid_gold: listing.price_gold, purchased_at: Math.floor(Date.now() / 1000) });
-  write(`You buy ${itemDisplay(listing.item, true)} for ${listing.price_gold} gold.`, 'success');
+  marketplace.purchased.set(listing.id, { buyer_pubkey: pk, paid_gold: finalPrice, purchased_at: Math.floor(Date.now() / 1000) });
+  if (discount > 0) write(`You buy ${itemDisplay(listing.item, true)} for ${finalPrice} gold (${listing.price_gold} - ${discount} reputation discount).`, 'success');
+  else write(`You buy ${itemDisplay(listing.item, true)} for ${finalPrice} gold.`, 'success');
   if (listing.source !== 'system') await publishPurchase(listing.id, listing);
 }
 
@@ -9405,10 +9683,15 @@ async function sell(args) {
     sold++;
   }
   const total = value * sold;
-  player.gold += total;
-  player.stats.gold_earned += total;
-  if (sold === 1) write(`${STORY.npcs[buyer].display} takes ${itemDisplay(itemId, true)} for ${total} gold.`, 'success');
-  else write(`${STORY.npcs[buyer].display} takes ${sold}× ${itemDisplay(itemId)} for ${total} gold (${value} each).`, 'success');
+  // 5.11: renown markup on direct sale — +5%/star up to +25%
+  const stars = renownTier(player.renown).stars;
+  const markup = total * (0.05 * stars);
+  const adjusted = total + Math.floor(markup);
+  player.gold += adjusted;
+  player.stats.gold_earned += adjusted;
+  if (stars > 0 && markup > 0) gainRenown('sale');
+  if (sold === 1) write(`${STORY.npcs[buyer].display} takes ${itemDisplay(itemId, true)} for ${adjusted} gold${stars ? ` (${total} + ${Math.floor(markup)} reputation)` : ''}.`, 'success');
+  else write(`${STORY.npcs[buyer].display} takes ${sold}× ${itemDisplay(itemId)} for ${adjusted} gold (${value} each${stars ? `, +${Math.floor(markup)} reputation` : ''}).`, 'success');
 }
 
 function showListings() {
@@ -10127,6 +10410,7 @@ function help() {
     T('                 accept <id> · turn in <id>'),
     T('                 (daily quests auto-rotate at dawn — turn in before dawn or they expire)'),
     T('Storage:         place chest · chest · store [<n>] <x> · retrieve [<n>] <x>  (also "store all" / "retrieve all")'),
+    T('Bounties:        bounties · bounty post <entity> <gold> · bounty claim <id> · bounty cancel <id>'),
     T('Market:          sell <item>          (direct sale, instant gold)'),
     T('                 sell <qty> <item>    (batch sell at base value)'),
     T('                 sell <item> <price>  (list on player marketplace)'),
@@ -10229,6 +10513,8 @@ function handleCommand(input) {
     case 'retreat':              retreat(); break;
     case 'transform':            transformCommand(argRaw); break;
     case 'revert':               revertCommand(); break;
+    case 'bounty':               bountyCommand(argRaw); consumesTurn = false; break;
+    case 'bounties':             showBounties(); consumesTurn = false; break;
     case 'assist': case 'help_attack': assist(argRaw); break;
     case 'eat':                  eat(arg); break;
     case 'drink':                drink(arg); break;
@@ -10346,7 +10632,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.27 ===`, 'title');
+write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.28 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
