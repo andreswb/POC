@@ -241,7 +241,7 @@ const STORY_WHISPERING_FOREST = {
     "title": "The Whispering Forest",
     "author": "Andres",
     "author_pubkey": null,
-    "version": "1.14.0",
+    "version": "1.14.1",
     "created_at": "2026-04-28T00:00:00Z",
     "language": "en",
     "tone": "eerie, sensory, hopeful undertones; never explain too much; favor sound and texture over exposition",
@@ -2208,6 +2208,20 @@ const STORY_WHISPERING_FOREST = {
           "price_gold": 12,
           "qty": 2
         }
+      ],
+      "conditional_dialogue": [
+        {
+          "if": [
+            {
+              "type": "renown_gte",
+              "qty": 70
+            }
+          ],
+          "lines": [
+            "I have heard your name in the village. They say you walk where the wolves do.",
+            "A reputation like yours buys honest prices here. Look at what I have."
+          ]
+        }
       ]
     },
     "village_blacksmith": {
@@ -2237,7 +2251,21 @@ const STORY_WHISPERING_FOREST = {
         "open": 7,
         "close": 19
       },
-      "initial_stock": []
+      "initial_stock": [],
+      "conditional_dialogue": [
+        {
+          "if": [
+            {
+              "type": "renown_gte",
+              "qty": 70
+            }
+          ],
+          "lines": [
+            "You're the one I've heard about. Bring me your blade — I'll sharpen it for half.",
+            "A famed customer is a steady one. Welcome."
+          ]
+        }
+      ]
     },
     "riverside_trader": {
       "display": "the riverside trader",
@@ -2299,6 +2327,20 @@ const STORY_WHISPERING_FOREST = {
           "price_gold": 12,
           "qty": 1
         }
+      ],
+      "conditional_dialogue": [
+        {
+          "if": [
+            {
+              "type": "renown_gte",
+              "qty": 30
+            }
+          ],
+          "lines": [
+            "Word travels along the river. You move well in the world.",
+            "I keep an eye for friends. Look at the rack — see what suits."
+          ]
+        }
       ]
     },
     "greycliffs_fletcher": {
@@ -2349,6 +2391,20 @@ const STORY_WHISPERING_FOREST = {
           "item": "feather",
           "price_gold": 5,
           "qty": 3
+        }
+      ],
+      "conditional_dialogue": [
+        {
+          "if": [
+            {
+              "type": "renown_gte",
+              "qty": 150
+            }
+          ],
+          "lines": [
+            "You. They sing about you in the lowlands. About the hills, sometimes too.",
+            "I sell to anyone with coin, but to you I sell with respect."
+          ]
         }
       ]
     },
@@ -2401,6 +2457,18 @@ const STORY_WHISPERING_FOREST = {
           "lines": [
             "Now there is a path I would have you walk. Up through the ruins, and higher.",
             "The mountain peak. It asks a question of every visitor. I would have you stand where it asks."
+          ]
+        },
+        {
+          "if": [
+            {
+              "type": "renown_gte",
+              "qty": 30
+            }
+          ],
+          "lines": [
+            "I have heard travelers speak of you. Few names rise out here. Yours has.",
+            "The peak knows your step now. So does the canyon."
           ]
         }
       ],
@@ -5808,6 +5876,41 @@ function bountyCommand(argRaw) {
   if (sub === 'claim')  return bountyClaim(args[1]);
   if (sub === 'cancel') return bountyCancel(args[1]);
   write('Usage: bounty list / bounty post <entity> <gold> / bounty claim <id> / bounty cancel <id>', 'error');
+}
+
+// 5.11: bestiary — list all hostile entities the story defines, with kill count.
+// Useful for browsing what to bounty-post, and for general world knowledge.
+function showBestiary() {
+  const ents = STORY.entities || {};
+  const ids = Object.keys(ents);
+  if (ids.length === 0) { write('No bestiary entries.', 'system'); return; }
+  // Hostiles first, then non-hostile (prey)
+  const hostiles = ids.filter(id => ents[id].hostile);
+  const others = ids.filter(id => !ents[id].hostile);
+  hostiles.sort((a, b) => (ents[b].hp || 0) - (ents[a].hp || 0));
+  others.sort();
+  function entLine(id) {
+    const e = ents[id];
+    const kills = player.stats.kills?.[id] || 0;
+    const tags = (e.tags || []).filter(t => t !== 'predator' && t !== 'prey').join(', ');
+    const tagStr = tags ? ` [${tags}]` : '';
+    const weakStr = e.weaknesses?.length ? ` weak: ${e.weaknesses.join('/')}` : '';
+    const resistStr = e.resistances?.length ? ` resists: ${e.resistances.join('/')}` : '';
+    const killStr = kills > 0 ? ` — ${kills} killed` : (e.tags?.includes('unique') ? ' — never seen' : '');
+    write(`  ${id}  —  ${t(e.display) || id}${tagStr}${weakStr}${resistStr}${killStr}`, kills > 0 ? 'success' : 'system');
+    const summary = t(e.summary);
+    if (summary) write(`    ${summary.slice(0, 140)}${summary.length > 140 ? '…' : ''}`, 'system');
+  }
+  if (hostiles.length) {
+    write('-- Bestiary: hostile creatures --', 'title');
+    write(`  HP-sorted; "killed" counts are this character\'s lifetime tally.`, 'system');
+    hostiles.forEach(entLine);
+  }
+  if (others.length) {
+    write('-- Bestiary: passive creatures --', 'system');
+    others.forEach(entLine);
+  }
+  write('Use "bounty post <entity_id> <gold>" to post a bounty on a hostile.', 'system');
 }
 
 function showBounties() {
@@ -10410,6 +10513,7 @@ function help() {
     T('                 accept <id> · turn in <id>'),
     T('                 (daily quests auto-rotate at dawn — turn in before dawn or they expire)'),
     T('Storage:         place chest · chest · store [<n>] <x> · retrieve [<n>] <x>  (also "store all" / "retrieve all")'),
+    T('Bestiary:        bestiary  (list creatures the story defines, with kill counts)'),
     T('Bounties:        bounties · bounty post <entity> <gold> · bounty claim <id> · bounty cancel <id>'),
     T('Market:          sell <item>          (direct sale, instant gold)'),
     T('                 sell <qty> <item>    (batch sell at base value)'),
@@ -10515,6 +10619,7 @@ function handleCommand(input) {
     case 'revert':               revertCommand(); break;
     case 'bounty':               bountyCommand(argRaw); consumesTurn = false; break;
     case 'bounties':             showBounties(); consumesTurn = false; break;
+    case 'bestiary':             showBestiary(); consumesTurn = false; break;
     case 'assist': case 'help_attack': assist(argRaw); break;
     case 'eat':                  eat(arg); break;
     case 'drink':                drink(arg); break;

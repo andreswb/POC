@@ -5,7 +5,7 @@
     "title": "The Hollow Forest",
     "author": "AWB_",
     "author_pubkey": null,
-    "version": "1.1.0",
+    "version": "1.1.1",
     "created_at": "2026-04-30T00:00:00Z",
     "language": "en",
     "languages": [
@@ -1415,6 +1415,18 @@
             "You should not be here. Not in the day. Not in this house.",
             "There is no cure for what you have done. Only mercy left, and not from me."
           ]
+        },
+        {
+          "if": [
+            {
+              "type": "renown_gte",
+              "qty": 30
+            }
+          ],
+          "lines": [
+            "I have heard the village speak of you. A name in the hollow forest is a rare thing.",
+            "Sit. You are welcome here as long as you carry no curse."
+          ]
         }
       ],
       "dialogue_trees": {
@@ -1829,7 +1841,21 @@
             }
           ]
         }
-      }
+      },
+      "conditional_dialogue": [
+        {
+          "if": [
+            {
+              "type": "renown_gte",
+              "qty": 70
+            }
+          ],
+          "lines": [
+            "They speak of you below, traveller. Even my bats carry the rumour up.",
+            "Few who climb to me have a name yet. You have one. Sit."
+          ]
+        }
+      ]
     },
     "the_hunter": {
       "display": "the hunter",
@@ -1843,7 +1869,8 @@
       "dialogue_seeds": [
         "Bring me pelts. Three buys you a fair coin.",
         "There's an old wolf at the heart of the wood. Older than the rest. She is what started it.",
-        "Walk careful by the lake at night. The tower hears."
+        "Walk careful by the lake at night. The tower hears.",
+        "Standing rewards: thirty gold for any pelt you bring me, more for the alpha. If you want to make it official — type 'bounty post werewolf 30' — and the village will know."
       ],
       "behaviors": [
         "buys_items",
