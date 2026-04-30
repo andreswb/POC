@@ -4591,9 +4591,39 @@ const STORY_WHISPERING_FOREST = {
 const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 
+// 5.9: extra stories fetched from same-origin URLs at boot, treated like
+// built-ins. Drop the JSON files next to the HTML on GitHub Pages (or any
+// HTTP host) and add the relative path here. Fetches fail silently on
+// file:// or 404, so dev-mode local-file usage still works.
+const EXTRA_STORY_URLS = ['./hollow-forest.json'];
+
 const BUILTIN_STORIES = {
   'whispering-forest-v1': STORY_WHISPERING_FOREST
 };
+
+// Async loader for EXTRA_STORY_URLS. Validates minimal shape before adding
+// to BUILTIN_STORIES so a malformed file can't break the picker.
+async function loadExtraStoriesIntoBuiltin() {
+  for (const url of EXTRA_STORY_URLS) {
+    try {
+      const res = await fetch(url, { cache: 'no-cache' });
+      if (!res.ok) continue;
+      const story = await res.json();
+      const id = story?.meta?.id;
+      const start = story?.meta?.starting_location;
+      if (!id || !story?.meta?.title || !start || !story?.rooms?.[start]) {
+        console.warn(`[extra-story] ${url}: missing meta.id / meta.title / starting_location — skipped`);
+        continue;
+      }
+      // Built-in wins if id collides. Custom-imported stories with same id
+      // are handled by the existing picker logic.
+      BUILTIN_STORIES[id] = story;
+    } catch (e) {
+      // Silent on file:// / CORS / network errors — these are expected in dev
+      // and the user can still import via the file picker.
+    }
+  }
+}
 
 function listAllStoryOptions() {
   // Returns [{ id, label, source: 'builtin'|'custom', story }]
@@ -4743,6 +4773,9 @@ function showStoryPicker(currentId = null) {
 }
 
 async function resolveActiveStory() {
+  // 5.9: fetch any sibling stories listed in EXTRA_STORY_URLS so the picker
+  // can show them as built-ins. Silent on failure (file://, 404, CORS).
+  await loadExtraStoriesIntoBuiltin();
   // Try the saved active id first
   let id = null;
   try { id = localStorage.getItem(ACTIVE_STORY_KEY); } catch {}
@@ -10178,7 +10211,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.25 ===`, 'title');
+write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.26 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
