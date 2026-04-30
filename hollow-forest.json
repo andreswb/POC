@@ -5,7 +5,7 @@
     "title": "The Hollow Forest",
     "author": "AWB_",
     "author_pubkey": null,
-    "version": "1.0.2",
+    "version": "1.1.0",
     "created_at": "2026-04-30T00:00:00Z",
     "language": "en",
     "languages": [
@@ -109,7 +109,12 @@
       "exits": {
         "south": "village_square",
         "north": "graveyard",
-        "up": "bell_tower"
+        "up": "bell_tower",
+        "down": {
+          "target": "chapel_undercroft",
+          "requires_flag": "priest_offered_cure",
+          "message": "The trapdoor is bolted from the inside. The priest opens it only for those he means to teach."
+        }
       },
       "items": [],
       "npcs": [
@@ -346,7 +351,12 @@
       ],
       "exits": {
         "north": "village_square",
-        "south": "black_lake"
+        "south": "black_lake",
+        "west": {
+          "target": "wolf_den",
+          "requires_flag": "is_wolf",
+          "message": "The pack-path bends sideways every time you look at it. As a man you can't go in."
+        }
       },
       "items": [],
       "npcs": [],
@@ -510,6 +520,132 @@
       ],
       "drink_source": null,
       "image": "🍷"
+    },
+    "chapel_undercroft": {
+      "name": "The Chapel Undercroft",
+      "summary": "Stone shelves of bottles, dried herbs in bundles. The brewing-bench is here, where the priest teaches the work to those he believes can drink the cure. A small fire burns in a covered grate.",
+      "example_descriptions": [
+        "The air is dry and cool. Candles in iron sconces. The brew smells of crushed herb and clean water.",
+        "A book lies open on the bench — the cure-recipe, copied in the priest's careful hand."
+      ],
+      "tone_hints": [
+        "quiet",
+        "sacred",
+        "patient",
+        "warm"
+      ],
+      "exits": {
+        "up": "chapel"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": [
+        "underground",
+        "shelter",
+        "sacred"
+      ],
+      "layer": "underground",
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🕯"
+    },
+    "wolf_den": {
+      "name": "The Wolf Den",
+      "summary": "A hollow at the foot of two leaning firs. The earth here is packed flat by long use. Bones, picked clean. The pack sleeps here when the moon is wrong; the alpha sleeps further in.",
+      "example_descriptions": [
+        "The air is hot, thick with breath. They have been here. They will be again.",
+        "A path goes deeper into the brush — west, where no human ever went on two legs."
+      ],
+      "tone_hints": [
+        "warm",
+        "animal",
+        "patient",
+        "wrong"
+      ],
+      "exits": {
+        "east": "forest_path",
+        "west": {
+          "target": "the_hollow",
+          "requires_flag": "is_wolf",
+          "message": "The path bends in a way only paws can follow. As a man you cannot find it."
+        }
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": [
+        "outdoor",
+        "forest"
+      ],
+      "layer": "surface",
+      "resources": [
+        {
+          "id": "wolfsbane",
+          "skill": "foraging",
+          "verb": "forage",
+          "yield_qty": 1,
+          "regenerates": true,
+          "regen_seconds": 200
+        }
+      ],
+      "hazards": {
+        "wolves": {
+          "encounter_chance": 0.3,
+          "entity": "werewolf"
+        }
+      },
+      "spawn_table": [
+        {
+          "entity": "werewolf",
+          "weight": 6
+        }
+      ],
+      "drink_source": null,
+      "image": "🦴"
+    },
+    "the_hollow": {
+      "name": "The Hollow",
+      "summary": "A perfect circle of trees, all leaning the same way. The moon is always above this clearing, even at noon. In the centre, a stone, and on the stone, the alpha — first wolf, oldest wolf, the one the forest hollowed itself for. She is waiting.",
+      "example_descriptions": [
+        "No wind. The moon does not move. The alpha breathes slow and old.",
+        "The centre stone is warm. Somebody knelt here, once. Somebody made a wolf, once."
+      ],
+      "tone_hints": [
+        "timeless",
+        "sacred",
+        "wrong",
+        "patient",
+        "enormous"
+      ],
+      "exits": {
+        "east": {
+          "target": "wolf_den",
+          "requires_flag": "is_wolf",
+          "message": "You cannot leave this place as a man. You must finish what you came as."
+        }
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": [
+        "outdoor",
+        "forest",
+        "sacred"
+      ],
+      "layer": "surface",
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [
+        {
+          "entity": "alpha_wolf",
+          "weight": 10
+        }
+      ],
+      "drink_source": null,
+      "image": "🌕"
     }
   },
   "items": {
@@ -747,6 +883,35 @@
       "category": "good",
       "stackable": false,
       "image": "💍"
+    },
+    "wolf_pelt": {
+      "display": "wolf pelt",
+      "article": "a",
+      "description": "A heavy fur, taken in the dark. The hunter pays for these.",
+      "value": 18,
+      "weight": 1.5,
+      "tags": [
+        "fur",
+        "cursed"
+      ],
+      "category": "good",
+      "stackable": false,
+      "image": "🐺"
+    },
+    "relic_of_origin": {
+      "display": "relic of the first wolf",
+      "article": "the",
+      "description": "A small carved tooth on a sinew thong. The first cursed thing the forest ever knew. Cold, even in your hand.",
+      "value": 0,
+      "weight": 0.2,
+      "tags": [
+        "cursed",
+        "sacred",
+        "unique"
+      ],
+      "category": "good",
+      "stackable": false,
+      "image": "🦷"
     }
   },
   "skills": {
@@ -798,7 +963,7 @@
     },
     "lycanthropy": {
       "display": "Lycanthropy",
-      "description": "The wolf's gift, unasked-for. The change is in your blood. Most NPCs will know, somehow.",
+      "description": "The wolf's gift, unasked-for. While you carry it, you can `transform wolf` — fast, fanged, and unwelcome. Dawn ends the change. The priest can lift the curse.",
       "tier": 3,
       "spark_cost": 0,
       "prereqs": [],
@@ -815,7 +980,7 @@
     },
     "vampirism": {
       "display": "Vampirism",
-      "description": "The Count's gift, asked for. Sunlight will not love you any more. Hunger does, though.",
+      "description": "The Count's gift, asked for. While you carry it, you can `transform bat` — fast, healing on the bite. Sunlight burns whether you're shaped or not. There is no cure.",
       "tier": 3,
       "spark_cost": 0,
       "prereqs": [],
@@ -956,12 +1121,22 @@
           "qty": 1
         }
       ],
-      "skinning_drops": [],
+      "skinning_drops": [
+        {
+          "item": "wolf_pelt",
+          "qty": 1
+        }
+      ],
       "rare_drops": [
         {
           "item": "silver_dust",
           "qty": 1,
           "chance": 0.1
+        },
+        {
+          "item": "wolf_pelt",
+          "qty": 1,
+          "chance": 0.4
         }
       ],
       "weaknesses": [
@@ -1113,6 +1288,54 @@
       "resistances": [],
       "tags": [
         "predator"
+      ]
+    },
+    "alpha_wolf": {
+      "display": "the alpha — first wolf",
+      "summary": "Massive, white-eyed, older than the village. The first thing the forest hollowed itself for. It does not run.",
+      "tone_hints": [
+        "ancient",
+        "patient",
+        "enormous",
+        "wrong"
+      ],
+      "hp": 60,
+      "attack_damage_range": [
+        8,
+        15
+      ],
+      "evasion": 0.1,
+      "hostile": true,
+      "base_drops": [
+        {
+          "item": "raw_meat",
+          "qty": 3
+        },
+        {
+          "item": "wolf_pelt",
+          "qty": 1
+        }
+      ],
+      "skinning_drops": [],
+      "rare_drops": [
+        {
+          "item": "relic_of_origin",
+          "qty": 1,
+          "chance": 1.0
+        }
+      ],
+      "weaknesses": [
+        "pierce"
+      ],
+      "resistances": [
+        "blunt",
+        "slash"
+      ],
+      "tags": [
+        "predator",
+        "cursed",
+        "unique",
+        "large"
       ]
     }
   },
@@ -1492,7 +1715,14 @@
           "choices": [
             {
               "label": "Yes. Give it to me.",
-              "goto": "accept_gift"
+              "goto": "accept_gift",
+              "requires_skill_not": "lycanthropy",
+              "hide_when_unavailable": false
+            },
+            {
+              "label": "(But you are already cursed — the wolf would not allow it.)",
+              "goto": "cursed_already",
+              "requires_skill": "lycanthropy"
             },
             {
               "label": "I'm not sure. Tell me more.",
@@ -1586,8 +1816,86 @@
               "end": true
             }
           ]
+        },
+        "cursed_already": {
+          "lines": [
+            "I cannot give what you already have. The wolf is in you, and the wolf is jealous.",
+            "Bring me a man, and I might bring back a count. But not before."
+          ],
+          "choices": [
+            {
+              "label": "Goodbye.",
+              "end": true
+            }
+          ]
         }
       }
+    },
+    "the_hunter": {
+      "display": "the hunter",
+      "location": "forest_path",
+      "summary": "A weathered tracker who came up from the south the year the forest hollowed. She works the wolf-paths and keeps the village fed in pelts.",
+      "tone_hints": [
+        "weathered",
+        "quiet",
+        "practical"
+      ],
+      "dialogue_seeds": [
+        "Bring me pelts. Three buys you a fair coin.",
+        "There's an old wolf at the heart of the wood. Older than the rest. She is what started it.",
+        "Walk careful by the lake at night. The tower hears."
+      ],
+      "behaviors": [
+        "buys_items",
+        "tells_rumors"
+      ],
+      "buys_tags": [
+        "fur",
+        "cursed",
+        "bone"
+      ],
+      "is_marketplace": true,
+      "initial_stock": [
+        {
+          "item": "silver_oil",
+          "qty": 2,
+          "price_gold": 45
+        },
+        {
+          "item": "torch",
+          "qty": 4,
+          "price_gold": 5
+        }
+      ],
+      "schedule": [
+        {
+          "rooms": [
+            "forest_path"
+          ],
+          "hours": [
+            4,
+            12
+          ]
+        },
+        {
+          "rooms": [
+            "village_square"
+          ],
+          "hours": [
+            12,
+            18
+          ]
+        },
+        {
+          "rooms": [
+            "black_lake"
+          ],
+          "hours": [
+            18,
+            22
+          ]
+        }
+      ]
     }
   },
   "quests": {
@@ -1710,6 +2018,83 @@
         "items": []
       },
       "completion_message": "The key is yours. The crypt waits."
+    },
+    "pelt_bounty": {
+      "title": "Pelt Bounty",
+      "description": "The hunter pays in coin for wolf pelts — three at a time. Bring her three to start.",
+      "giver": "the_hunter",
+      "auto_accept": false,
+      "requires": [
+        "intro_chapel"
+      ],
+      "objectives": [
+        {
+          "type": "have_item",
+          "item": "wolf_pelt",
+          "qty": 3
+        }
+      ],
+      "rewards": {
+        "gold": 60,
+        "sparks": 10,
+        "items": []
+      },
+      "completion_message": "She weighs them, nods once, and pays. \"Bring more if you find them.\""
+    },
+    "hollow_origin": {
+      "title": "The Hollow Origin",
+      "description": "The hunter speaks of an alpha at the heart of the wood — the first wolf, the one the forest hollowed itself for. Find the relic she wears. Bring it back.",
+      "giver": "the_hunter",
+      "auto_accept": false,
+      "requires": [
+        "pelt_bounty"
+      ],
+      "objectives": [
+        {
+          "type": "have_item",
+          "item": "relic_of_origin",
+          "qty": 1,
+          "consume": false
+        }
+      ],
+      "rewards": {
+        "gold": 200,
+        "sparks": 80,
+        "items": [
+          {
+            "item": "silver_dagger",
+            "qty": 1
+          }
+        ]
+      },
+      "completion_message": "She takes the relic, holds it long enough that you wonder, and gives it back. \"It belongs to whoever ends her. That was you. Keep it.\""
+    },
+    "the_lost_sister": {
+      "title": "The Lost Sister",
+      "description": "The priest mentioned a name once: a young woman of the village who walked into the graveyard last winter and did not come back. Find a relic of hers, bring it to him for closure.",
+      "giver": "the_priest",
+      "auto_accept": false,
+      "requires": [
+        "intro_chapel"
+      ],
+      "objectives": [
+        {
+          "type": "have_item",
+          "item": "bone_relic",
+          "qty": 1
+        }
+      ],
+      "rewards": {
+        "gold": 25,
+        "sparks": 15,
+        "items": [
+          {
+            "item": "holy_water",
+            "qty": 3
+          }
+        ]
+      },
+      "completion_message": "He weeps, briefly, and sets the relic on the altar. \"Thank you. The family will come tonight.\""
     }
   },
   "events": {

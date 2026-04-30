@@ -5028,7 +5028,9 @@ const player = {
   activated: false,            // 5.4: true once player has executed any meaningful (turn-consuming or identity) command
   created_at: 0,               // 5.4: epoch seconds when this character was first generated (for inactive cleanup)
   profile_id: null,            // 5.6: chosen character profile (race/class) if story defines meta.character_profiles
-  dialog_session: null         // 5.6: { npc_id, node_id } when in a branching-dialog conversation
+  dialog_session: null,        // 5.6: { npc_id, node_id } when in a branching-dialog conversation
+  transformed: null,           // 5.9: 'wolf' | 'bat' | null — current shape if cursed
+  transformed_at_day: 0        // 5.9: in-game day when transformation started (for dawn auto-revert)
 };
 
 // ---- i18n helpers (5.3) ---------------------------------------------------
@@ -5777,6 +5779,8 @@ function serializeState() {
     activated: !!player.activated,
     created_at: player.created_at || 0,
     profile_id: player.profile_id || null,
+    transformed: player.transformed || null,
+    transformed_at_day: player.transformed_at_day || 0,
     freshness: Object.fromEntries(Object.entries(player.freshness || {}).map(([k, batches]) => [k, batches.map(b => ({ turn: b.turn, qty: b.qty }))])),
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
@@ -5829,6 +5833,11 @@ function applyState(s) {
   player.created_at = s.created_at || 0;
   player.profile_id = s.profile_id || null;
   player.dialog_session = null;  // never resume a dialog mid-conversation across boots
+  player.transformed = s.transformed || null;
+  player.transformed_at_day = s.transformed_at_day || 0;
+  // 5.9: re-establish flags after restore so content gates work immediately
+  if (player.transformed === 'wolf') player.flags.add('is_wolf');
+  else if (player.transformed === 'bat') player.flags.add('is_bat');
   player.freshness = {};
   for (const [k, batches] of Object.entries(s.freshness || {})) {
     if (Array.isArray(batches)) player.freshness[k] = batches.map(b => ({ turn: b.turn, qty: b.qty }));
@@ -6058,6 +6067,8 @@ function computeMaxCapacity() {
   // 5.6: profile bonus + str-derived bonus (floor(str/2) extra capacity)
   cap += profileBonus('carry_capacity_bonus');
   cap += Math.floor(profileAttribute('str') / 2);
+  // 5.9: transformed shapes can't grip pockets — halve effective capacity
+  if (player.transformed) cap = Math.floor(cap / 2);
   return cap;
 }
 function computeMaxLife() {
@@ -6936,6 +6947,32 @@ function tickTurn() {
   }
   // Companion hunger check
   checkCompanionHunger();
+  // 5.9: dawn forces transformed players back to themselves. Wolf at first
+  // light; bat painfully (sun = pain). Compares against the day the change
+  // started, so a transform-before-bed reverts at the sunrise after.
+  if (player.transformed && dayPart().day > player.transformed_at_day) {
+    const wasForm = player.transformed;
+    player.flags.delete('is_' + wasForm);
+    player.transformed = null;
+    write('');
+    write(wasForm === 'wolf'
+      ? '[Dawn light catches you. Bone shifts back without your asking.]'
+      : '[The first light burns. You snap back into yourself before the dawn finishes you.]',
+      wasForm === 'wolf' ? 'spark' : 'error');
+  }
+  // 5.9: vampires take sun damage in outdoor rooms during day periods
+  // (regardless of bat form — being a vampire at all hurts in daylight).
+  if (player.skills.has('vampirism')) {
+    const period = dayPart().period;
+    const isDay = period === 'morning' || period === 'noon' || period === 'afternoon';
+    const room2 = STORY.rooms[player.location];
+    const isOutdoor = (room2?.tags || []).includes('outdoor');
+    if (isDay && isOutdoor) {
+      player.life -= 2;
+      if (Math.random() < 0.25) write('[The sun bites your skin where it touches.]', 'error');
+      if (player.life <= 0) { handleDeath('sunlight'); return; }
+    }
+  }
   // Scripted on_turn events
   fireEvents('on_turn', {});
   if (player.life <= 0) handleDeath('starvation');
@@ -7468,6 +7505,9 @@ function dialogChoiceAvailable(c) {
   if (!c || typeof c !== 'object') return false;
   if (c.requires_flag && !player.flags.has(c.requires_flag)) return false;
   if (c.requires_skill && !player.skills.has(c.requires_skill)) return false;
+  // 5.9: negation gate — useful for "give vampirism only to non-cursed"
+  if (c.requires_skill_not && player.skills.has(c.requires_skill_not)) return false;
+  if (c.requires_flag_not && player.flags.has(c.requires_flag_not)) return false;
   if (c.requires_quest_active && player.quests[c.requires_quest_active]?.state !== 'active') return false;
   if (c.requires_quest_completed && player.quests[c.requires_quest_completed]?.state !== 'completed') return false;
   if (c.requires_item) {
@@ -7560,6 +7600,7 @@ function leaveDialog() {
 
 function talk(target) {
   if (combatBlock('talk')) return;
+  if (transformBlock('talk')) return;
   if (player.dialog_session) {
     write('You are already mid-conversation. Pick a number, or type "leave".', 'error');
     return;
@@ -7760,11 +7801,19 @@ function attack() {
   // Critical hit roll: base 8% + 7% with hunting skill
   const critChance = 0.08 + (player.skills.has('hunting') ? 0.07 : 0);
   const crit = Math.random() < critChance;
-  const weaponBonus = (typeof __noAmmo !== 'undefined' && __noAmmo) ? 0 : bestWeaponBonus();
+  // 5.9: in wolf form, weapons don't apply (paws); the form bonus and crit do all the work.
+  let weaponBonus = (typeof __noAmmo !== 'undefined' && __noAmmo) ? 0 : bestWeaponBonus();
+  if (player.transformed === 'wolf') weaponBonus = 0;
   const baseDmg = randInt(2, 5) + weaponBonus + (player.skills.has('hunting') ? 2 : 0);
   // 5.8: charge boosts this swing 1.5× (and queues a 1.5× recoil for the enemy hit)
   const chargeMod = player.charge_pending ? 1.5 : 1;
-  const playerDmg = Math.max(1, Math.floor(baseDmg * typeMod * (crit ? 2 : 1) * chargeMod));
+  // 5.9: transform damage modifier (wolf 1.5×, bat 1.2×). In wolf form weapons
+  // and damage_type don't apply (it's claws + teeth) — typeMod already 1 if we
+  // cleared dmgType above for the no-ammo case; do the same for wolf.
+  let formMod = 1;
+  if (player.transformed === 'wolf') { formMod = 1.5; }
+  else if (player.transformed === 'bat') { formMod = 1.2; }
+  const playerDmg = Math.max(1, Math.floor(baseDmg * typeMod * (crit ? 2 : 1) * chargeMod * formMod));
   if (player.charge_pending) {
     write(T('You charge — your blow comes in fast and reckless.'), 'spark');
     player.charge_pending = false;
@@ -7781,6 +7830,16 @@ function attack() {
     else if (typeMod === 0.5) mod = T(' (glancing)');
     if (crit) mod += T(' — critical strike!');
     write(T('You strike the {0} for {1} damage{2}. ({3} HP left)', t.display, playerDmg, mod, Math.max(0, t.hp)), crit ? 'spark' : 'success');
+    // 5.9: bat form drinks the wound
+    if (player.transformed === 'bat' && didDamage > 0) {
+      const heal = Math.floor(didDamage / 2);
+      if (heal > 0) {
+        const before = player.life;
+        player.life = Math.min(computeMaxLife(), player.life + heal);
+        const got = Math.floor(player.life - before);
+        if (got > 0) write(T('The blood comes to you as warmth. (+{0} life)', got), 'spark');
+      }
+    }
   }
   // 4.5: sync session HP and broadcast damage
   if (player.combat_id && didDamage > 0) {
@@ -7899,7 +7958,9 @@ function attack() {
   }
   // 5.6: player profile evasion + agi-derived dodge (floor(agi/40) extra chance)
   // 5.8: parry stance set last turn = 60% dodge boost on the very next incoming hit
+  // 5.9: bat form is small and fast — +20% evasion baseline
   let dodgeChance = profileBonus('evasion_bonus') + (profileAttribute('agi') / 40);
+  if (player.transformed === 'bat') dodgeChance += 0.2;
   if (player.parry_ready) {
     dodgeChance += 0.6;
     player.parry_ready = false;
@@ -8720,6 +8781,73 @@ function profileBonus(key) {
   const p = profileDef();
   return (p && typeof p[key] === 'number') ? p[key] : 0;
 }
+// ============================================================
+//  TRANSFORM / REVERT (5.9) — werewolf and vampire shapes
+// ============================================================
+// `lycanthropy` skill unlocks `transform wolf` (default form for wolves);
+// `vampirism` unlocks `transform bat`. While transformed:
+//   - wolf: +50% attack, no weapon use (claws), capacity ÷2, NPCs refuse,
+//           is_wolf flag set for content gates, auto-reverts at dawn.
+//   - bat: +20% attack, heal-on-hit (½ damage dealt), capacity ÷2, evasion +20%,
+//          NPCs refuse, is_bat flag set, forced revert at dawn (sun = pain).
+// Sunlight: vampires (skill, not just bat form) take 2 life/turn in outdoor
+// rooms during morning/noon/afternoon periods.
+function transformCommand(formArg) {
+  if (combatBlock('transform')) return;
+  if (player.dialog_session) { write('You can\'t change shape mid-conversation.', 'error'); return; }
+  if (player.transformed) {
+    write(`You are already a ${player.transformed === 'wolf' ? 'wolf' : 'bat'}. Type "revert" to change back.`, 'error'); return;
+  }
+  const canWolf = player.skills.has('lycanthropy');
+  const canBat  = player.skills.has('vampirism');
+  if (!canWolf && !canBat) { write('You have no shape to take but your own.', 'error'); return; }
+  let form = (formArg || '').trim().toLowerCase();
+  if (!form) {
+    if (canWolf && !canBat) form = 'wolf';
+    else if (canBat && !canWolf) form = 'bat';
+    else { write('Two shapes wait in you. Type "transform wolf" or "transform bat".', 'error'); return; }
+  }
+  if (form !== 'wolf' && form !== 'bat') { write(`Unknown form: "${form}". Try "wolf" or "bat".`, 'error'); return; }
+  if (form === 'wolf' && !canWolf) { write('You are not of the wolf.', 'error'); return; }
+  if (form === 'bat'  && !canBat)  { write('You are not of the night.', 'error'); return; }
+  player.transformed = form;
+  player.transformed_at_day = dayPart().day;
+  player.flags.add('is_' + form);
+  write('');
+  if (form === 'wolf') {
+    write('Bone shifts. The world grows louder, sharper. You are a wolf now — fast, hungry, simple.', 'spark');
+    write('(While transformed: +50% attack, weapons useless to paws, carry capacity halved, NPCs will not speak to you. Dawn ends the change.)', 'system');
+  } else {
+    write('Your shape thins. You are wing and shadow. The lake below looks like a coin tossed in trees.', 'spark');
+    write('(While transformed: +20% attack, blood you draw heals you, +20% evasion, carry halved, NPCs flee. Dawn forces you back.)', 'system');
+  }
+  publishAction('transform', { form });
+  refreshSidebar();
+}
+function revertCommand() {
+  if (!player.transformed) { write('You are already yourself.', 'error'); return; }
+  if (combatBlock('revert')) return;
+  const wasForm = player.transformed;
+  player.flags.delete('is_' + wasForm);
+  player.transformed = null;
+  write('');
+  write(wasForm === 'wolf'
+    ? 'Bone shifts back. You are yourself again — heavier, slower, full of memory.'
+    : 'You fold back into yourself. The night was wider, briefly.', 'spark');
+  publishAction('revert', { from: wasForm });
+  refreshSidebar();
+}
+// Helper: check if a "social" action (talk/buy/sell/give/heal) is blocked
+// by current shape. Used as a guard at the top of those commands.
+function transformBlock(verb) {
+  if (!player.transformed) return false;
+  const tag = player.transformed === 'wolf'
+    ? 'They flinch from you. The wolf does not speak; the wolf is not spoken to.'
+    : 'They cross themselves and turn away. The bat is not a friend.';
+  write(tag, 'error');
+  return true;
+}
+
 function showProfile() {
   const profs = STORY.meta?.character_profiles;
   if (!profs || Object.keys(profs).length === 0) { write('This story has no character profiles.', 'system'); return; }
@@ -9179,6 +9307,7 @@ function showMarket() {
 
 async function buy(arg) {
   if (combatBlock('buy')) return;
+  if (transformBlock('buy')) return;
   const room = player.rooms[player.location];
   const merchantId = npcsHere(player.location).find(n => STORY.npcs[n].is_marketplace);
   if (!merchantId) { write('No merchant here.', 'error'); return; }
@@ -9200,6 +9329,7 @@ async function buy(arg) {
 
 async function sell(args) {
   if (combatBlock('sell')) return;
+  if (transformBlock('sell')) return;
   const room = player.rooms[player.location];
   const merchantId = npcsHere(player.location).find(n => STORY.npcs[n].is_marketplace);
   const directNpc  = npcsHere(player.location).find(n => STORY.npcs[n].behaviors?.includes('buys_items'));
@@ -9305,6 +9435,7 @@ function whisper(text) {
 
 function giveCommand(argRaw) {
   if (combatBlock('give')) return;
+  if (transformBlock('give')) return;
   // Parse: "give <item> to <name>" or "give <item> to <name> <message>"
   // Or short form: "give <item> <name>"
   let itemQuery, target, message = '';
@@ -9403,6 +9534,7 @@ function showGifts() {
 }
 
 function healCommand(target) {
+  if (transformBlock('heal')) return;
   if (combatBlock('heal')) return;
   if (!target) { write('Usage: heal <name|npub>', 'error'); return; }
   let recipient_pubkey = null;
@@ -9986,6 +10118,7 @@ function help() {
     T('                 parry  (defensive stance — next blow has +60% dodge)'),
     T('                 charge  (Hunting only, +50% damage on next attack but enemy hits 1.5×; once per fight)'),
     T('                 retreat  (try to escape without parting damage; 70% base, +20% with Hunting)'),
+    T('                 transform [wolf|bat]  (if cursed) · revert  (change back)'),
     T('                 assist [<name>]  (join another player\'s fight in the same room)'),
     T('Equipment:       wear / wield <x> · unwear <slot> · equipment / eq'),
     T('Smithing:        sharpen <x> · repair <x>  (at the village blacksmith)'),
@@ -10094,6 +10227,8 @@ function handleCommand(input) {
     case 'parry':                parry(); break;
     case 'charge':               charge(); break;
     case 'retreat':              retreat(); break;
+    case 'transform':            transformCommand(argRaw); break;
+    case 'revert':               revertCommand(); break;
     case 'assist': case 'help_attack': assist(argRaw); break;
     case 'eat':                  eat(arg); break;
     case 'drink':                drink(arg); break;
@@ -10211,7 +10346,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.26 ===`, 'title');
+write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.27 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
