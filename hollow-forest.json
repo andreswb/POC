@@ -1,0 +1,1744 @@
+{
+  "schema_version": "0.20",
+  "meta": {
+    "id": "hollow-forest-v1",
+    "title": "The Hollow Forest",
+    "author": "AWB_",
+    "author_pubkey": null,
+    "version": "1.0.0",
+    "created_at": "2026-04-30T00:00:00Z",
+    "language": "en",
+    "languages": [
+      "en"
+    ],
+    "tone": "Gothic horror. The forest is hollowed out — something has hollowed it. Cold prose, slow dread, careful hope. Curses are real and cure is hard. Mercy lives in chapels by day; hunger lives in towers by night.",
+    "creative_license": "moderate",
+    "starting_location": "chapel",
+    "starting_inventory": [
+      "rusty_dagger",
+      "torch"
+    ],
+    "starting_materials": {
+      "holy_water": 1
+    },
+    "starting_gold": 8,
+    "starting_sparks": 0,
+    "starting_skills": [
+      "foraging"
+    ],
+    "starting_life": 100,
+    "life_max": 100,
+    "life_decay_per_turn": 0.4,
+    "carry_capacity": 35,
+    "sparks_per_craft": 3,
+    "turns_per_day": 96,
+    "weather_pool": [
+      "clear",
+      "rain",
+      "fog",
+      "fog",
+      "clear",
+      "snow"
+    ],
+    "license": {
+      "type": "cc-by-sa",
+      "free": true
+    },
+    "character_profiles": {
+      "human": {
+        "display": "Human (mortal)",
+        "summary": "You are warm. You bleed. You age. Most things in this story would prefer you stop being any of those.",
+        "attributes": {
+          "str": 10,
+          "agi": 10,
+          "int": 10
+        },
+        "tags": [
+          "mortal"
+        ]
+      },
+      "revenant": {
+        "display": "Revenant",
+        "summary": "You woke in the graveyard with grave-dirt on your tongue. The cold doesn't bite. Neither do most things.",
+        "attributes": {
+          "str": 12,
+          "agi": 11,
+          "int": 8
+        },
+        "life_max_bonus": 20,
+        "evasion_bonus": 0.05,
+        "tags": [
+          "undead",
+          "cold"
+        ]
+      },
+      "child_of_the_wolf": {
+        "display": "Child of the Wolf",
+        "summary": "Born under a long moon. You knew the forest before the forest was hollowed. The change is already in you.",
+        "attributes": {
+          "str": 11,
+          "agi": 13,
+          "int": 9
+        },
+        "attack_bonus": 2,
+        "starting_skills_extra": [
+          "lycanthropy"
+        ],
+        "tags": [
+          "cursed"
+        ]
+      }
+    }
+  },
+  "rooms": {
+    "chapel": {
+      "name": "The Chapel of the Pale Bell",
+      "summary": "A small stone chapel, half-roofed, candle-stubs guttering on the altar. A font of clear water stands by the door. The priest is here when the sun is up. The bell-tower stairs climb behind the altar; the path south leads down to the village.",
+      "example_descriptions": [
+        "The chapel is cold but clean. Beeswax and old smoke. Whatever the bell rings for, it has not rung lately.",
+        "Light through the broken east window paints the floor. The font's water is clear as truth."
+      ],
+      "tone_hints": [
+        "sacred",
+        "thin",
+        "watchful",
+        "patient"
+      ],
+      "exits": {
+        "south": "village_square",
+        "north": "graveyard",
+        "up": "bell_tower"
+      },
+      "items": [],
+      "npcs": [
+        "the_priest"
+      ],
+      "riddle": null,
+      "tags": [
+        "indoor",
+        "shelter",
+        "sacred"
+      ],
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": {
+        "restore_life": 8,
+        "cooldown_seconds": 60
+      },
+      "image": "⛪"
+    },
+    "bell_tower": {
+      "name": "The Bell Tower",
+      "summary": "A narrow stone tower above the chapel. A great cracked bronze bell hangs in the rafters. The wind through the louvers carries every voice from the village below. A scratched verse runs around the rim.",
+      "example_descriptions": [
+        "The bell is silent. It has not rung in years; the rope is old and grey.",
+        "From the louvers you can see the lake to the south, dark even at noon."
+      ],
+      "tone_hints": [
+        "high",
+        "echoing",
+        "patient",
+        "ancient"
+      ],
+      "exits": {
+        "down": "chapel"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": "bell_riddle",
+      "tags": [
+        "indoor",
+        "high",
+        "sacred"
+      ],
+      "layer": "overhead",
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🔔"
+    },
+    "graveyard": {
+      "name": "The Old Graveyard",
+      "summary": "Slate stones in long rows, half of them tilted and unreadable. A fresh trench at the back is empty and waiting. A heavy iron grate at the centre opens to a flight of stairs going down — sealed with a tarnished silver lock.",
+      "example_descriptions": [
+        "Mist clings low to the stones. Something pale moved at the corner of your eye and is not there now.",
+        "The newest stones are dated within the last year. The names are family names — all of them."
+      ],
+      "tone_hints": [
+        "cold",
+        "patient",
+        "watching",
+        "respectful"
+      ],
+      "exits": {
+        "south": "chapel",
+        "east": "village_square",
+        "down": {
+          "target": "crypt",
+          "requires_item": "silver_key",
+          "consume_item": "silver_key",
+          "message": "The crypt grate is sealed by a tarnished silver lock. You'd need a silver key — and the lock takes the key."
+        }
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": [
+        "outdoor",
+        "sacred"
+      ],
+      "resources": [
+        {
+          "id": "moonsilver_herb",
+          "skill": "foraging",
+          "verb": "forage",
+          "yield_qty": 1,
+          "regenerates": true,
+          "regen_seconds": 240
+        }
+      ],
+      "hazards": {},
+      "spawn_table": [
+        {
+          "entity": "revenant",
+          "weight": 2
+        },
+        {
+          "entity": "grave_dog",
+          "weight": 3
+        }
+      ],
+      "drink_source": null,
+      "image": "🪦"
+    },
+    "crypt": {
+      "name": "The Sealed Crypt",
+      "summary": "A barrel-vaulted stone chamber under the graveyard. The dead lie in alcoves on three sides. Something is breathing here that should not be. A silver-tipped dagger rests on a stone slab — undisturbed for a long time.",
+      "example_descriptions": [
+        "Your torch is small in this dark. The shadows move when you don't watch them.",
+        "On the slab the dagger gleams: not iron, not steel — silvered, etched with a verse you can't read."
+      ],
+      "tone_hints": [
+        "airless",
+        "cold",
+        "watching",
+        "old"
+      ],
+      "exits": {
+        "up": "graveyard"
+      },
+      "items": [
+        "silver_dagger"
+      ],
+      "npcs": [],
+      "riddle": null,
+      "tags": [
+        "underground",
+        "sacred"
+      ],
+      "layer": "underground",
+      "resources": [
+        {
+          "id": "silver_dust",
+          "skill": "foraging",
+          "verb": "gather",
+          "yield_qty": 1,
+          "regenerates": true,
+          "regen_seconds": 200
+        }
+      ],
+      "hazards": {
+        "wolves": {
+          "encounter_chance": 0.15,
+          "entity": "shade"
+        }
+      },
+      "spawn_table": [
+        {
+          "entity": "shade",
+          "weight": 4
+        }
+      ],
+      "drink_source": null,
+      "image": "⚰️"
+    },
+    "village_square": {
+      "name": "The Village Square",
+      "summary": "A cobbled square ringed by shuttered houses. By day, a few villagers move quickly between doors. By night, every shutter is locked from the inside. A stone fountain runs slow with cold water.",
+      "example_descriptions": [
+        "The square is empty in a way that feels rehearsed. Faces flicker behind shutters and do not come out.",
+        "The watchman's lantern carves the dark, somewhere down a side street."
+      ],
+      "tone_hints": [
+        "empty",
+        "watchful",
+        "afraid",
+        "ordered"
+      ],
+      "exits": {
+        "north": "chapel",
+        "west": "graveyard",
+        "east": "smith",
+        "south": "forest_path"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": [
+        "outdoor",
+        "shelter"
+      ],
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": {
+        "restore_life": 4,
+        "cooldown_seconds": 60
+      },
+      "image": "🏘️"
+    },
+    "smith": {
+      "name": "The Smithy",
+      "summary": "A low forge of black brick, banked low when the smith is gone. Iron stock racks line one wall; a rack of fine silver-stained chisels lines the other. The smith works only between dusk and midnight — by day, the doors are barred from inside.",
+      "example_descriptions": [
+        "Coals breathing slow under their ash. The smith's hammer rests on the anvil like a sleeping cat.",
+        "Bottles of pale-blue oil stand on a shelf. Silvering oil — you've heard rumours of what it does to the wrong wolf."
+      ],
+      "tone_hints": [
+        "industrial",
+        "warm",
+        "stained"
+      ],
+      "exits": {
+        "west": "village_square"
+      },
+      "items": [],
+      "npcs": [
+        "the_smith"
+      ],
+      "riddle": null,
+      "tags": [
+        "indoor",
+        "shelter"
+      ],
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🔥"
+    },
+    "forest_path": {
+      "name": "The Hollow Path",
+      "summary": "An old cart-track winds south between black firs. Branches knit overhead so the path is lit only by sky-strips. By day, jays scold from the branches. By night, the jays are gone.",
+      "example_descriptions": [
+        "Bracken and pine-mast. The trees lean inward as if listening.",
+        "Tracks in the loam — large pads, longer than a wolf's. Not a wolf's."
+      ],
+      "tone_hints": [
+        "wild",
+        "shadowed",
+        "patient",
+        "wrong"
+      ],
+      "exits": {
+        "north": "village_square",
+        "south": "black_lake"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": [
+        "outdoor",
+        "forest"
+      ],
+      "resources": [
+        {
+          "id": "wolfsbane",
+          "skill": "foraging",
+          "verb": "forage",
+          "yield_qty": 1,
+          "regenerates": true,
+          "regen_seconds": 180
+        },
+        {
+          "id": "wood",
+          "skill": "foraging",
+          "verb": "gather",
+          "yield_qty": 2,
+          "regenerates": true,
+          "regen_seconds": 90
+        }
+      ],
+      "hazards": {
+        "wolves": {
+          "encounter_chance": 0.4,
+          "entity": "werewolf"
+        }
+      },
+      "spawn_table": [
+        {
+          "entity": "werewolf",
+          "weight": 5
+        }
+      ],
+      "drink_source": null,
+      "image": "🌲"
+    },
+    "black_lake": {
+      "name": "The Black Lake",
+      "summary": "A still oval of water, dark even by daylight. A stone tower rises from the far shore — one window lit, always lit, never the same window twice. A path leads up to the tower. A submerged stairwell descends below the boathouse.",
+      "example_descriptions": [
+        "The lake does not reflect the sky. It reflects only what stands close enough to see itself in it.",
+        "The tower seems closer than it is, then farther. You stop trying to measure."
+      ],
+      "tone_hints": [
+        "mirror",
+        "cold",
+        "patient",
+        "wrong"
+      ],
+      "exits": {
+        "north": "forest_path",
+        "up": "count_tower",
+        "down": "moonlit_cellar"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": [
+        "outdoor",
+        "water"
+      ],
+      "resources": [],
+      "hazards": {
+        "wolves": {
+          "encounter_chance": 0.2,
+          "entity": "bat_swarm"
+        }
+      },
+      "spawn_table": [
+        {
+          "entity": "bat_swarm",
+          "weight": 4
+        },
+        {
+          "entity": "werewolf",
+          "weight": 2
+        }
+      ],
+      "drink_source": null,
+      "image": "🌑"
+    },
+    "count_tower": {
+      "name": "The Count's Tower",
+      "summary": "A circular chamber high in the lake-tower. Velvet drapes, a long table, two chairs. The Count is here only between the late hours and the first grey of dawn. By day, the tower is empty — and yet you feel watched anyway.",
+      "example_descriptions": [
+        "The drapes are dust-free. The wine in the decanter is fresh. The chair across the table is — exactly — pulled out.",
+        "From the high window the village looks like a coin tossed into the woods."
+      ],
+      "tone_hints": [
+        "elegant",
+        "watching",
+        "ancient",
+        "patient"
+      ],
+      "exits": {
+        "down": "black_lake"
+      },
+      "items": [],
+      "npcs": [
+        "the_count"
+      ],
+      "riddle": null,
+      "tags": [
+        "indoor",
+        "high",
+        "haunted"
+      ],
+      "layer": "overhead",
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🏰"
+    },
+    "moonlit_cellar": {
+      "name": "The Moonlit Cellar",
+      "summary": "Below the boathouse the water gives way to a low stone cellar. Pale light comes from above through cracked floorboards — pale even at noon. The walls are old; the marks on them are older.",
+      "example_descriptions": [
+        "Dripping echoes. A soft scratching from somewhere you can't place.",
+        "Bottles in racks. The labels are blank. The corks are sealed with wax stamped with a stranger's sign."
+      ],
+      "tone_hints": [
+        "quiet",
+        "wet",
+        "old",
+        "secret"
+      ],
+      "exits": {
+        "up": "black_lake"
+      },
+      "items": [
+        "garlic"
+      ],
+      "npcs": [],
+      "riddle": null,
+      "tags": [
+        "underground"
+      ],
+      "layer": "underground",
+      "resources": [
+        {
+          "id": "silver_dust",
+          "skill": "foraging",
+          "verb": "gather",
+          "yield_qty": 1,
+          "regenerates": true,
+          "regen_seconds": 240
+        }
+      ],
+      "hazards": {},
+      "spawn_table": [
+        {
+          "entity": "bat_swarm",
+          "weight": 2
+        }
+      ],
+      "drink_source": null,
+      "image": "🍷"
+    }
+  },
+  "items": {
+    "rusty_dagger": {
+      "display": "rusty dagger",
+      "article": "a",
+      "description": "A workshop dagger — pitted, but it holds an edge.",
+      "value": 4,
+      "weight": 1,
+      "tags": [
+        "weapon"
+      ],
+      "category": "good",
+      "stackable": false,
+      "slot": "hand",
+      "effects": {
+        "attack_bonus": 2,
+        "damage_type": "pierce"
+      },
+      "image": "🗡"
+    },
+    "silver_dagger": {
+      "display": "silver-tipped dagger",
+      "article": "a",
+      "description": "A long dagger with a silvered tip and a verse etched along the blade.",
+      "value": 80,
+      "weight": 1,
+      "tags": [
+        "weapon",
+        "silver",
+        "sacred"
+      ],
+      "category": "good",
+      "stackable": false,
+      "slot": "hand",
+      "effects": {
+        "attack_bonus": 6,
+        "damage_type": "pierce",
+        "requires_ammo": "silver_oil",
+        "ammo_per_shot": 1
+      },
+      "image": "🗡"
+    },
+    "silver_oil": {
+      "display": "silvering oil",
+      "article": "a vial of",
+      "description": "A pale blue oil. Anointing a blade with it makes the blade bite the cursed.",
+      "value": 18,
+      "weight": 0.2,
+      "tags": [
+        "alchemy",
+        "silver"
+      ],
+      "category": "resource",
+      "stackable": true,
+      "image": "🫙"
+    },
+    "silver_dust": {
+      "display": "silver dust",
+      "article": "a pinch of",
+      "description": "Fine, cold to the touch. Useful in oil-making.",
+      "value": 6,
+      "weight": 0.1,
+      "tags": [
+        "alchemy",
+        "silver"
+      ],
+      "category": "resource",
+      "stackable": true,
+      "image": "✨"
+    },
+    "silver_key": {
+      "display": "silver key",
+      "article": "a",
+      "description": "A small key, tarnished black. Cold even in your hand.",
+      "value": 0,
+      "weight": 0.1,
+      "tags": [
+        "key",
+        "silver"
+      ],
+      "category": "good",
+      "stackable": false,
+      "image": "🗝"
+    },
+    "holy_water": {
+      "display": "vial of holy water",
+      "article": "a",
+      "description": "Drawn from the chapel font and blessed. Restores life to the warm; burns the cursed.",
+      "value": 12,
+      "weight": 0.2,
+      "tags": [
+        "sacred",
+        "consumable"
+      ],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {
+        "restore_life": 30
+      },
+      "consumable_action": "drink",
+      "image": "🍶"
+    },
+    "wolfsbane": {
+      "display": "wolfsbane",
+      "article": "a sprig of",
+      "description": "A pale herb with violet flowers. Bitter on the tongue. The forest knows it.",
+      "value": 4,
+      "weight": 0.1,
+      "tags": [
+        "herb",
+        "alchemy"
+      ],
+      "category": "resource",
+      "stackable": true,
+      "image": "🌸"
+    },
+    "moonsilver_herb": {
+      "display": "moonsilver herb",
+      "article": "a",
+      "description": "A grey-leafed herb that grows only on consecrated ground. Soft as cobweb.",
+      "value": 9,
+      "weight": 0.1,
+      "tags": [
+        "herb",
+        "alchemy",
+        "sacred"
+      ],
+      "category": "resource",
+      "stackable": true,
+      "image": "🌿"
+    },
+    "garlic": {
+      "display": "garlic bulb",
+      "article": "a",
+      "description": "A pungent bulb. Folk wisdom claims more than it can prove. Some folk wisdom is right.",
+      "value": 2,
+      "weight": 0.1,
+      "tags": [
+        "herb",
+        "consumable"
+      ],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {
+        "restore_life": 5
+      },
+      "consumable_action": "eat",
+      "image": "🧄"
+    },
+    "torch": {
+      "display": "torch",
+      "article": "a",
+      "description": "A pitch-soaked torch. Burns warm, burns short.",
+      "value": 3,
+      "weight": 0.5,
+      "tags": [
+        "light",
+        "wood"
+      ],
+      "category": "good",
+      "stackable": false,
+      "image": "🔦"
+    },
+    "bone_relic": {
+      "display": "bone relic",
+      "article": "a",
+      "description": "A small carved finger-bone, tied with red thread. Lucky, the smith claims.",
+      "value": 12,
+      "weight": 0.2,
+      "tags": [
+        "bone",
+        "trinket"
+      ],
+      "category": "good",
+      "stackable": false,
+      "image": "🦴"
+    },
+    "raw_meat": {
+      "display": "raw meat",
+      "article": "some",
+      "description": "Stringy, dark, cooling fast. Best cured before it turns.",
+      "value": 3,
+      "weight": 0.5,
+      "tags": [
+        "food",
+        "raw"
+      ],
+      "category": "resource",
+      "stackable": true,
+      "decay_turns": 50,
+      "image": "🥩"
+    },
+    "wood": {
+      "display": "wood",
+      "article": "a",
+      "description": "Branch wood. Dry enough to burn, dense enough to whittle.",
+      "value": 1,
+      "weight": 0.5,
+      "tags": [
+        "wood"
+      ],
+      "category": "resource",
+      "stackable": true,
+      "image": "🪵"
+    },
+    "silver_blessing": {
+      "display": "silver blessing",
+      "article": "a",
+      "description": "Distilled wolfsbane and moonsilver in a vial of holy water. Tastes like winter morning. Said to lift the curse from the cursed.",
+      "value": 80,
+      "weight": 0.2,
+      "tags": [
+        "sacred",
+        "alchemy"
+      ],
+      "category": "good",
+      "stackable": false,
+      "image": "🕊️"
+    },
+    "count_signet": {
+      "display": "the Count's signet ring",
+      "article": "the",
+      "description": "A heavy ring of black silver, marked with a sign no living priest will name.",
+      "value": 0,
+      "weight": 0.1,
+      "tags": [
+        "trinket",
+        "haunted"
+      ],
+      "category": "good",
+      "stackable": false,
+      "image": "💍"
+    }
+  },
+  "skills": {
+    "foraging": {
+      "display": "Foraging",
+      "description": "Pick herbs, gather small things from the underbrush.",
+      "tier": 1,
+      "spark_cost": 0,
+      "prereqs": [],
+      "unlocks": {
+        "verbs": [
+          "forage",
+          "gather"
+        ],
+        "recipes": [],
+        "interactions": []
+      }
+    },
+    "alchemy": {
+      "display": "Alchemy",
+      "description": "Distill silver oil; brew the blessing if you have what is needed.",
+      "tier": 2,
+      "spark_cost": 25,
+      "prereqs": [
+        "foraging"
+      ],
+      "unlocks": {
+        "verbs": [],
+        "recipes": [
+          "distill_silver_oil",
+          "brew_blessing"
+        ],
+        "interactions": []
+      }
+    },
+    "smithing": {
+      "display": "Smithing",
+      "description": "The smith's craft — coax metal, set silver into edge.",
+      "tier": 2,
+      "spark_cost": 25,
+      "prereqs": [],
+      "unlocks": {
+        "verbs": [],
+        "recipes": [
+          "forge_silver_dagger"
+        ],
+        "interactions": []
+      }
+    },
+    "lycanthropy": {
+      "display": "Lycanthropy",
+      "description": "The wolf's gift, unasked-for. The change is in your blood. Most NPCs will know, somehow.",
+      "tier": 3,
+      "spark_cost": 0,
+      "prereqs": [],
+      "acquisition": "trigger",
+      "unlocks": {
+        "verbs": [],
+        "recipes": [],
+        "interactions": []
+      },
+      "tags": [
+        "curse",
+        "supernatural"
+      ]
+    },
+    "vampirism": {
+      "display": "Vampirism",
+      "description": "The Count's gift, asked for. Sunlight will not love you any more. Hunger does, though.",
+      "tier": 3,
+      "spark_cost": 0,
+      "prereqs": [],
+      "acquisition": "trigger",
+      "unlocks": {
+        "verbs": [],
+        "recipes": [],
+        "interactions": []
+      },
+      "tags": [
+        "curse",
+        "supernatural"
+      ]
+    }
+  },
+  "recipes": {
+    "distill_silver_oil": {
+      "display": "Silvering oil",
+      "description": "Distill silver dust into oil. The smith pays for it; the cursed fear it.",
+      "skill": "alchemy",
+      "inputs": [
+        {
+          "item": "silver_dust",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "item": "silver_oil",
+          "qty": 1
+        }
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 4
+    },
+    "brew_blessing": {
+      "display": "Silver blessing",
+      "description": "Distill wolfsbane + moonsilver in holy water. The cure for the curse — if the cursed will drink it.",
+      "skill": "alchemy",
+      "inputs": [
+        {
+          "item": "wolfsbane",
+          "qty": 1
+        },
+        {
+          "item": "moonsilver_herb",
+          "qty": 1
+        },
+        {
+          "item": "holy_water",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "silver_blessing",
+          "qty": 1
+        }
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 8
+    },
+    "forge_silver_dagger": {
+      "display": "Silver-tipped dagger",
+      "description": "Forge a silvered edge onto a rusty dagger. The smith will do it for you, or you can do it yourself if you've learned the work.",
+      "skill": "smithing",
+      "inputs": [
+        {
+          "item": "rusty_dagger",
+          "qty": 1
+        },
+        {
+          "item": "silver_oil",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "item": "silver_dagger",
+          "qty": 1
+        }
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 6
+    }
+  },
+  "entities": {
+    "werewolf": {
+      "display": "werewolf",
+      "summary": "A wolf, broken-shaped. Larger than it should be. The eyes are not a wolf's eyes. The bite is hot.",
+      "tone_hints": [
+        "wrong",
+        "hungry",
+        "patient",
+        "afraid"
+      ],
+      "hp": 30,
+      "attack_damage_range": [
+        4,
+        9
+      ],
+      "evasion": 0.05,
+      "hostile": true,
+      "base_drops": [
+        {
+          "item": "raw_meat",
+          "qty": 1
+        }
+      ],
+      "skinning_drops": [],
+      "rare_drops": [
+        {
+          "item": "silver_dust",
+          "qty": 1,
+          "chance": 0.1
+        }
+      ],
+      "weaknesses": [
+        "pierce"
+      ],
+      "resistances": [
+        "blunt"
+      ],
+      "tags": [
+        "predator",
+        "cursed",
+        "large"
+      ]
+    },
+    "revenant": {
+      "display": "revenant",
+      "summary": "A villager, weeks dead, walking. They do not know you. They do not know themselves.",
+      "tone_hints": [
+        "slow",
+        "patient",
+        "sad"
+      ],
+      "hp": 25,
+      "attack_damage_range": [
+        3,
+        7
+      ],
+      "evasion": 0.0,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [
+        {
+          "item": "bone_relic",
+          "qty": 1,
+          "chance": 0.3
+        }
+      ],
+      "weaknesses": [
+        "slash"
+      ],
+      "resistances": [],
+      "tags": [
+        "undead",
+        "slow"
+      ]
+    },
+    "bat_swarm": {
+      "display": "swarm of bats",
+      "summary": "A column of dark, moving as one. Hard to see; harder to hit. The cellar is theirs.",
+      "tone_hints": [
+        "fast",
+        "shrill",
+        "many"
+      ],
+      "hp": 8,
+      "attack_damage_range": [
+        1,
+        3
+      ],
+      "evasion": 0.4,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [
+        {
+          "item": "silver_dust",
+          "qty": 1,
+          "chance": 0.05
+        }
+      ],
+      "weaknesses": [
+        "slash"
+      ],
+      "resistances": [],
+      "tags": [
+        "small",
+        "fast",
+        "swarm"
+      ]
+    },
+    "shade": {
+      "display": "shade",
+      "summary": "A tall, thin shape that bends light wrong. The crypt does not want you here.",
+      "tone_hints": [
+        "wrong",
+        "cold",
+        "patient"
+      ],
+      "hp": 22,
+      "attack_damage_range": [
+        4,
+        8
+      ],
+      "evasion": 0.2,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [
+        {
+          "item": "silver_dust",
+          "qty": 1,
+          "chance": 0.2
+        }
+      ],
+      "weaknesses": [
+        "pierce"
+      ],
+      "resistances": [
+        "blunt",
+        "slash"
+      ],
+      "tags": [
+        "undead",
+        "spirit"
+      ]
+    },
+    "grave_dog": {
+      "display": "grave dog",
+      "summary": "A long, lean dog living in the graveyard. It does not bark. It works.",
+      "tone_hints": [
+        "lean",
+        "watchful"
+      ],
+      "hp": 14,
+      "attack_damage_range": [
+        2,
+        4
+      ],
+      "evasion": 0.1,
+      "hostile": true,
+      "base_drops": [
+        {
+          "item": "raw_meat",
+          "qty": 1
+        }
+      ],
+      "skinning_drops": [],
+      "rare_drops": [
+        {
+          "item": "bone_relic",
+          "qty": 1,
+          "chance": 0.1
+        }
+      ],
+      "weaknesses": [
+        "pierce"
+      ],
+      "resistances": [],
+      "tags": [
+        "predator"
+      ]
+    }
+  },
+  "riddles": {
+    "bell_riddle": {
+      "location": "bell_tower",
+      "prompt": "I ring at dawn for those who wake. I ring at dusk for those who don't. I have never rung for the one who waits in the lake. What am I?",
+      "answers": [
+        "bell",
+        "the bell",
+        "a bell",
+        "the pale bell"
+      ],
+      "reward_sparks": 40,
+      "on_solve_message": "The verse on the rim catches the morning light, and you read it for the first time. Beneath it, scratched in a different hand: 'Silver waits where silver lay — the grave does not turn the silver away.'",
+      "reward_items": [
+        {
+          "item": "silver_key",
+          "qty": 1
+        }
+      ],
+      "repeatable": false
+    }
+  },
+  "npcs": {
+    "the_priest": {
+      "display": "the priest",
+      "location": "chapel",
+      "summary": "A thin, careful man in grey vestments. He is not afraid of you, and you can see he has reason to be.",
+      "tone_hints": [
+        "careful",
+        "tired",
+        "kind",
+        "knowing"
+      ],
+      "dialogue_seeds": [
+        "Sit by the font if you need to. The water is clean.",
+        "We do not ring the bell any more. Some sounds find ears we'd rather they didn't.",
+        "Whatever you've heard about what stays in the lake at night — believe it."
+      ],
+      "behaviors": [
+        "tells_rumors"
+      ],
+      "is_marketplace": true,
+      "initial_stock": [
+        {
+          "item": "holy_water",
+          "qty": 6,
+          "price_gold": 8
+        }
+      ],
+      "hours": {
+        "open": 6,
+        "close": 18
+      },
+      "conditional_dialogue": [
+        {
+          "if": [
+            {
+              "type": "has_skill",
+              "skill": "lycanthropy"
+            }
+          ],
+          "lines": [
+            "I see it in your eyes. The change is in you. Don't lie to me — I've seen it before.",
+            "There is a way back. Wolfsbane in the forest. Moonsilver in the graveyard. Holy water from this font. Bring them. I'll teach you the work."
+          ]
+        },
+        {
+          "if": [
+            {
+              "type": "has_skill",
+              "skill": "vampirism"
+            }
+          ],
+          "lines": [
+            "You should not be here. Not in the day. Not in this house.",
+            "There is no cure for what you have done. Only mercy left, and not from me."
+          ]
+        }
+      ],
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "What brings you here, traveller?"
+          ],
+          "choices": [
+            {
+              "label": "Tell me about the village.",
+              "goto": "village_lore"
+            },
+            {
+              "label": "What's in the lake?",
+              "goto": "lake_lore"
+            },
+            {
+              "label": "I think I have been bitten.",
+              "goto": "bite_check",
+              "requires_skill": "lycanthropy"
+            },
+            {
+              "label": "Goodbye.",
+              "end": true
+            }
+          ]
+        },
+        "village_lore": {
+          "lines": [
+            "We were a hundred souls a year ago. We are forty now. Most went into the graveyard. A few — went into the woods.",
+            "The watchman walks the round still. He carries the silver key for the crypt, when he remembers to."
+          ],
+          "choices": [
+            {
+              "label": "Back.",
+              "goto": "default"
+            }
+          ]
+        },
+        "lake_lore": {
+          "lines": [
+            "The Count came thirty years ago. The lake was a pond then. After he came, the pond grew dark, then deep, then — what it is.",
+            "Do not go up to the tower at night. Or do, if you've made your peace. He does not lie to those who climb."
+          ],
+          "choices": [
+            {
+              "label": "Back.",
+              "goto": "default"
+            }
+          ]
+        },
+        "bite_check": {
+          "lines": [
+            "Yes. I see. There is a way. Wolfsbane in the forest, moonsilver among the stones, this water in your hand. Bring them. I will teach you the brewing.",
+            "If you bring me back the silver blessing — and you have the courage to drink it — the curse breaks."
+          ],
+          "effects": [
+            {
+              "type": "set_flag",
+              "flag": "priest_offered_cure"
+            }
+          ],
+          "choices": [
+            {
+              "label": "I will return.",
+              "end": true
+            }
+          ]
+        },
+        "cleanse": {
+          "lines": [
+            "You have it. Give it to me. Drink. Hold still. ...",
+            "...",
+            "It is done. The wolf has left you. Do not look for it again."
+          ],
+          "effects": [
+            {
+              "type": "revoke_skill",
+              "skill": "lycanthropy"
+            },
+            {
+              "type": "set_flag",
+              "flag": "cured_of_curse"
+            },
+            {
+              "type": "narrate",
+              "text": ">>> Your blood quiets. The hunger is gone. You feel only tired.",
+              "cls": "spark"
+            }
+          ],
+          "choices": [
+            {
+              "label": "Thank you.",
+              "end": true
+            }
+          ]
+        }
+      }
+    },
+    "the_smith": {
+      "display": "the smith",
+      "location": "smith",
+      "summary": "A short, broad woman with arms like cable and a dark patience. She works late, sleeps later.",
+      "tone_hints": [
+        "tired",
+        "warm",
+        "shrewd"
+      ],
+      "dialogue_seeds": [
+        "The forge runs late. The forge runs warm. Bring me work I can finish.",
+        "Silver oil's in the rack. Three vials and a rusty knife and I'll silver it for you."
+      ],
+      "behaviors": [
+        "buys_items",
+        "tells_rumors",
+        "teaches_skill",
+        "offers_smithing"
+      ],
+      "buys_tags": [
+        "silver",
+        "weapon"
+      ],
+      "is_marketplace": true,
+      "initial_stock": [
+        {
+          "item": "silver_oil",
+          "qty": 4,
+          "price_gold": 30
+        },
+        {
+          "item": "torch",
+          "qty": 6,
+          "price_gold": 4
+        },
+        {
+          "item": "silver_dagger",
+          "qty": 1,
+          "price_gold": 220
+        }
+      ],
+      "teaches": [
+        "smithing",
+        "alchemy"
+      ],
+      "hours": {
+        "open": 16,
+        "close": 24
+      }
+    },
+    "the_watchman": {
+      "display": "the watchman",
+      "location": "village_square",
+      "summary": "An old man with a brass-handled lantern, walking the round. He nods. He never stops walking.",
+      "tone_hints": [
+        "tired",
+        "kind",
+        "moving"
+      ],
+      "dialogue_seeds": [
+        "Stay in by dark, traveller. The lake's bell rings for nobody now.",
+        "I carry the crypt's key, when I remember it. Some days I do."
+      ],
+      "behaviors": [
+        "buys_items",
+        "tells_rumors"
+      ],
+      "buys_tags": [
+        "bone",
+        "silver"
+      ],
+      "is_marketplace": false,
+      "initial_stock": [],
+      "schedule": [
+        {
+          "rooms": [
+            "village_square"
+          ],
+          "hours": [
+            6,
+            12
+          ]
+        },
+        {
+          "rooms": [
+            "smith"
+          ],
+          "hours": [
+            12,
+            16
+          ]
+        },
+        {
+          "rooms": [
+            "graveyard"
+          ],
+          "hours": [
+            16,
+            22
+          ]
+        },
+        {
+          "rooms": [
+            "chapel"
+          ],
+          "hours": [
+            22,
+            6
+          ]
+        }
+      ]
+    },
+    "the_count": {
+      "display": "the Count",
+      "location": "count_tower",
+      "summary": "Tall, pale, courteous. He stands when you enter. He pours for you. The wine is excellent.",
+      "tone_hints": [
+        "courteous",
+        "ancient",
+        "hungry",
+        "patient"
+      ],
+      "dialogue_seeds": [
+        "So. You climbed."
+      ],
+      "behaviors": [
+        "tells_rumors"
+      ],
+      "is_marketplace": false,
+      "initial_stock": [],
+      "hours": {
+        "open": 22,
+        "close": 4
+      },
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "So. You climbed. Few do. Most who climb are only curious.",
+            "Tell me, then — why are you here?"
+          ],
+          "choices": [
+            {
+              "label": "Curiosity. Nothing more.",
+              "goto": "curious"
+            },
+            {
+              "label": "I want what you have.",
+              "goto": "want_gift",
+              "hide_when_unavailable": false
+            },
+            {
+              "label": "I came to end you.",
+              "goto": "slay_threat",
+              "requires_item": "silver_dagger"
+            },
+            {
+              "label": "I will leave.",
+              "end": true
+            }
+          ]
+        },
+        "curious": {
+          "lines": [
+            "Curious is honest, at least. Sit. Drink, if you like. The wine will not bite you.",
+            "I have been here longer than the village. I will be here longer than the village. The lake came with me; the lake will go with me."
+          ],
+          "choices": [
+            {
+              "label": "What do you want from me?",
+              "goto": "what_count_wants"
+            },
+            {
+              "label": "I should go.",
+              "end": true
+            }
+          ]
+        },
+        "what_count_wants": {
+          "lines": [
+            "From you? Almost nothing. A guest is a guest. I want only that one of every hundred who climbs the tower decides, on their own, to stay.",
+            "When you decide, you will know. You will come back. Or you won't. Either is acceptable."
+          ],
+          "choices": [
+            {
+              "label": "I'd like the gift.",
+              "goto": "want_gift"
+            },
+            {
+              "label": "I'll think on it.",
+              "end": true
+            }
+          ]
+        },
+        "want_gift": {
+          "lines": [
+            "You're sure?",
+            "It is permanent. The sun will not love you. The mortal water will burn. But you will be patient. You will be many things. You will be — yourself, but more."
+          ],
+          "choices": [
+            {
+              "label": "Yes. Give it to me.",
+              "goto": "accept_gift"
+            },
+            {
+              "label": "I'm not sure. Tell me more.",
+              "goto": "what_count_wants"
+            },
+            {
+              "label": "I changed my mind.",
+              "end": true
+            }
+          ]
+        },
+        "accept_gift": {
+          "lines": [
+            "Then take my hand. Hold still.",
+            "...",
+            "It is done. Welcome, child. The night is long, and now it is yours."
+          ],
+          "effects": [
+            {
+              "type": "grant_skill",
+              "skill": "vampirism"
+            },
+            {
+              "type": "set_flag",
+              "flag": "took_the_gift"
+            },
+            {
+              "type": "narrate",
+              "text": ">>> Your blood goes still. The cold tastes of wine. You will not need to eat the way you did.",
+              "cls": "spark"
+            }
+          ],
+          "choices": [
+            {
+              "label": "...",
+              "end": true
+            }
+          ]
+        },
+        "slay_threat": {
+          "lines": [
+            "Ah. Silver. I see. You came prepared.",
+            "I will not fight you, traveller. I am very old. If you must, do it. I would only ask you take this — proof, for the priest, that the village is free."
+          ],
+          "effects": [
+            {
+              "type": "give_item",
+              "item": "count_signet",
+              "qty": 1
+            },
+            {
+              "type": "set_flag",
+              "flag": "count_yielded"
+            },
+            {
+              "type": "narrate",
+              "text": ">>> The Count slips a heavy ring from his finger and sets it on the table.",
+              "cls": "spark"
+            }
+          ],
+          "choices": [
+            {
+              "label": "Strike.",
+              "goto": "slay_strike"
+            },
+            {
+              "label": "Leave him be.",
+              "end": true
+            }
+          ]
+        },
+        "slay_strike": {
+          "lines": [
+            "...so it ends. Thank you.",
+            "..."
+          ],
+          "effects": [
+            {
+              "type": "set_flag",
+              "flag": "count_slain"
+            },
+            {
+              "type": "narrate",
+              "text": ">>> The silver bites where silver bites. He goes still. The lake outside ripples once and is calm.",
+              "cls": "error"
+            }
+          ],
+          "choices": [
+            {
+              "label": "Leave.",
+              "end": true
+            }
+          ]
+        }
+      }
+    }
+  },
+  "quests": {
+    "intro_chapel": {
+      "title": "The Hollow Forest",
+      "description": "You woke at the chapel. The priest will tell you what little he knows. Talk with him; visit the village; choose your path.",
+      "giver": null,
+      "auto_accept": true,
+      "objectives": [
+        {
+          "type": "visited",
+          "room": "village_square"
+        },
+        {
+          "type": "visited",
+          "room": "graveyard"
+        }
+      ],
+      "rewards": {
+        "gold": 10,
+        "sparks": 5,
+        "items": []
+      },
+      "completion_message": "You have your bearings. The priest watches by day, the Count waits by night. The forest is yours to choose."
+    },
+    "the_curse": {
+      "title": "The Curse",
+      "description": "You've been bitten. The priest offers a cure: bring wolfsbane (forest), moonsilver (graveyard), holy water (this font), and learn the brewing. Drink the silver blessing and the wolf leaves you.",
+      "giver": "the_priest",
+      "auto_accept": false,
+      "requires": [
+        "intro_chapel"
+      ],
+      "objectives": [
+        {
+          "type": "have_item",
+          "item": "silver_blessing",
+          "qty": 1,
+          "consume": false
+        }
+      ],
+      "rewards": {
+        "gold": 30,
+        "sparks": 25,
+        "items": []
+      },
+      "completion_message": "The priest takes the blessing from your hand. 'Now drink — and hold still.' (Talk to the priest with `talk priest` to be cleansed; pick the cleansing branch.)"
+    },
+    "the_gift": {
+      "title": "The Gift",
+      "description": "You have accepted the Count's invitation. He asks one small thing: prove the gift is in you. Feed the hunger three times.",
+      "giver": "the_count",
+      "auto_accept": false,
+      "requires": [
+        "intro_chapel"
+      ],
+      "objectives": [
+        {
+          "type": "kill",
+          "entity": "werewolf",
+          "qty": 2
+        },
+        {
+          "type": "kill",
+          "entity": "grave_dog",
+          "qty": 1
+        }
+      ],
+      "rewards": {
+        "gold": 60,
+        "sparks": 40,
+        "items": [
+          {
+            "item": "count_signet",
+            "qty": 1
+          }
+        ]
+      },
+      "completion_message": "The Count receives you again. 'Three is enough. The night accepts you.' He pours another glass."
+    },
+    "the_slayer": {
+      "title": "The Slayer",
+      "description": "Some villages do not need a count. Forge a silver-tipped dagger, climb the tower at night, and end this. The smith will help if you bring her silver oil.",
+      "giver": "the_priest",
+      "auto_accept": false,
+      "requires": [
+        "intro_chapel"
+      ],
+      "objectives": [
+        {
+          "type": "have_item",
+          "item": "count_signet",
+          "qty": 1,
+          "consume": false
+        }
+      ],
+      "rewards": {
+        "gold": 120,
+        "sparks": 60,
+        "items": []
+      },
+      "completion_message": "You bring the priest the signet. He weeps, briefly, and rings the bell himself. The shutters in the village open one by one."
+    },
+    "the_silver_key": {
+      "title": "The Silver Key",
+      "description": "Climb the bell-tower. Read the verse on the rim. Solve what the bell asks — and the silver lock will yield.",
+      "giver": null,
+      "auto_accept": true,
+      "objectives": [
+        {
+          "type": "have_item",
+          "item": "silver_key",
+          "qty": 1,
+          "consume": false
+        }
+      ],
+      "rewards": {
+        "gold": 10,
+        "sparks": 10,
+        "items": []
+      },
+      "completion_message": "The key is yours. The crypt waits."
+    }
+  },
+  "events": {
+    "wolf_bite_curse": {
+      "trigger": "on_attacked",
+      "trigger_params": {
+        "entity": "werewolf"
+      },
+      "chance": 0.08,
+      "once": false,
+      "conditions": [
+        {
+          "type": "!has_skill",
+          "skill": "lycanthropy"
+        }
+      ],
+      "effects": [
+        {
+          "type": "narrate",
+          "text": ">>> The bite burns deeper than a bite should. Something passes from its mouth into yours.",
+          "cls": "error"
+        },
+        {
+          "type": "grant_skill",
+          "skill": "lycanthropy"
+        }
+      ]
+    },
+    "sunlight_burn": {
+      "trigger": "on_turn",
+      "once": false,
+      "conditions": [
+        {
+          "type": "has_skill",
+          "skill": "vampirism"
+        },
+        {
+          "type": "has_flag",
+          "flag": "in_daylight"
+        }
+      ],
+      "effects": [
+        {
+          "type": "narrate",
+          "text": "[The sun bites your skin where it touches.]",
+          "cls": "error"
+        }
+      ]
+    },
+    "welcome_open": {
+      "trigger": "on_room_enter",
+      "trigger_params": {
+        "room": "village_square"
+      },
+      "once": true,
+      "effects": [
+        {
+          "type": "narrate",
+          "text": ">>> The villagers do not look up. You are not the strangest thing this year.",
+          "cls": "system"
+        }
+      ]
+    }
+  },
+  "signature": null
+}
