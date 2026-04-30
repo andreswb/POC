@@ -241,7 +241,7 @@ const STORY_WHISPERING_FOREST = {
     "title": "The Whispering Forest",
     "author": "Andres",
     "author_pubkey": null,
-    "version": "1.14.2",
+    "version": "1.14.3",
     "created_at": "2026-04-28T00:00:00Z",
     "language": "en",
     "tone": "eerie, sensory, hopeful undertones; never explain too much; favor sound and texture over exposition",
@@ -4652,6 +4652,39 @@ const STORY_WHISPERING_FOREST = {
         ]
       },
       "completion_message": "He breathes out long and slow. \"You've done well, traveller. Take the cloak — the cold takes me first now, but you've bought me a winter.\""
+    },
+    "merchants_trusted_contract": {
+      "title": "The Most Trusted Contract",
+      "description": "The merchant has held back a private commission for someone he trusts. Bring him 10 cured meat and 3 leather, and he'll pay handsomely.",
+      "giver": "weathered_merchant",
+      "auto_accept": false,
+      "requires": [
+        "merchants_meat"
+      ],
+      "requires_renown_gte": 70,
+      "objectives": [
+        {
+          "type": "have_item",
+          "item": "cured_meat",
+          "qty": 10
+        },
+        {
+          "type": "have_item",
+          "item": "leather",
+          "qty": 3
+        }
+      ],
+      "rewards": {
+        "gold": 180,
+        "sparks": 50,
+        "items": [
+          {
+            "item": "spirit_glass",
+            "qty": 1
+          }
+        ]
+      },
+      "completion_message": "He counts your goods carefully. \"This will keep my caravan rolling for the season. You earned this.\" He pays you, and presses something cold and small into your hand — a spirit glass."
     }
   },
   "signature": null,
@@ -4712,6 +4745,23 @@ const STORY_WHISPERING_FOREST = {
 // ============================================================
 const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
+const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace story IDs the player has paid for (honor system v1)
+
+// 5.13: paid-story helpers (lightning honor system v1).
+// We trust the player when they click "I've paid". Real cryptographic
+// payment-receipt verification (NIP-57 zap receipts) is a v2 — see schema doc.
+function loadPaidStories() {
+  try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+function markStoryPaid(id) {
+  const set = loadPaidStories();
+  set.add(id);
+  try { localStorage.setItem(PAID_STORIES_KEY, JSON.stringify([...set])); } catch {}
+}
+function isStoryPaid(id) {
+  return loadPaidStories().has(id);
+}
 
 // 5.9 / 5.12: extra stories fetched from same-origin URLs at boot, treated
 // like built-ins. Two discovery paths, in order:
@@ -4768,7 +4818,7 @@ async function loadExtraStoriesIntoBuiltin() {
 }
 
 function listAllStoryOptions() {
-  // Returns [{ id, label, source: 'builtin'|'custom', story }]
+  // Returns [{ id, label, source: 'builtin'|'custom'|'marketplace', story?, listing? }]
   const out = [];
   for (const [id, s] of Object.entries(BUILTIN_STORIES)) {
     out.push({ id, label: (s.meta?.title || id) + ' (built-in)', source: 'builtin', story: s });
@@ -4784,6 +4834,18 @@ function listAllStoryOptions() {
       } catch {}
     }
   } catch {}
+  // 5.13: marketplace listings (Nostr-distributed). Filter out IDs we already
+  // have locally so we don't show duplicates.
+  const localIds = new Set(out.map(o => o.id));
+  for (const [id, listing] of marketplaceStories) {
+    if (localIds.has(id)) continue;
+    out.push({
+      id,
+      label: (listing.title || id) + ' (marketplace)',
+      source: 'marketplace',
+      listing
+    });
+  }
   return out;
 }
 
@@ -4849,7 +4911,11 @@ function showStoryPicker(currentId = null) {
     const listEl = panel.querySelector('#story-list');
     function renderList() {
       listEl.innerHTML = '';
-      for (const opt of listAllStoryOptions()) {
+      const allOpts = listAllStoryOptions();
+      const marketplace = allOpts.filter(o => o.source === 'marketplace');
+      const local = allOpts.filter(o => o.source !== 'marketplace');
+      // Render local stories first
+      for (const opt of local) {
         const row = document.createElement('button');
         row.style.cssText = 'text-align:left;padding:12px 14px;background:' + (opt.id === currentId ? '#2a3528' : '#23201c') + ';border:1px solid ' + (opt.id === currentId ? '#4a6a3a' : '#3a352e') + ';color:#e8e6e3;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;gap:2px;font:inherit;';
         const titleSpan = document.createElement('span');
@@ -4873,6 +4939,95 @@ function showStoryPicker(currentId = null) {
         }
         row.onclick = () => pick(opt.id);
         listEl.appendChild(row);
+      }
+      // 5.13: marketplace section
+      if (marketplace.length > 0) {
+        const sep = document.createElement('div');
+        sep.style.cssText = 'margin-top:8px;padding:8px 0 4px;border-top:1px solid #3a352e;font-size:11px;color:#9c9388;text-transform:uppercase;letter-spacing:0.05em;';
+        sep.textContent = `Marketplace (${marketplace.length} story${marketplace.length === 1 ? '' : ' · published by other players'})`;
+        listEl.appendChild(sep);
+        for (const opt of marketplace) {
+          const li = opt.listing;
+          const row = document.createElement('button');
+          row.style.cssText = 'text-align:left;padding:12px 14px;background:#23201c;border:1px solid #3a352e;color:#e8e6e3;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;gap:2px;font:inherit;';
+          const titleSpan = document.createElement('span');
+          titleSpan.style.cssText = 'font-weight:bold;';
+          let shortNpub = '';
+          try { const np = nip19.npubEncode(li.author_pubkey); shortNpub = np.slice(0, 12) + '…' + np.slice(-6); } catch {}
+          const verifiedBadge = li.verified ? ' <span style="color:#6dc28d;">✓ verified</span>' : '';
+          titleSpan.innerHTML = (li.title || li.id) + verifiedBadge;
+          const sub = document.createElement('span');
+          sub.style.cssText = 'font-size:12px;color:#9c9388;';
+          const priceTag = (li.license?.price_sats > 0) ? ` · ${li.license.price_sats}⚡` : ' · free';
+          sub.textContent = `v${li.version} · ${li.author || 'anon'} (${shortNpub})${priceTag}`;
+          row.append(titleSpan, sub);
+          if (li.description) {
+            const desc = document.createElement('span');
+            desc.style.cssText = 'font-size:12px;color:#bcb4a8;margin-top:4px;';
+            desc.textContent = li.description.slice(0, 200);
+            row.append(desc);
+          }
+          // 5.13: paid stories → present a payment flow before allowing import
+          const priceSats = li.license?.price_sats || 0;
+          const paymentUrl = li.license?.payment_url;
+          const alreadyPaid = isStoryPaid(li.id);
+          if (priceSats > 0 && !alreadyPaid) {
+            const buyRow = document.createElement('div');
+            buyRow.style.cssText = 'display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;';
+            const payBtn = document.createElement('a');
+            payBtn.style.cssText = 'padding:4px 10px;background:#f0b54a;color:#1a1408;border-radius:3px;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer;';
+            payBtn.textContent = `⚡ Pay ${priceSats} sats`;
+            if (paymentUrl) { payBtn.href = paymentUrl; payBtn.target = '_blank'; payBtn.rel = 'noopener'; }
+            else { payBtn.href = '#'; payBtn.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); alert(`This story is priced at ${priceSats} sats but the author hasn't provided a payment URL. Contact them directly.`); }; }
+            const paidBtn = document.createElement('button');
+            paidBtn.style.cssText = 'padding:4px 10px;background:#3a352e;color:#bcb4a8;border:1px solid #5a5044;border-radius:3px;font-size:12px;cursor:pointer;font:inherit;';
+            paidBtn.textContent = `I've paid → import`;
+            paidBtn.onclick = async (ev) => {
+              ev.stopPropagation();
+              msgEl.style.color = '#9c9388';
+              msgEl.textContent = `Fetching ${li.title || li.id}…`;
+              try {
+                const res = await fetch(li.url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const story = await res.json();
+                const err = validateStoryShape(story);
+                if (err) { msgEl.textContent = 'Story rejected: ' + err; msgEl.style.color = '#c66'; return; }
+                saveCustomStory(story);
+                markStoryPaid(li.id);
+                msgEl.style.color = '#6dc28d';
+                msgEl.textContent = `Imported "${story.meta.title}". Click below to play.`;
+                renderList();
+              } catch (e) {
+                msgEl.style.color = '#c66';
+                msgEl.textContent = `Failed to fetch: ${e.message}`;
+              }
+            };
+            buyRow.append(payBtn, paidBtn);
+            row.append(buyRow);
+            // The row click itself is suppressed for paid items (use buttons)
+            row.onclick = (ev) => { /* require explicit pay/import button */ };
+          } else {
+            row.onclick = async () => {
+              msgEl.style.color = '#9c9388';
+              msgEl.textContent = `Fetching ${li.title || li.id} from ${li.url}…`;
+              try {
+                const res = await fetch(li.url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const story = await res.json();
+                const err = validateStoryShape(story);
+                if (err) { msgEl.textContent = 'Story rejected: ' + err; msgEl.style.color = '#c66'; return; }
+                saveCustomStory(story);
+                msgEl.style.color = '#6dc28d';
+                msgEl.textContent = `Imported "${story.meta.title}". Click below to play.`;
+                renderList();
+              } catch (e) {
+                msgEl.style.color = '#c66';
+                msgEl.textContent = `Failed to fetch: ${e.message}`;
+              }
+            };
+          }
+          listEl.appendChild(row);
+        }
       }
     }
     renderList();
@@ -5045,6 +5200,8 @@ const KIND_CARVE        = 30432;  // 4.11: persistent player marks tagged to a r
 const KIND_COMBAT       = 30435;  // 4.5: shared combat sessions (open/damage/end phases)
 const KIND_BOUNTY       = 30437;  // 5.11: bounty post — gold reward on entity kills
 const KIND_BOUNTY_CLAIM = 30438;  // 5.11: bounty claim — first-to-claim wins
+const KIND_STORY_LISTING= 30441;  // 5.13: story marketplace — author publishes their story for discovery
+const TOPIC_LISTINGS    = 'nta:story-listings';  // global listing topic (cross-story)
 const TOPIC = 'story:' + STORY.meta.id;
 const FIRE_DURATION_TURNS = 20;
 
@@ -5834,6 +5991,7 @@ const notices = new Map();   // notice_id -> { roomId, author, name, text, poste
 const carvings = new Map();  // carving_id -> { roomId, author, name, title, text, posted_at }
 const dmInbox = [];          // received DMs (most recent first), { from_pubkey, from_name, text, received_at }
 const bounties = new Map();  // 5.11: bounty_id -> { entity, gold, poster_pubkey, poster_name, posted_at, expires_at, claimed_by? }
+const marketplaceStories = new Map();  // 5.13: story_id -> { id, title, author, author_pubkey, description, url, story_hash, version, language, schema_version, published_at, listing_event_id, verified }
 
 // ============================================================
 //  LOGIN STREAKS + TITLES (4.8)
@@ -6721,7 +6879,8 @@ function subscribe() {
     { kinds: [KIND_COMBAT],   '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - 600 }, // 4.5: short window — combats are ephemeral
     { kinds: [KIND_DM],       '#p': [pk],    since: Math.floor(Date.now() / 1000) - 7 * 24 * 3600 },
     { kinds: [KIND_GIFT_OFFER, KIND_GIFT_ACCEPT, KIND_GIFT_DECLINE, KIND_HEAL], '#p': [pk], since: Math.floor(Date.now() / 1000) - 7 * 24 * 3600 },
-    { kinds: [KIND_BOUNTY, KIND_BOUNTY_CLAIM], '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - BOUNTY_EXPIRY_SEC }
+    { kinds: [KIND_BOUNTY, KIND_BOUNTY_CLAIM], '#t': [TOPIC], since: Math.floor(Date.now() / 1000) - BOUNTY_EXPIRY_SEC },
+    { kinds: [KIND_STORY_LISTING], '#t': [TOPIC_LISTINGS], since: Math.floor(Date.now() / 1000) - 90 * 24 * 3600 }  // 5.13: marketplace listings (90-day window)
   ], {
     onevent(event) {
       if (event.pubkey === pk && event.kind === KIND_ACTION) return;
@@ -6740,7 +6899,42 @@ function subscribe() {
       if (event.kind === KIND_HEAL)         handleRemoteHeal(event);
       if (event.kind === KIND_BOUNTY)       handleRemoteBounty(event);
       if (event.kind === KIND_BOUNTY_CLAIM) handleRemoteBountyClaim(event);
+      if (event.kind === KIND_STORY_LISTING) handleRemoteStoryListing(event);
     }
+  });
+}
+
+// 5.13: story marketplace handler. Listings are signed events pointing at a
+// downloadable story JSON. The signature (verifyEvent) plus a match between
+// the listing's pubkey and the story's signature.pubkey gives us a verified
+// badge in the picker.
+function handleRemoteStoryListing(event) {
+  let valid = false;
+  try { valid = verifyEvent(event); } catch {}
+  if (!valid) return;
+  let p = {}; try { p = JSON.parse(event.content); } catch { return; }
+  if (!p.id || !p.title || !p.url) return;
+  // De-dup by story id; keep the most recent listing per id
+  const existing = marketplaceStories.get(p.id);
+  if (existing && existing.published_at >= (p.published_at || event.created_at)) return;
+  marketplaceStories.set(p.id, {
+    id: p.id,
+    title: p.title,
+    author: p.author || '',
+    author_pubkey: event.pubkey,
+    claimed_author_pubkey: p.author_pubkey || event.pubkey,
+    description: p.description || '',
+    url: p.url,
+    story_hash: p.story_hash || null,
+    version: p.version || '?',
+    language: p.language || 'en',
+    schema_version: p.schema_version || '?',
+    license: p.license || null,
+    rooms: p.rooms || null,
+    published_at: p.published_at || event.created_at,
+    listing_event_id: event.id,
+    // Verified iff the listing's claimed author_pubkey matches the event signer
+    verified: (p.author_pubkey || event.pubkey) === event.pubkey
   });
 }
 
@@ -8696,7 +8890,11 @@ function acceptQuest(qid) {
   if (player.quests[qid]) { write('You already have that quest.'); return; }
   if (!questRequiresMet(q)) {
     const missing = (q.requires || []).filter(r => player.quests[r]?.state !== 'completed');
-    write(`That quest isn't available yet. First complete: ${missing.join(', ')}.`, 'error');
+    if (typeof q.requires_renown_gte === 'number' && (player.renown || 0) < q.requires_renown_gte) {
+      write(`That quest isn't offered to you yet. The giver wants more standing first (${player.renown || 0}/${q.requires_renown_gte} renown).`, 'error');
+    } else {
+      write(`That quest isn't available yet. First complete: ${missing.join(', ')}.`, 'error');
+    }
     return;
   }
   if (q.giver) {
@@ -8849,8 +9047,12 @@ function runEventEffects(evt) {
 }
 
 function questRequiresMet(q) {
-  if (!q.requires || q.requires.length === 0) return true;
-  return q.requires.every(req => player.quests[req]?.state === 'completed');
+  if (q.requires && q.requires.length > 0) {
+    if (!q.requires.every(req => player.quests[req]?.state === 'completed')) return false;
+  }
+  // 5.13: renown gate — quest is hidden / unaccepts until reputation threshold met
+  if (typeof q.requires_renown_gte === 'number' && (player.renown || 0) < q.requires_renown_gte) return false;
+  return true;
 }
 function offerQuestsFor(npcId) {
   const offers = [];
@@ -10999,7 +11201,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.29 ===`, 'title');
+write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.30 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
