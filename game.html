@@ -4356,7 +4356,9 @@ const player = {
   tutorial_done: false,        // 5.4: true once tutorial finished, skipped, or auto-completed
   tutorial_seen: new Set(),    // 5.4: which hint keys have been shown
   activated: false,            // 5.4: true once player has executed any meaningful (turn-consuming or identity) command
-  created_at: 0                // 5.4: epoch seconds when this character was first generated (for inactive cleanup)
+  created_at: 0,               // 5.4: epoch seconds when this character was first generated (for inactive cleanup)
+  profile_id: null,            // 5.6: chosen character profile (race/class) if story defines meta.character_profiles
+  dialog_session: null         // 5.6: { npc_id, node_id } when in a branching-dialog conversation
 };
 
 // ---- i18n helpers (5.3) ---------------------------------------------------
@@ -5104,6 +5106,7 @@ function serializeState() {
     tutorial_seen: [...(player.tutorial_seen || [])],
     activated: !!player.activated,
     created_at: player.created_at || 0,
+    profile_id: player.profile_id || null,
     freshness: Object.fromEntries(Object.entries(player.freshness || {}).map(([k, batches]) => [k, batches.map(b => ({ turn: b.turn, qty: b.qty }))])),
     rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
   };
@@ -5154,6 +5157,8 @@ function applyState(s) {
   player.tutorial_seen = new Set(s.tutorial_seen || []);
   player.activated = !!s.activated;
   player.created_at = s.created_at || 0;
+  player.profile_id = s.profile_id || null;
+  player.dialog_session = null;  // never resume a dialog mid-conversation across boots
   player.freshness = {};
   for (const [k, batches] of Object.entries(s.freshness || {})) {
     if (Array.isArray(batches)) player.freshness[k] = batches.map(b => ({ turn: b.turn, qty: b.qty }));
@@ -5380,11 +5385,16 @@ function computeMaxCapacity() {
   let cap = player.base_capacity;
   for (const it of player.inventory) cap += STORY.items[it]?.effects?.carry_capacity_bonus ?? 0;
   for (const it of Object.values(player.equipment)) cap += STORY.items[it]?.effects?.carry_capacity_bonus ?? 0;
+  // 5.6: profile bonus + str-derived bonus (floor(str/2) extra capacity)
+  cap += profileBonus('carry_capacity_bonus');
+  cap += Math.floor(profileAttribute('str') / 2);
   return cap;
 }
 function computeMaxLife() {
   let max = player.life_max;
   for (const it of Object.values(player.equipment)) max += STORY.items[it]?.effects?.life_max_bonus ?? 0;
+  // 5.6: profile bonus
+  max += profileBonus('life_max_bonus');
   return max;
 }
 function canCarry(itemId, qty = 1) {
@@ -5483,7 +5493,7 @@ async function publishAction(actionType, payload) {
   const evt = finalizeEvent({
     kind: KIND_ACTION, created_at: Math.floor(Date.now() / 1000),
     tags: [['t', TOPIC], ['action', actionType], ['d', `${actionType}-${Date.now()}`]],
-    content: JSON.stringify({ ...payload, name: player.name, title: playerTitle() })
+    content: JSON.stringify({ ...payload, name: player.name, title: playerTitle(), profile: player.profile_id || undefined })
   }, sk);
   addToFeed('myEvents', `${actionType}: ${formatActionSummary(actionType, payload)}`, evt.id.slice(0, 8));
   tryPublish(evt);
@@ -6164,7 +6174,11 @@ function fireActive(roomId) {
 function bestWeaponBonus() {
   // Only equipped weapon (in 'hand' slot) contributes
   const wielded = player.equipment.hand;
-  return wielded ? (STORY.items[wielded]?.effects?.attack_bonus ?? 0) : 0;
+  let bonus = wielded ? (STORY.items[wielded]?.effects?.attack_bonus ?? 0) : 0;
+  // 5.6: profile flat bonus + str-derived bonus (floor(str/4))
+  bonus += profileBonus('attack_bonus');
+  bonus += Math.floor(profileAttribute('str') / 4);
+  return bonus;
 }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 const WEATHER_LABELS = { clear: 'clear', rain: 'rain', fog: 'fog', snow: 'snow' };
@@ -6322,8 +6336,10 @@ function describeRoom() {
     for (const [id, n] of seen) parts.push(n > 1 ? `${itemDisplay(id, true)} ×${n}` : itemDisplay(id, true));
     write(T('You see: {0}', parts.join(', ')), 'items');
   }
-  if (room.npcs?.length)
-    write(T('Here: {0}', room.npcs.map(n => t(STORY.npcs[n].display)).join(', ')), 'items');
+  // 5.6: include schedule-roaming NPCs in the "Here" line
+  const presentNpcs = npcsHere(player.location);
+  if (presentNpcs.length)
+    write(T('Here: {0}', presentNpcs.map(n => t(STORY.npcs[n].display)).join(', ')), 'items');
   if (room.resources?.length) {
     const verbs = room.resources.map(r => `${cmdT(r.verb)} (${itemDisplay(r.id)})`).join(', ');
     write(T('Gatherable: {0}', verbs), 'items');
@@ -6371,7 +6387,13 @@ function describeRoom() {
       write(T('>>> {0} is fighting a {1} here. Type "assist" to join.', name, ent?.display || s.entity_id), 'combat');
     }
   }
-  write(T('Exits: {0}', Object.keys(room.exits).map(dirT).join(', ')), 'exits');
+  // 5.6: gated exits get a 🔒 marker until the requirement is met
+  const exitLabels = Object.entries(room.exits).map(([dir, raw]) => {
+    const r = resolveExit(raw);
+    if (!r || !r.gate) return dirT(dir);
+    return checkExitGate(r.gate).ok ? dirT(dir) : `${dirT(dir)} 🔒`;
+  });
+  write(T('Exits: {0}', exitLabels.join(', ')), 'exits');
 }
 
 function inCombat() { return player.combat_target != null; }
@@ -6383,11 +6405,47 @@ function combatBlock(action) {
   return true;
 }
 
+// 5.6: exits can be either a plain string (legacy: target room id) or an
+// object { target, requires_item?, requires_flag?, requires_skill?,
+// requires_quest_completed?, consume_item?, message? }. Returns
+// { target, gate } where gate is the unresolved gate object (or null).
+function resolveExit(rawExit) {
+  if (rawExit == null) return null;
+  if (typeof rawExit === 'string') return { target: rawExit, gate: null };
+  if (typeof rawExit === 'object' && rawExit.target) return { target: rawExit.target, gate: rawExit };
+  return null;
+}
+function checkExitGate(gate) {
+  if (!gate) return { ok: true };
+  if (gate.requires_flag && !player.flags.has(gate.requires_flag))
+    return { ok: false, why: gate.message || `The way is barred. (need flag: ${gate.requires_flag})` };
+  if (gate.requires_skill && !player.skills.has(gate.requires_skill))
+    return { ok: false, why: gate.message || `You lack the skill (${t(STORY.skills[gate.requires_skill]?.display || gate.requires_skill)}) to pass.` };
+  if (gate.requires_quest_completed && player.quests[gate.requires_quest_completed]?.state !== 'completed')
+    return { ok: false, why: gate.message || `You're not ready to pass yet.` };
+  if (gate.requires_item) {
+    const has = player.inventory.includes(gate.requires_item) || (player.materials[gate.requires_item] || 0) > 0;
+    if (!has) return { ok: false, why: gate.message || `You need ${itemDisplay(gate.requires_item, true)} to pass.` };
+  }
+  return { ok: true };
+}
 function move(dir) {
   if (combatBlock('move')) return;
+  if (player.dialog_session) { write('Finish or end your conversation first.', 'error'); return; }
   const room = player.rooms[player.location];
-  const target = room.exits[dir];
-  if (!target) { write("You can't go that way.", 'error'); return; }
+  const resolved = resolveExit(room.exits?.[dir]);
+  if (!resolved) { write("You can't go that way.", 'error'); return; }
+  const { target, gate } = resolved;
+  // 5.6: gated exits — refuse with reason if requirements not met
+  const gateCheck = checkExitGate(gate);
+  if (!gateCheck.ok) { write(gateCheck.why, 'error'); return; }
+  // Optional item consumption (e.g. a one-shot key that breaks on use)
+  if (gate?.consume_item) {
+    const idx = player.inventory.indexOf(gate.consume_item);
+    if (idx !== -1) player.inventory.splice(idx, 1);
+    else if ((player.materials[gate.consume_item] || 0) > 0) player.materials[gate.consume_item]--;
+    write(T('({0} consumed)', itemDisplay(gate.consume_item)), 'system');
+  }
   const from = player.location; player.location = target;
   const newRoom = !player.visited.has(target);
   player.visited.add(target);
@@ -6678,11 +6736,44 @@ function describeNpcStatus(npcId) {
   return `${n.display} is closed (open ${n.hours.open}h–${n.hours.close}h).`;
 }
 
+// 5.6: NPC roaming. If npc.schedule is defined, the NPC's current room is
+// computed from the active schedule entry (matched by hour). Schedule shape:
+//   schedule: [{ rooms: ["library"], hours: [9, 13] }, { rooms: ["cellar"], hours: [22, 4] }]
+// hours[1] < hours[0] = window crosses midnight. NPCs without a schedule are
+// always located in their authored room.npcs[] list.
+function npcInRoom(npcId, roomId, hour) {
+  const npc = STORY.npcs[npcId];
+  if (!npc) return false;
+  const sched = Array.isArray(npc.schedule) ? npc.schedule : null;
+  if (!sched || sched.length === 0) {
+    return (STORY.rooms[roomId]?.npcs || []).includes(npcId);
+  }
+  const h = (typeof hour === 'number') ? hour : dayPart().hour;
+  for (const entry of sched) {
+    if (!Array.isArray(entry.rooms) || !entry.rooms.includes(roomId)) continue;
+    const [open, close] = entry.hours || [0, 24];
+    if (close > open) { if (h >= open && h < close) return true; }
+    else              { if (h >= open || h < close) return true; }
+  }
+  return false;
+}
+// All NPCs effectively present in this room right now (static + roaming).
+function npcsHere(roomId) {
+  const out = new Set();
+  for (const n of (STORY.rooms[roomId]?.npcs || [])) {
+    const sched = STORY.npcs[n]?.schedule;
+    if (!Array.isArray(sched) || sched.length === 0) out.add(n);
+  }
+  for (const [nid, n] of Object.entries(STORY.npcs || {})) {
+    if (Array.isArray(n.schedule) && n.schedule.length > 0 && npcInRoom(nid, roomId)) out.add(nid);
+  }
+  return [...out];
+}
+
 function resolveNpcInRoom(target) {
   // Resolve a fuzzy NPC reference to a canonical id present in the current room.
   // Match priority: exact id → substring of id → substring of display name.
-  const room = player.rooms[player.location];
-  const here = room.npcs || [];
+  const here = npcsHere(player.location);
   if (!target) return null;
   const t = target.toLowerCase().trim();
   if (here.includes(t)) return t;
@@ -6697,13 +6788,117 @@ function resolveNpcInRoom(target) {
   return null;
 }
 
+// 5.6: branching dialog. NPCs may declare a `dialogue_trees` map of node-id →
+// { lines, choices: [{ label, goto, end?, requires_*, consume_* }], effects }.
+// `talk <npc>` enters the tree at "default" (or "start"); thereafter the
+// player picks numbered choices via `choose <#>` (or just typing the number)
+// until end:true closes the session. Falls back to legacy random-line behavior
+// when no dialogue_trees is defined.
+function dialogChoiceAvailable(c) {
+  if (!c || typeof c !== 'object') return false;
+  if (c.requires_flag && !player.flags.has(c.requires_flag)) return false;
+  if (c.requires_skill && !player.skills.has(c.requires_skill)) return false;
+  if (c.requires_quest_active && player.quests[c.requires_quest_active]?.state !== 'active') return false;
+  if (c.requires_quest_completed && player.quests[c.requires_quest_completed]?.state !== 'completed') return false;
+  if (c.requires_item) {
+    const have = player.inventory.includes(c.requires_item) || (player.materials[c.requires_item] || 0) > 0;
+    if (!have) return false;
+  }
+  if (typeof c.requires_gold === 'number' && player.gold < c.requires_gold) return false;
+  return true;
+}
+function applyChoiceCost(c) {
+  if (typeof c.consume_gold === 'number' && c.consume_gold > 0) player.gold -= c.consume_gold;
+  if (c.consume_item) {
+    const idx = player.inventory.indexOf(c.consume_item);
+    if (idx !== -1) player.inventory.splice(idx, 1);
+    else if ((player.materials[c.consume_item] || 0) > 0) player.materials[c.consume_item]--;
+  }
+}
+function showDialogNode(npcId, nodeId) {
+  const npc = STORY.npcs[npcId];
+  const node = npc.dialogue_trees?.[nodeId];
+  if (!node) {
+    write('(They have nothing more to say.)', 'system');
+    player.dialog_session = null;
+    return;
+  }
+  // Apply node-entry effects via the existing event-effect runner
+  if (Array.isArray(node.effects) && node.effects.length) {
+    runEventEffects({ effects: node.effects });
+  }
+  // Print lines (string or array)
+  const linesRaw = Array.isArray(node.lines) ? node.lines : (node.lines ? [node.lines] : []);
+  for (const ln of linesRaw) write(T('{0} says: "{1}"', t(npc.display), t(ln)), 'npc');
+  // Auto-end nodes
+  if (node.end) {
+    write('(Conversation ends.)', 'system');
+    player.dialog_session = null;
+    return;
+  }
+  // Print numbered, available choices
+  const choices = (node.choices || []).map((c, idx) => ({ c, idx, available: dialogChoiceAvailable(c) }));
+  const visible = choices.filter(x => x.available || !x.c.hide_when_unavailable);
+  if (visible.length === 0) {
+    write('(They wait. Type "leave" to end the conversation.)', 'system');
+    player.dialog_session = { npc_id: npcId, node_id: nodeId };
+    return;
+  }
+  visible.forEach((x, n) => {
+    const cost = [];
+    if (typeof x.c.consume_gold === 'number' && x.c.consume_gold > 0) cost.push(`${x.c.consume_gold}g`);
+    if (x.c.consume_item) cost.push(itemDisplay(x.c.consume_item));
+    const tag = x.available ? '' : ' [unavailable]';
+    const costStr = cost.length ? ` (${cost.join(', ')})` : '';
+    write(`  ${n + 1}. ${t(x.c.label)}${costStr}${tag}`, x.available ? 'system' : 'error');
+  });
+  write('(Type the number, or "leave" to end.)', 'system');
+  player.dialog_session = { npc_id: npcId, node_id: nodeId, _visible: visible.map(x => x.idx) };
+}
+function chooseDialog(arg) {
+  if (!player.dialog_session) { write('You are not in a conversation.', 'error'); return; }
+  const { npc_id, node_id, _visible } = player.dialog_session;
+  const npc = STORY.npcs[npc_id];
+  const node = npc?.dialogue_trees?.[node_id];
+  if (!node) { player.dialog_session = null; write('(The thread is lost.)', 'system'); return; }
+  const n = parseInt(arg, 10);
+  if (!Number.isInteger(n) || n < 1 || !_visible || n > _visible.length) {
+    write('Pick a number from the list.', 'error'); return;
+  }
+  const choice = node.choices[_visible[n - 1]];
+  if (!choice) { write('No such choice.', 'error'); return; }
+  if (!dialogChoiceAvailable(choice)) { write('You can\'t pick that right now.', 'error'); return; }
+  applyChoiceCost(choice);
+  if (choice.end) {
+    write(`> ${t(choice.label)}`, 'echo');
+    write('(Conversation ends.)', 'system');
+    player.dialog_session = null;
+    return;
+  }
+  if (!choice.goto) {
+    write('(They simply nod.)', 'npc');
+    return;
+  }
+  write(`> ${t(choice.label)}`, 'echo');
+  showDialogNode(npc_id, choice.goto);
+}
+function leaveDialog() {
+  if (!player.dialog_session) { write('You are not in a conversation.', 'error'); return; }
+  player.dialog_session = null;
+  write('(Conversation ends.)', 'system');
+}
+
 function talk(target) {
   if (combatBlock('talk')) return;
-  const room = player.rooms[player.location];
+  if (player.dialog_session) {
+    write('You are already mid-conversation. Pick a number, or type "leave".', 'error');
+    return;
+  }
   const resolved = resolveNpcInRoom(target);
   if (!resolved) {
-    if ((room.npcs || []).length === 0) write(`There's no one here to talk to.`, 'error');
-    else write(`There's no "${target}" here. Try: ${(room.npcs || []).map(n => STORY.npcs[n]?.display || n).join(', ')}.`, 'error');
+    const here = npcsHere(player.location);
+    if (here.length === 0) write(`There's no one here to talk to.`, 'error');
+    else write(`There's no "${target}" here. Try: ${here.map(n => STORY.npcs[n]?.display || n).join(', ')}.`, 'error');
     return;
   }
   if (resolved.ambiguous) {
@@ -6713,6 +6908,13 @@ function talk(target) {
   target = resolved;
   if (!npcOpen(target)) { write(describeNpcStatus(target) || 'They aren\'t here right now.', 'error'); return; }
   const npc = STORY.npcs[target];
+  // 5.6: dialog tree takes priority if defined
+  if (npc.dialogue_trees && (npc.dialogue_trees.default || npc.dialogue_trees.start)) {
+    const startNode = npc.dialogue_trees.default ? 'default' : 'start';
+    publishAction('talk', { npc: target, location: player.location });
+    showDialogNode(target, startNode);
+    return;
+  }
   // Pick conditional dialogue if any condition matches; else default seeds.
   let lines = npc.dialogue_seeds || ['...'];
   if (Array.isArray(npc.conditional_dialogue)) {
@@ -6854,7 +7056,33 @@ function attack() {
   if (!inCombat()) { write('There is nothing to attack.', 'error'); return; }
   const t = player.combat_target;
   const wielded = player.equipment.hand;
-  const dmgType = STORY.items[wielded]?.effects?.damage_type;
+  // 5.6: ranged/energy weapons can require ammo. items.<id>.effects.requires_ammo
+  // is the ammo item id; effects.ammo_per_shot defaults to 1. Consumed from
+  // inventory or materials. If insufficient, the swing falls through to fists.
+  if (wielded) {
+    const wEff = STORY.items[wielded]?.effects || {};
+    if (wEff.requires_ammo) {
+      const ammoId = wEff.requires_ammo;
+      const need = wEff.ammo_per_shot || 1;
+      const haveInv = player.inventory.filter(i => i === ammoId).length;
+      const haveMat = player.materials[ammoId] || 0;
+      if (haveInv + haveMat < need) {
+        write(T('Out of {0}. The {1} clicks empty — you swing with bare hands instead.', itemDisplay(ammoId), itemDisplay(wielded)), 'error');
+        // Fall through, but tag wielded as "no-ammo" so weapon bonus is skipped
+        var __noAmmo = true;
+      } else {
+        // Consume ammo (materials first, then inventory)
+        let toConsume = need;
+        const fromMat = Math.min(toConsume, haveMat);
+        if (fromMat > 0) { player.materials[ammoId] -= fromMat; toConsume -= fromMat; }
+        for (let i = 0; i < toConsume; i++) {
+          const idx = player.inventory.indexOf(ammoId);
+          if (idx !== -1) player.inventory.splice(idx, 1);
+        }
+      }
+    }
+  }
+  const dmgType = (typeof __noAmmo !== 'undefined' && __noAmmo) ? null : STORY.items[wielded]?.effects?.damage_type;
   // Damage-type modifier vs target
   let typeMod = 1;
   if (dmgType && t.weaknesses?.includes(dmgType)) typeMod = 1.5;
@@ -6862,7 +7090,8 @@ function attack() {
   // Critical hit roll: base 8% + 7% with hunting skill
   const critChance = 0.08 + (player.skills.has('hunting') ? 0.07 : 0);
   const crit = Math.random() < critChance;
-  const baseDmg = randInt(2, 5) + bestWeaponBonus() + (player.skills.has('hunting') ? 2 : 0);
+  const weaponBonus = (typeof __noAmmo !== 'undefined' && __noAmmo) ? 0 : bestWeaponBonus();
+  const baseDmg = randInt(2, 5) + weaponBonus + (player.skills.has('hunting') ? 2 : 0);
   const playerDmg = Math.max(1, Math.floor(baseDmg * typeMod * (crit ? 2 : 1)));
   let didDamage = 0;
   if (Math.random() < (t.evasion || 0)) {
@@ -6988,6 +7217,12 @@ function attack() {
       write(`Your ${name} falls. The world is quieter.`, 'error');
       player.companion = null;
     }
+  }
+  // 5.6: player profile evasion + agi-derived dodge (floor(agi/40) extra chance)
+  const dodgeChance = profileBonus('evasion_bonus') + (profileAttribute('agi') / 40);
+  if (dodgeChance > 0 && Math.random() < dodgeChance) {
+    write(T('You twist aside; the {0}\'s blow misses.', t.display), 'success');
+    return;
   }
   player.life -= enemyDmg;
   write(T('The {0} bites you for {1} damage. ({2}/{3} life)', t.display, enemyDmg, Math.max(0, Math.floor(player.life)), computeMaxLife()), 'error');
@@ -7186,8 +7421,7 @@ function acceptQuest(qid) {
     return;
   }
   if (q.giver) {
-    const room = player.rooms[player.location];
-    if (!(room.npcs || []).includes(q.giver)) {
+    if (!npcsHere(player.location).includes(q.giver)) {
       write(`${STORY.npcs[q.giver]?.display || q.giver} would have to give you that quest.`, 'error');
       return;
     }
@@ -7205,8 +7439,7 @@ function turnInQuest(qid) {
   if (!q || !ps) { write(`You don't have a quest called "${qid}". Type "quests" to see what you have.`, 'error'); return; }
   if (ps.state !== 'active') { write('Already turned in.'); return; }
   if (q.giver) {
-    const room = player.rooms[player.location];
-    if (!(room.npcs || []).includes(q.giver)) {
+    if (!npcsHere(player.location).includes(q.giver)) {
       write(`Bring this to ${STORY.npcs[q.giver]?.display || q.giver}.`, 'error');
       return;
     }
@@ -7429,7 +7662,7 @@ const DURABLE_WEAPONS = {
 
 function findBlacksmithHere() {
   const room = player.rooms[player.location];
-  const id = (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('offers_smithing'));
+  const id = npcsHere(player.location).find(n => STORY.npcs[n].behaviors?.includes('offers_smithing'));
   if (!id) return null;
   if (!npcOpen(id)) { write(describeNpcStatus(id), 'error'); return null; }
   return id;
@@ -7697,6 +7930,74 @@ function sleep() {
   player.life = Math.min(maxLife, player.life + restore);
   write(`You sleep ${label}. (+${restore} life · 8 hours pass)`, 'success');
   publishAction('slept', { location: player.location, restored: restore });
+}
+
+// ============================================================
+//  CHARACTER PROFILES (5.6) — race/class selection + attribute math
+// ============================================================
+// meta.character_profiles is an optional map of profile-id → {
+//   display, summary, attributes: { str, agi, int, ... },
+//   starting_skills_extra, starting_inventory_extra, life_max_bonus,
+//   carry_capacity_bonus, attack_bonus, evasion_bonus, tags
+// }
+// Stories that don't define profiles are unaffected; the picker is skipped.
+function profileDef() {
+  const profs = STORY.meta?.character_profiles;
+  if (!profs || typeof profs !== 'object') return null;
+  if (!player.profile_id) return null;
+  return profs[player.profile_id] || null;
+}
+function profileAttribute(key) {
+  const p = profileDef();
+  return (p && p.attributes && typeof p.attributes[key] === 'number') ? p.attributes[key] : 0;
+}
+function profileBonus(key) {
+  // numeric bonuses applied directly (life_max_bonus, carry_capacity_bonus, attack_bonus, evasion_bonus)
+  const p = profileDef();
+  return (p && typeof p[key] === 'number') ? p[key] : 0;
+}
+function showProfile() {
+  const profs = STORY.meta?.character_profiles;
+  if (!profs || Object.keys(profs).length === 0) { write('This story has no character profiles.', 'system'); return; }
+  if (!player.profile_id) { write('You have not chosen a profile yet.', 'system'); return; }
+  const p = profileDef(); if (!p) { write(`Unknown profile "${player.profile_id}".`, 'error'); return; }
+  write(`=== Profile: ${t(p.display)} ===`, 'title');
+  if (p.summary) write(t(p.summary), 'system');
+  if (p.attributes) {
+    const parts = Object.entries(p.attributes).map(([k, v]) => `${k} ${v}`);
+    write(`Attributes: ${parts.join(' · ')}`, 'system');
+  }
+  const bonuses = [];
+  if (p.life_max_bonus)        bonuses.push(`+${p.life_max_bonus} max life`);
+  if (p.carry_capacity_bonus)  bonuses.push(`+${p.carry_capacity_bonus} carry`);
+  if (p.attack_bonus)          bonuses.push(`+${p.attack_bonus} attack`);
+  if (p.evasion_bonus)         bonuses.push(`+${(p.evasion_bonus*100).toFixed(0)}% evasion`);
+  if (bonuses.length) write(`Bonuses: ${bonuses.join(', ')}`, 'system');
+}
+function askProfile() {
+  const profs = STORY.meta?.character_profiles;
+  if (!profs || Object.keys(profs).length === 0) return;
+  const ids = Object.keys(profs);
+  const lines = ids.map((id, i) => {
+    const p = profs[id];
+    const attr = p.attributes ? '  (' + Object.entries(p.attributes).map(([k,v])=>`${k} ${v}`).join(', ') + ')' : '';
+    return `${i+1}. ${t(p.display)}${attr}\n   ${t(p.summary || '')}`;
+  });
+  const prompt_msg = `Choose your kind:\n\n${lines.join('\n\n')}\n\nEnter a number 1-${ids.length}:`;
+  let raw = '';
+  try { raw = (typeof prompt === 'function' ? prompt(prompt_msg) : null) || ''; } catch {}
+  const idx = parseInt(raw, 10) - 1;
+  const chosen = (Number.isInteger(idx) && idx >= 0 && idx < ids.length) ? ids[idx] : ids[0];
+  player.profile_id = chosen;
+  // Apply starting extras (run only on first selection; profile changes do NOT re-grant extras)
+  const p = profs[chosen];
+  if (Array.isArray(p.starting_skills_extra)) for (const s of p.starting_skills_extra) player.skills.add(s);
+  if (Array.isArray(p.starting_inventory_extra)) for (const it of p.starting_inventory_extra) player.inventory.push(it);
+  // Bump max life if profile gives a life_max_bonus and current life is full (avoid silent heal)
+  // (computeMaxLife() reads profile bonuses dynamically; nothing else to do)
+  player.activated = true;  // picking a profile counts as engagement
+  write(`You are ${t(p.display)}.`, 'success');
+  if (p.summary) write(t(p.summary), 'system');
 }
 
 function showSoul() {
@@ -7999,7 +8300,7 @@ async function loot(arg) {
 function showMarket() {
   if (combatBlock('market')) return;
   const room = player.rooms[player.location];
-  const merchantId = (room.npcs || []).find(n => STORY.npcs[n].is_marketplace);
+  const merchantId = npcsHere(player.location).find(n => STORY.npcs[n].is_marketplace);
   if (!merchantId) { write('No merchant here.', 'error'); return; }
   const listings = getActiveListings(merchantId);
   write(`-- ${STORY.npcs[merchantId].display}'s listings --`, 'system');
@@ -8014,7 +8315,7 @@ function showMarket() {
 async function buy(arg) {
   if (combatBlock('buy')) return;
   const room = player.rooms[player.location];
-  const merchantId = (room.npcs || []).find(n => STORY.npcs[n].is_marketplace);
+  const merchantId = npcsHere(player.location).find(n => STORY.npcs[n].is_marketplace);
   if (!merchantId) { write('No merchant here.', 'error'); return; }
   if (!npcOpen(merchantId)) { write(describeNpcStatus(merchantId), 'error'); return; }
   const idx = parseInt(arg, 10) - 1;
@@ -8035,8 +8336,8 @@ async function buy(arg) {
 async function sell(args) {
   if (combatBlock('sell')) return;
   const room = player.rooms[player.location];
-  const merchantId = (room.npcs || []).find(n => STORY.npcs[n].is_marketplace);
-  const directNpc  = (room.npcs || []).find(n => STORY.npcs[n].behaviors?.includes('buys_items'));
+  const merchantId = npcsHere(player.location).find(n => STORY.npcs[n].is_marketplace);
+  const directNpc  = npcsHere(player.location).find(n => STORY.npcs[n].behaviors?.includes('buys_items'));
   const buyer = merchantId || directNpc;
   if (!buyer) { write('There is no one here to sell to.', 'error'); return; }
   if (!npcOpen(buyer)) { write(describeNpcStatus(buyer), 'error'); return; }
@@ -8498,7 +8799,9 @@ function showMap() {
   while (queue.length) {
     const cur = queue.shift();
     const [cx, cy] = positions.get(cur);
-    for (const [dir, target] of Object.entries(rooms[cur].exits || {})) {
+    for (const [dir, rawTarget] of Object.entries(rooms[cur].exits || {})) {
+      const r = resolveExit(rawTarget); if (!r) continue;
+      const target = r.target;
       if (!player.visited.has(target)) continue;   // fog-of-war: only visited
       if (positions.has(target)) continue;
       const off = dirOffset[dir];
@@ -8534,7 +8837,9 @@ function showMap() {
   }
   for (const [room, [x, y]] of positions) {
     const cx = (x - minX) * cellW, cy = (y - minY) * cellH;
-    for (const [dir, target] of Object.entries(rooms[room].exits || {})) {
+    for (const [dir, rawTarget] of Object.entries(rooms[room].exits || {})) {
+      const r = resolveExit(rawTarget); if (!r) continue;
+      const target = r.target;
       if (!positions.has(target)) continue;
       const [tx, ty] = positions.get(target);
       const dx = tx - x, dy = ty - y;
@@ -8559,8 +8864,9 @@ function showMap() {
   // total exits hint: undiscovered exits from visited rooms
   const undiscovered = [];
   for (const room of player.visited) {
-    for (const [dir, target] of Object.entries(rooms[room].exits || {})) {
-      if (!player.visited.has(target)) undiscovered.push(`${shortRoomName(room)} → ${dir}`);
+    for (const [dir, rawTarget] of Object.entries(rooms[room].exits || {})) {
+      const r = resolveExit(rawTarget); if (!r) continue;
+      if (!player.visited.has(r.target)) undiscovered.push(`${shortRoomName(room)} → ${dir}`);
     }
   }
   if (undiscovered.length) {
@@ -8753,6 +9059,16 @@ function handleCommand(input) {
     // First activation = first time the recent-characters list should learn this nsec
     try { recordRecentChar(); } catch {}
   }
+  // 5.6: while in a dialog, route a bare number or "leave" to the dialog handler;
+  // anything else is refused with a hint so the player doesn't accidentally walk away.
+  if (player.dialog_session) {
+    const lower = raw.toLowerCase();
+    if (/^\d+$/.test(raw)) { chooseDialog(raw); return; }
+    if (lower === 'leave' || lower === 'bye' || lower === 'goodbye') { leaveDialog(); return; }
+    if (lower === 'choose' || lower.startsWith('choose ')) { chooseDialog(raw.replace(/^choose\s*/i, '')); return; }
+    write('You are mid-conversation. Pick a number, or type "leave".', 'error');
+    return;
+  }
   const parts = raw.split(/\s+/);
   let cmd = parts[0].toLowerCase();
   let argRaw = parts.slice(1).join(' ');
@@ -8826,6 +9142,7 @@ function handleCommand(input) {
     case 'soul':                 showSoul(); consumesTurn = false; break;
     case 'import':               importSoul(argRaw); consumesTurn = false; break;
     case 'characters': case 'chars': charactersCommand(argRaw); consumesTurn = false; break;
+    case 'profile':              showProfile(); consumesTurn = false; break;
     case 'new':                  if (arg === 'character' || arg === '') newCharacter(); else write('Did you mean "new character"?', 'error'); consumesTurn = false; break;
     case 'reset':                newCharacter(); consumesTurn = false; break;
     case 'rename':               renameCharacter(argRaw); consumesTurn = false; break;
@@ -8901,7 +9218,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.23 ===`, 'title');
+write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.24 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
@@ -8939,6 +9256,10 @@ applyDomI18n();
 
 // If we don't have a name yet (new character or legacy save), ask now
 if (!player.name) askName();
+// 5.6: if the story defines character_profiles and this character hasn't picked one, prompt
+if (!player.profile_id && STORY.meta?.character_profiles && Object.keys(STORY.meta.character_profiles).length > 0) {
+  askProfile();
+}
 
 // Roll the daily login streak (idempotent — same calendar day = no change)
 {
