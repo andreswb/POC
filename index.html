@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>The Whispering Forest — a text adventure on Nostr</title>
+<meta name="description" content="A persistent, multiplayer text adventure played in your browser. Your character lives on a Nostr key — bring it anywhere.">
+<meta name="theme-color" content="#0c0e10">
+<style>
+  :root {
+    --bg: #0c0e10;
+    --panel: #14171a;
+    --ink: #d6d3c4;
+    --dim: #8e8b7e;
+    --spark: #e8c873;
+    --moss: #6f8a5a;
+    --rust: #b97a48;
+    --error: #c46a5a;
+    --rule: #2a2d31;
+    --link: #f0d28b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background:
+      radial-gradient(ellipse at 50% -10%, #1a1f1a 0%, var(--bg) 55%);
+    background-attachment: scroll;  /* `fixed` is janky on mobile Safari */
+    color: var(--ink);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    line-height: 1.55;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+    overflow-wrap: break-word;   /* prevents long words from blowing out the layout */
+  }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    /* viewport-fit=cover + safe-area-inset for notched phones in landscape */
+    padding:
+      max(56px, env(safe-area-inset-top))
+      max(24px, env(safe-area-inset-right))
+      max(80px, env(safe-area-inset-bottom))
+      max(24px, env(safe-area-inset-left));
+  }
+  @media (max-width: 600px) {
+    .wrap {
+      padding:
+        max(28px, env(safe-area-inset-top))
+        max(16px, env(safe-area-inset-right))
+        max(48px, env(safe-area-inset-bottom))
+        max(16px, env(safe-area-inset-left));
+    }
+    header { margin-bottom: 24px; }
+  }
+  header { margin-bottom: 36px; }
+  h1 {
+    font-size: clamp(28px, 6vw, 42px);
+    margin: 0 0 8px;
+    color: var(--ink);
+    letter-spacing: 0.5px;
+  }
+  h1 .sub {
+    display: block;
+    font-size: clamp(14px, 2.6vw, 16px);
+    color: var(--moss);
+    font-weight: normal;
+    margin-top: 6px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .tag { color: var(--dim); font-size: 14px; margin-top: 4px; }
+  .intro p { margin: 14px 0; font-size: 16px; }
+  .intro .spark { color: var(--spark); }
+  .play-cta {
+    display: block;
+    text-align: center;
+    margin: 36px 0 28px;
+  }
+  .play-btn {
+    display: inline-block;
+    background: linear-gradient(180deg, #e8c873 0%, #c79b3a 100%);
+    color: #1a1408;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 18px;
+    padding: 16px 40px;
+    min-height: 52px;            /* generous touch target */
+    border-radius: 6px;
+    letter-spacing: 1.5px;
+    box-shadow: 0 4px 18px rgba(232, 200, 115, 0.18), 0 1px 0 rgba(255,255,255,0.1) inset;
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+    border: 1px solid #d8b35c;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  /* Only apply :hover lift on devices with real hover — keeps mobile tap clean */
+  @media (hover: hover) {
+    .play-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(232, 200, 115, 0.28), 0 1px 0 rgba(255,255,255,0.15) inset;
+    }
+  }
+  .play-btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 8px rgba(232, 200, 115, 0.22), 0 1px 0 rgba(255,255,255,0.05) inset;
+  }
+  @media (max-width: 600px) {
+    .play-btn { width: 100%; padding: 16px 24px; }   /* full-width thumb-friendly button */
+    .play-cta { margin: 28px 0 22px; }
+  }
+  .features {
+    margin: 28px 0;
+    padding: 22px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: rgba(20, 23, 26, 0.6);
+  }
+  .features h2 {
+    font-size: 13px;
+    color: var(--moss);
+    margin: 0 0 14px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 600;
+  }
+  .features ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .features li {
+    padding: 6px 0 6px 22px;
+    position: relative;
+    font-size: 15px;
+  }
+  .features li::before {
+    content: "›";
+    position: absolute;
+    left: 4px;
+    color: var(--spark);
+    font-weight: 700;
+  }
+  .nostr-note {
+    margin-top: 28px;
+    padding: 18px 20px;
+    border-left: 3px solid var(--moss);
+    background: rgba(111, 138, 90, 0.06);
+    color: var(--ink);
+    font-size: 14px;
+  }
+  .nostr-note strong { color: var(--moss); }
+  .preview {
+    margin: 32px 0;
+    padding: 16px 18px;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--dim);
+    white-space: pre;            /* terminal-style: no awkward mid-string wraps */
+    overflow-x: auto;            /* horizontal scroll on small screens */
+    -webkit-overflow-scrolling: touch;
+    line-height: 1.45;
+  }
+  .preview .title-line { color: var(--spark); }
+  .preview .room { color: var(--ink); }
+  .preview .echo { color: var(--moss); }
+  .preview .system { color: var(--dim); }
+  @media (max-width: 600px) {
+    .preview { font-size: 12px; padding: 12px 14px; margin: 22px 0; }
+    .features { padding: 16px; }
+    .features li { font-size: 14px; }
+    .nostr-note { padding: 14px 16px; font-size: 13.5px; margin-top: 22px; }
+    h1 { letter-spacing: 0.3px; }
+    h1 .sub { letter-spacing: 0.6px; }
+  }
+  footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    color: var(--dim);
+    font-size: 13px;
+    text-align: center;
+  }
+  footer a { color: var(--link); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>The Whispering Forest<span class="sub">A text adventure on Nostr</span></h1>
+    <p class="tag">developed by AWB_ 🇨🇭</p>
+  </header>
+
+  <section class="intro">
+    <p>You wake on the edge of a forgotten forest. There is a village nearby, and a path that leads deeper in. Wolves haunt the riverbank. A blacksmith hammers in the dark.</p>
+    <p>Type commands. Walk between rooms. Hunt, craft, learn skills, solve riddles, leave marks for strangers to find. <span class="spark">Your character lives on a Nostr key</span> — write it down and you can return on any device, anywhere.</p>
+  </section>
+
+  <div class="play-cta">
+    <a class="play-btn" href="game.html">▶ PLAY</a>
+  </div>
+
+  <section class="features">
+    <h2>What it is</h2>
+    <ul>
+      <li>A persistent, asynchronous, multiplayer text adventure — played in your browser, no install.</li>
+      <li>Other players share your world. You may pass them in the woods, or join their fights.</li>
+      <li>20 rooms, 20 skills, 16 quests, 10 riddles, 9 entities to hunt, daily quests that rotate at dawn.</li>
+      <li>No accounts, no email. Your character is a Nostr keypair — own it, bring it anywhere.</li>
+      <li>Works offline once loaded. Your moves queue and sync when you're back online.</li>
+    </ul>
+  </section>
+
+  <div class="preview"><span class="title-line">=== The Whispering Forest — Nostr PoC ===</span>
+=== WELCOME, TRAVELER ===
+This is a shared, persistent world. Other players may pass through your room.
+
+<span class="room">— Forest Edge —</span>
+A path winds north into birches. The village lies south.
+You see: a worn satchel.
+Exits: north, south.
+
+<span class="echo">&gt; take satchel</span>
+<span class="system">You take a worn satchel.</span>
+<span class="echo">&gt; north</span></div>
+
+  <div class="nostr-note">
+    <strong>What is Nostr?</strong> A decentralized, signed-event protocol — like email for cryptographic identities. The game uses it as a transport: every action you take is a signed event broadcast over public relays, so other players see you, and your character is portable. You don't need to know anything about Nostr to play. Just save your nsec.
+  </div>
+
+  <footer>
+    Built as a proof of concept. <a href="game.html">Play the game</a>.
+  </footer>
+</div>
+</body>
+</html>
