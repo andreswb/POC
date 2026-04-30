@@ -9654,13 +9654,14 @@ function showMap() {
     positions.set(seed, [0, 0]);
     const queue = [seed];
     const inLayer = new Set(ids);
-    // Same-layer connections use all eight directions. up/down/in/out get
-    // ~2× offsets so they don't visually conflict with adjacent N/S/E/W
-    // boxes — but they STILL lay out in the 2D grid, otherwise rooms only
-    // reachable via in/out/up/down become orphans and cascade.
+    // Same-layer connections. N/S/E/W are 1-cell deltas. up/down/in/out
+    // map to vertical offsets with extra spacing — `in` is conceptually
+    // "going inside" so it forms a sub-stack BELOW the source room (offset
+    // [0,2]) rather than competing for the same row. Vertical-only offsets
+    // for up/down/in/out also keep east-west room chains tidy.
     const dirOffset = {
       north:[0,-1], south:[0,1], east:[1,0], west:[-1,0],
-      up:[0,-2], down:[0,2], in:[2,0], out:[-2,0]
+      up:[0,-3], down:[0,3], in:[0,2], out:[0,-2]
     };
     // Track occupied cells to detect collisions: BFS by itself can land two
     // rooms on the same grid cell when they're reachable from different
@@ -9747,7 +9748,9 @@ function showMap() {
       put(cy + 1, cx, '│' + inner + '│');
       put(cy + 2, cx, '└' + '─'.repeat(boxW - 2) + '┘');
     }
-    // Connectors (intra-layer only). Includes the 2× offsets for up/down/in/out.
+    // Connectors (intra-layer only). Vertical offsets for up/down/in/out so
+    // exits going "inside"/"up"/"down" form sub-stacks instead of competing
+    // for the same row as east-west chains.
     for (const [room, [x, y]] of positions) {
       const cx = (x - minX) * cellW, cy = (y - minY) * cellH;
       for (const [dir, rawTarget] of Object.entries(rooms[room].exits || {})) {
@@ -9759,14 +9762,14 @@ function showMap() {
         // Adjacent N/S/E/W
         if      (dx ===  1 && dy ===  0) put(cy + 1, cx + boxW, '──');
         else if (dx ===  0 && dy ===  1) put(cy + 3, cx + Math.floor(boxW/2), '│');
-        // up (dy=-2): vertical pair of dotted-bar above
-        else if (dx ===  0 && dy === -2) { put(cy - 1, cx + Math.floor(boxW/2), '╎'); }
-        // down (dy=2): dotted-bar below
-        else if (dx ===  0 && dy ===  2) { put(cy + 5, cx + Math.floor(boxW/2), '╎'); }
-        // in (dx=2): horizontal dotted to the right
-        else if (dx ===  2 && dy ===  0) { put(cy + 1, cx + boxW, '┊┊'); }
-        // out (dx=-2): horizontal dotted to the left
-        else if (dx === -2 && dy ===  0) { put(cy + 1, cx - 2, '┊┊'); }
+        // in (dy = +2): dotted vertical bar between the two rows below
+        else if (dx ===  0 && dy ===  2) { put(cy + 3, cx + Math.floor(boxW/2), '┊'); put(cy + 5, cx + Math.floor(boxW/2), '┊'); }
+        // out (dy = -2): dotted vertical bar between the two rows above
+        else if (dx ===  0 && dy === -2) { put(cy - 1, cx + Math.floor(boxW/2), '┊'); put(cy - 3, cx + Math.floor(boxW/2), '┊'); }
+        // down (dy = +3): three dashes spanning the gap below
+        else if (dx ===  0 && dy ===  3) { put(cy + 3, cx + Math.floor(boxW/2), '╎'); put(cy + 5, cx + Math.floor(boxW/2), '╎'); put(cy + 7, cx + Math.floor(boxW/2), '╎'); }
+        // up (dy = -3): three dashes spanning the gap above
+        else if (dx ===  0 && dy === -3) { put(cy - 1, cx + Math.floor(boxW/2), '╎'); put(cy - 3, cx + Math.floor(boxW/2), '╎'); put(cy - 5, cx + Math.floor(boxW/2), '╎'); }
       }
     }
     return grid.map(row => row.join('').replace(/\s+$/, '')).join('\n');
