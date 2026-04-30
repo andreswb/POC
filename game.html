@@ -4333,7 +4333,8 @@ const player = {
     deaths: 0,
     quests_completed: 0,
     crafts: 0,
-    riddles_solved: 0
+    riddles_solved: 0,
+    crafts_per_recipe: {}  // 5.5: recipe_id -> count, used by `crafts_of_gte` event condition
   },
   achievements: new Set(),  // earned achievement ids
   outgoing_offers: new Map(), // offer_id -> { item, qty, recipient_pubkey, recipient_name, offered_at }
@@ -5082,7 +5083,7 @@ function serializeState() {
     flags: [...player.flags],
     companion: player.companion ? { ...player.companion } : null,
     events_fired: [...player.events_fired],
-    stats: { ...player.stats, kills: { ...player.stats.kills } },
+    stats: { ...player.stats, kills: { ...player.stats.kills }, crafts_per_recipe: { ...(player.stats.crafts_per_recipe || {}) } },
     achievements: [...player.achievements],
     name: player.name,
     outgoing_offers: [...player.outgoing_offers],
@@ -5129,8 +5130,10 @@ function applyState(s) {
   player.flags = new Set(s.flags || []);
   player.companion = s.companion || null;
   player.events_fired = new Set(s.events_fired || []);
-  player.stats = Object.assign({ kills: {}, gold_earned: 0, sparks_earned: 0, deaths: 0, quests_completed: 0, crafts: 0, riddles_solved: 0 }, s.stats || {});
+  player.stats = Object.assign({ kills: {}, gold_earned: 0, sparks_earned: 0, deaths: 0, quests_completed: 0, crafts: 0, riddles_solved: 0, crafts_per_recipe: {} }, s.stats || {});
+  if (!player.stats.crafts_per_recipe) player.stats.crafts_per_recipe = {};
   player.stats.kills = { ...(s.stats?.kills || {}) };
+  player.stats.crafts_per_recipe = { ...(s.stats?.crafts_per_recipe || {}) };
   player.achievements = new Set(s.achievements || []);
   if (s.name) player.name = s.name;
   player.outgoing_offers = new Map(s.outgoing_offers || []);
@@ -6516,7 +6519,13 @@ function showSkills() {
     for (const [id, sk] of tiers[t]) {
       const known = player.skills.has(id);
       const reqs = (sk.prereqs || []).filter(p => !player.skills.has(p));
-      const status = known ? '✓ known' : (reqs.length ? `requires: ${reqs.join(', ')}` : `${sk.spark_cost} sparks`);
+      // 5.5: trigger-acquisition skills are not learnable with sparks; show that
+      const triggerOnly = sk.acquisition === 'trigger';
+      const status = known
+        ? '✓ known'
+        : triggerOnly
+          ? 'earned through experience'
+          : (reqs.length ? `requires: ${reqs.join(', ')}` : `${sk.spark_cost} sparks`);
       write(`  ${id}  —  ${sk.display}  [${status}]`, known ? 'success' : 'system');
     }
   }
@@ -6528,6 +6537,11 @@ function learn(arg) {
   if (!arg) { write('Learn what? Type "skills" to list available skills, then "learn <id>".', 'error'); return; }
   const sk = STORY.skills[arg];
   if (!sk) { write(`No such skill "${arg}". Type "skills" to list.`, 'error'); return; }
+  // 5.5: trigger-acquisition skills cannot be bought with sparks
+  if (sk.acquisition === 'trigger') {
+    write(`${t(sk.display)} cannot be bought with sparks. It must be earned through experience.`, 'error');
+    return;
+  }
   if (player.skills.has(arg)) { write('You already know that skill.'); return; }
   for (const p of (sk.prereqs || []))
     if (!player.skills.has(p)) { write(`You need to learn "${p}" first.`, 'error'); return; }
@@ -6638,6 +6652,9 @@ function craft(argRaw) {
     write(`(+${totalReward} sparks for ${qty} craft${qty === 1 ? '' : 's'})`, 'spark');
   }
   player.stats.crafts += qty;
+  // 5.5: per-recipe craft tally for `crafts_of_gte` event condition
+  if (!player.stats.crafts_per_recipe) player.stats.crafts_per_recipe = {};
+  player.stats.crafts_per_recipe[recipeId] = (player.stats.crafts_per_recipe[recipeId] || 0) + qty;
   publishAction('craft', { recipe: recipeId, qty, location: player.location });
   // Fire on_craft once per craft so events that count crafts work correctly
   for (let i = 0; i < qty; i++) fireEvents('on_craft', { recipe: recipeId });
@@ -6974,6 +6991,9 @@ function attack() {
   }
   player.life -= enemyDmg;
   write(T('The {0} bites you for {1} damage. ({2}/{3} life)', t.display, enemyDmg, Math.max(0, Math.floor(player.life)), computeMaxLife()), 'error');
+  // 5.5: a hostile entity landed a hit — fire on_attacked so events can react
+  // (e.g. wolf-bite-grants-lycanthropy with a chance roll).
+  if (player.life > 0) fireEvents('on_attacked', { entity: t.id, dmg: enemyDmg, source: 'attack' });
   if (player.life <= 0) handleDeath(`killed by ${t.display}`);
 }
 
@@ -6983,6 +7003,7 @@ function flee() {
   const enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
   player.life -= enemyDmg;
   write(`You scramble away. The ${t.display} catches you for ${enemyDmg} parting damage.`, 'error');
+  if (player.life > 0) fireEvents('on_attacked', { entity: t.id, dmg: enemyDmg, source: 'flee' });
   player.combat_target = null;
   player.combat_id = null;  // 4.5: leaving a shared combat doesn't end it for others
   if (player.life <= 0) handleDeath(`killed by ${t.display} while fleeing`);
@@ -7233,6 +7254,13 @@ function fireEvents(triggerType, params = {}) {
     if (evt.once && player.events_fired.has(eid)) continue;
     if (!matchesEventParams(evt, params)) continue;
     if (!checkEventConditions(evt)) continue;
+    // 5.5: probabilistic events. `chance` ∈ [0, 1] (default 1.0) gates whether
+    // the event actually fires this time. Useful for "5% chance of werewolf
+    // curse on wolf bite" style triggers. Event still respects `once` only on
+    // successful fire so failed rolls can re-roll on the next trigger.
+    if (typeof evt.chance === 'number' && evt.chance < 1) {
+      if (Math.random() >= evt.chance) continue;
+    }
     runEventEffects(evt);
     if (evt.once) player.events_fired.add(eid);
   }
@@ -7241,6 +7269,7 @@ function matchesEventParams(evt, params) {
   const tp = evt.trigger_params || {};
   switch (evt.trigger) {
     case 'on_kill':           return !tp.entity || tp.entity === params.entity;
+    case 'on_attacked':       return !tp.entity || tp.entity === params.entity;  // 5.5: hostile entity hit the player
     case 'on_room_enter':     return !tp.room || tp.room === params.room;
     case 'on_riddle_solve':   return !tp.riddle || tp.riddle === params.riddle;
     case 'on_quest_complete': return !tp.quest || tp.quest === params.quest;
@@ -7254,9 +7283,17 @@ function checkEventConditions(evt) {
     if (c.type === 'has_flag'    && !player.flags.has(c.flag)) return false;
     if (c.type === '!has_flag'   && player.flags.has(c.flag)) return false;
     if (c.type === 'has_skill'   && !player.skills.has(c.skill)) return false;
+    if (c.type === '!has_skill'  && player.skills.has(c.skill)) return false;  // 5.5: gate "fires until acquired"
     if (c.type === 'kills_gte'   && (player.stats.kills[c.entity] || 0) < c.qty) return false;
     if (c.type === 'day_gte'     && (Math.floor(player.turn / (STORY.meta.turns_per_day || 96)) + 1) < c.qty) return false;
     if (c.type === 'quests_completed_gte' && Object.values(player.quests).filter(q => q.state === 'completed').length < c.qty) return false;
+    // 5.5: per-recipe craft counter (e.g. "20× cure_meat → master_curer")
+    if (c.type === 'crafts_of_gte') {
+      const n = (player.stats.crafts_per_recipe && player.stats.crafts_per_recipe[c.recipe]) || 0;
+      if (n < (c.qty || 0)) return false;
+    }
+    // 5.5: total riddles solved
+    if (c.type === 'riddles_solved_gte' && (player.stats.riddles_solved || 0) < (c.qty || 0)) return false;
   }
   return true;
 }
@@ -7272,6 +7309,26 @@ function runEventEffects(evt) {
     }
     else if (e.type === 'spark_award') { const n = e.qty || 0; player.sparks += n; player.stats.sparks_earned += n; write(`(+${n} sparks)`, 'spark'); }
     else if (e.type === 'gold_award')  { const n = e.qty || 0; player.gold += n;   player.stats.gold_earned += n;   write(`(+${n} gold)`, 'gold'); }
+    // 5.5: triggered skill unlocks. grant_skill bypasses prereqs and spark cost
+    // (the whole point is unearned/forced acquisition). Idempotent: no-op if
+    // already known. revoke_skill is the natural pair (silver-cures-lycanthropy).
+    else if (e.type === 'grant_skill') {
+      if (!STORY.skills[e.skill]) { console.warn('grant_skill: unknown skill', e.skill); continue; }
+      if (player.skills.has(e.skill)) continue;
+      player.skills.add(e.skill);
+      const sk = STORY.skills[e.skill];
+      write(`>>> A new skill stirs: ${t(sk.display)}.`, 'spark');
+      if (sk.unlocks?.verbs?.length)   write(`    New verbs: ${sk.unlocks.verbs.join(', ')}`, 'success');
+      if (sk.unlocks?.recipes?.length) write(`    New recipes: ${sk.unlocks.recipes.join(', ')}`, 'success');
+      publishAction('skill_granted', { skill: e.skill });
+    }
+    else if (e.type === 'revoke_skill') {
+      if (!player.skills.has(e.skill)) continue;
+      player.skills.delete(e.skill);
+      const sk = STORY.skills[e.skill];
+      write(`>>> The ${t(sk?.display || e.skill)} leaves you.`, 'system');
+      publishAction('skill_revoked', { skill: e.skill });
+    }
   }
 }
 
@@ -7553,6 +7610,7 @@ function tameAttempt() {
     const enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
     player.life -= enemyDmg;
     write(T('The {0} bites you for {1} damage.', t.display, enemyDmg), 'error');
+    if (player.life > 0) fireEvents('on_attacked', { entity: t.id, dmg: enemyDmg, source: 'tame_fail' });
     if (player.life <= 0) handleDeath(`mauled by ${t.display} (taming failed)`);
   }
 }
@@ -7617,6 +7675,7 @@ function sleep() {
       const sneakDmg = randInt(ent.attack_damage_range[0], ent.attack_damage_range[1]) * 2;
       player.life -= sneakDmg;
       write(`You sleep. A ${ent.display} catches you in the dark — ${sneakDmg} damage before you wake.`, 'combat');
+      if (player.life > 0) fireEvents('on_attacked', { entity: w.entity, dmg: sneakDmg, source: 'sleep_ambush' });
       if (player.life <= 0) { handleDeath(`mauled by ${ent.display} while sleeping`); return; }
       player.combat_target = { id: w.entity, ...structuredClone(ent) };
       write(`You scramble up; the ${ent.display} circles. Attack or flee.`, 'combat');
@@ -7766,7 +7825,7 @@ function newCharacter() {
   player.flags = new Set();
   player.companion = null;
   player.events_fired = new Set();
-  player.stats = { kills: {}, gold_earned: 0, sparks_earned: 0, deaths: 0, quests_completed: 0, crafts: 0, riddles_solved: 0 };
+  player.stats = { kills: {}, gold_earned: 0, sparks_earned: 0, deaths: 0, quests_completed: 0, crafts: 0, riddles_solved: 0, crafts_per_recipe: {} };
   player.achievements = new Set();
   player.outgoing_offers = new Map();
   player.incoming_offers = new Map();
