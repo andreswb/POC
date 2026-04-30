@@ -228,7 +228,7 @@
 
 <script type="module">
 import {
-  generateSecretKey, getPublicKey, finalizeEvent, SimplePool, nip19, nip04
+  generateSecretKey, getPublicKey, finalizeEvent, verifyEvent, SimplePool, nip19, nip04
 } from 'https://esm.sh/nostr-tools@2.7.2';
 
 // ============================================================
@@ -241,7 +241,7 @@ const STORY_WHISPERING_FOREST = {
     "title": "The Whispering Forest",
     "author": "Andres",
     "author_pubkey": null,
-    "version": "1.13.0",
+    "version": "1.14.0",
     "created_at": "2026-04-28T00:00:00Z",
     "language": "en",
     "tone": "eerie, sensory, hopeful undertones; never explain too much; favor sound and texture over exposition",
@@ -756,7 +756,9 @@ const STORY_WHISPERING_FOREST = {
         "ancient",
         "luminous"
       ],
-      "exits": { "up": "greenmeadow_village" },
+      "exits": {
+        "up": "greenmeadow_village"
+      },
       "items": [],
       "npcs": [],
       "riddle": "river_riddle",
@@ -882,7 +884,8 @@ const STORY_WHISPERING_FOREST = {
       ],
       "exits": {
         "south": "deep_forest",
-        "north": "greycliffs_hamlet"
+        "north": "greycliffs_hamlet",
+        "east": "frozen_lake"
       },
       "items": [],
       "npcs": [],
@@ -1006,7 +1009,10 @@ const STORY_WHISPERING_FOREST = {
         "industrial",
         "listening"
       ],
-      "exits": { "out": "red_canyon", "in": "grand_hall" },
+      "exits": {
+        "out": "red_canyon",
+        "in": "grand_hall"
+      },
       "items": [],
       "npcs": [],
       "riddle": "forge_riddle",
@@ -1043,7 +1049,9 @@ const STORY_WHISPERING_FOREST = {
         "still",
         "dangerous"
       ],
-      "exits": { "out": "forge_ruins" },
+      "exits": {
+        "out": "forge_ruins"
+      },
       "items": [],
       "npcs": [],
       "riddle": null,
@@ -1077,7 +1085,9 @@ const STORY_WHISPERING_FOREST = {
         "sacred",
         "watching"
       ],
-      "exits": { "out": "hermits_glade" },
+      "exits": {
+        "out": "hermits_glade"
+      },
       "items": [],
       "npcs": [],
       "riddle": "grove_riddle",
@@ -1147,6 +1157,120 @@ const STORY_WHISPERING_FOREST = {
       ],
       "spawn_table": [],
       "drink_source": null
+    },
+    "frozen_lake": {
+      "name": "The Frozen Lake",
+      "summary": "A vast circle of pale ice ringed by black firs. The wind crosses it in whispers. A trapper's lean-to stands at the western edge, smoke rising.",
+      "example_descriptions": [
+        "White on white. The ice glows faintly with the sun behind cloud. Far out, a crack pops like a rifle shot.",
+        "The lean-to is small but warm. Pelts hang on its eaves. Out on the lake, fish-shadows pass beneath the ice."
+      ],
+      "tone_hints": [
+        "vast",
+        "cold",
+        "still",
+        "beautiful",
+        "sharp"
+      ],
+      "exits": {
+        "down": "ice_caves",
+        "west": "frozen_north"
+      },
+      "items": [],
+      "npcs": [
+        "hunter_trapper"
+      ],
+      "riddle": "frozen_lake_riddle",
+      "tags": [
+        "outdoor",
+        "frozen",
+        "water"
+      ],
+      "resources": [
+        {
+          "id": "raw_fish",
+          "skill": "fishing",
+          "verb": "fish",
+          "yield_qty": 1,
+          "regenerates": true,
+          "regen_seconds": 80
+        },
+        {
+          "id": "frost_crystal",
+          "skill": "mining",
+          "verb": "gather",
+          "yield_qty": 1,
+          "regenerates": true,
+          "regen_seconds": 180
+        }
+      ],
+      "hazards": {},
+      "spawn_table": [
+        {
+          "entity": "ice_wolf",
+          "weight": 3
+        }
+      ],
+      "drink_source": null,
+      "image": "🧊"
+    },
+    "ice_caves": {
+      "name": "The Ice Caves",
+      "summary": "Beneath the frozen lake, a network of pale blue caves opens. Frost grows like fungus on the walls. Something walked here recently — paw prints in the rime.",
+      "example_descriptions": [
+        "Stalactites of clear ice ring above your boots. Your breath fogs and freezes in the air.",
+        "The walls glow faintly with embedded frost-crystals. Far in, a low growl echoes."
+      ],
+      "tone_hints": [
+        "cold",
+        "silent",
+        "watching",
+        "beautiful",
+        "dangerous"
+      ],
+      "exits": {
+        "up": "frozen_lake"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": [
+        "underground",
+        "frozen"
+      ],
+      "layer": "underground",
+      "resources": [
+        {
+          "id": "frost_crystal",
+          "skill": "masonry",
+          "verb": "mine",
+          "yield_qty": 1,
+          "regenerates": true,
+          "regen_seconds": 150
+        },
+        {
+          "id": "stone",
+          "skill": "stone_knapping",
+          "verb": "gather",
+          "yield_qty": 1,
+          "regenerates": true,
+          "regen_seconds": 60
+        }
+      ],
+      "hazards": {
+        "wolves": {
+          "encounter_chance": 0.3,
+          "entity": "ice_wolf"
+        }
+      },
+      "spawn_table": [
+        {
+          "entity": "ice_wolf",
+          "weight": 5
+        }
+      ],
+      "drink_source": null,
+      "image": "❄️"
     }
   },
   "items": {
@@ -1917,6 +2041,114 @@ const STORY_WHISPERING_FOREST = {
         "attack_bonus": 1,
         "damage_type": "pierce"
       }
+    },
+    "fur": {
+      "display": "fur",
+      "article": "a",
+      "description": "Thick winter fur, taken from a slain ice-wolf.",
+      "value": 8,
+      "weight": 1,
+      "tags": [
+        "fur",
+        "animal",
+        "frozen"
+      ],
+      "category": "resource",
+      "stackable": true
+    },
+    "frost_crystal": {
+      "display": "frost crystal",
+      "article": "a",
+      "description": "A jagged shard of pale-blue ice that hums with cold.",
+      "value": 12,
+      "weight": 1,
+      "tags": [
+        "crystal",
+        "frozen",
+        "rare"
+      ],
+      "category": "resource",
+      "stackable": true
+    },
+    "snare": {
+      "display": "snare",
+      "article": "a",
+      "description": "A simple wire-and-wood snare, ready to be sold or set.",
+      "value": 18,
+      "weight": 1,
+      "tags": [
+        "trap",
+        "tool"
+      ],
+      "category": "good",
+      "stackable": false
+    },
+    "bone_trap": {
+      "display": "bone trap",
+      "article": "a",
+      "description": "A jagged bone-and-leather trap. Heavy, brutal, sellable.",
+      "value": 35,
+      "weight": 2,
+      "tags": [
+        "trap",
+        "tool"
+      ],
+      "category": "good",
+      "stackable": false
+    },
+    "fur_cloak": {
+      "display": "fur cloak",
+      "article": "a",
+      "description": "A heavy fur cloak. Cuts the cold to a whisper.",
+      "value": 60,
+      "weight": 3,
+      "tags": [
+        "clothing",
+        "fur",
+        "warm"
+      ],
+      "category": "good",
+      "stackable": false,
+      "slot": "back",
+      "effects": {
+        "life_max_bonus": 8,
+        "carry_capacity_bonus": 5
+      }
+    },
+    "frost_salve": {
+      "display": "frost salve",
+      "article": "a",
+      "description": "Silverherb crushed with frost-crystal dust. Cold to the touch.",
+      "value": 30,
+      "weight": 0.5,
+      "tags": [
+        "medicine",
+        "frozen"
+      ],
+      "category": "consumable",
+      "stackable": false,
+      "effects": {
+        "restore_life": 35
+      },
+      "consumable_action": "eat"
+    },
+    "iron_dagger": {
+      "display": "iron dagger",
+      "article": "an",
+      "description": "A solid iron dagger, balanced and keen.",
+      "value": 90,
+      "weight": 1.5,
+      "tags": [
+        "weapon",
+        "iron"
+      ],
+      "category": "good",
+      "stackable": false,
+      "slot": "hand",
+      "effects": {
+        "attack_bonus": 5,
+        "damage_type": "pierce"
+      }
     }
   },
   "npcs": {
@@ -2200,6 +2432,51 @@ const STORY_WHISPERING_FOREST = {
           "qty": 1
         }
       ]
+    },
+    "hunter_trapper": {
+      "display": "the hunter-trapper",
+      "location": "frozen_lake",
+      "summary": "A weather-burned trapper who works the northern lake. Buys furs and traps; teaches the trade.",
+      "tone_hints": [
+        "weathered",
+        "laconic",
+        "watchful"
+      ],
+      "dialogue_seeds": [
+        "Cold up here. Bring me fur and I'll bring you gold.",
+        "A snare's only as good as the patience you set it with.",
+        "The ice doesn't forgive. Walk careful."
+      ],
+      "behaviors": [
+        "buys_items",
+        "tells_rumors",
+        "teaches_skill"
+      ],
+      "buys_tags": [
+        "fur",
+        "frozen",
+        "trap"
+      ],
+      "is_marketplace": true,
+      "initial_stock": [
+        {
+          "item": "fur_cloak",
+          "qty": 1,
+          "price_gold": 80
+        },
+        {
+          "item": "rope",
+          "qty": 3,
+          "price_gold": 4
+        }
+      ],
+      "teaches": [
+        "trapping"
+      ],
+      "hours": {
+        "open": 7,
+        "close": 19
+      }
     }
   },
   "riddles": {
@@ -2328,6 +2605,26 @@ const STORY_WHISPERING_FOREST = {
       ],
       "reward_sparks": 110,
       "on_solve_message": "Far below, a wave breaks. The empty lantern frame hums for a long moment, and a pale glow stirs once where a flame used to be.",
+      "repeatable": false
+    },
+    "frozen_lake_riddle": {
+      "location": "frozen_lake",
+      "prompt": "I bind the water, break in spring, and the lake forgets me each warm year. What am I?",
+      "answers": [
+        "ice",
+        "frost",
+        "winter",
+        "the ice",
+        "the frost"
+      ],
+      "reward_sparks": 80,
+      "on_solve_message": "Beneath the ice, something brightens. A frost crystal floats up and clinks against the surface.",
+      "reward_items": [
+        {
+          "item": "frost_crystal",
+          "qty": 2
+        }
+      ],
       "repeatable": false
     }
   },
@@ -2487,7 +2784,8 @@ const STORY_WHISPERING_FOREST = {
       "unlocks": {
         "verbs": [],
         "recipes": [
-          "healing_salve"
+          "healing_salve",
+          "craft_frost_salve"
         ],
         "interactions": []
       },
@@ -2626,7 +2924,8 @@ const STORY_WHISPERING_FOREST = {
         "recipes": [
           "make_shoes",
           "make_hat",
-          "make_clothes"
+          "make_clothes",
+          "craft_fur_cloak"
         ],
         "interactions": []
       },
@@ -2709,12 +3008,34 @@ const STORY_WHISPERING_FOREST = {
           "smelt_iron",
           "craft_torch",
           "forge_iron_axe",
-          "forge_iron_sword"
+          "forge_iron_sword",
+          "forge_iron_dagger"
         ],
         "interactions": []
       },
       "tags": [
         "crafting"
+      ]
+    },
+    "trapping": {
+      "display": "Trapping",
+      "description": "Crafting snares and traps that hunters trade for gold. Requires Hunting first.",
+      "tier": 2,
+      "spark_cost": 30,
+      "prereqs": [
+        "hunting"
+      ],
+      "unlocks": {
+        "verbs": [],
+        "recipes": [
+          "craft_snare",
+          "craft_bone_trap"
+        ],
+        "interactions": []
+      },
+      "tags": [
+        "craft",
+        "utility"
       ]
     }
   },
@@ -3222,6 +3543,134 @@ const STORY_WHISPERING_FOREST = {
       "duration_seconds": 0,
       "requires_fire": true,
       "sparks_reward": 18
+    },
+    "craft_snare": {
+      "display": "Snare",
+      "description": "A simple wire-and-wood snare for small game. Trappers buy them.",
+      "skill": "trapping",
+      "inputs": [
+        {
+          "item": "wood",
+          "qty": 1
+        },
+        {
+          "item": "rope",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "snare",
+          "qty": 1
+        }
+      ],
+      "requires_fire": false,
+      "duration_seconds": 0,
+      "sparks_reward": 3
+    },
+    "craft_bone_trap": {
+      "display": "Bone trap",
+      "description": "A heavy bone-and-leather trap. Brutal but profitable.",
+      "skill": "trapping",
+      "inputs": [
+        {
+          "item": "leather",
+          "qty": 1
+        },
+        {
+          "item": "wood",
+          "qty": 1
+        },
+        {
+          "item": "rope",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "bone_trap",
+          "qty": 1
+        }
+      ],
+      "requires_fire": false,
+      "duration_seconds": 0,
+      "sparks_reward": 5
+    },
+    "craft_frost_salve": {
+      "display": "Frost salve",
+      "description": "Silver herb crushed with frost-crystal. Restores 35 life.",
+      "skill": "herbalism",
+      "inputs": [
+        {
+          "item": "silver_herb",
+          "qty": 1
+        },
+        {
+          "item": "frost_crystal",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "frost_salve",
+          "qty": 1
+        }
+      ],
+      "requires_fire": false,
+      "duration_seconds": 0,
+      "sparks_reward": 5
+    },
+    "craft_fur_cloak": {
+      "display": "Fur cloak",
+      "description": "A heavy fur cloak. +8 life, +5 carry.",
+      "skill": "shoemaking",
+      "inputs": [
+        {
+          "item": "fur",
+          "qty": 3
+        },
+        {
+          "item": "leather",
+          "qty": 1
+        },
+        {
+          "item": "rope",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "fur_cloak",
+          "qty": 1
+        }
+      ],
+      "requires_fire": false,
+      "duration_seconds": 0,
+      "sparks_reward": 6
+    },
+    "forge_iron_dagger": {
+      "display": "Iron dagger",
+      "description": "A solid iron-ingot dagger. Steady damage, durable.",
+      "skill": "smelting",
+      "inputs": [
+        {
+          "item": "iron_ingot",
+          "qty": 1
+        },
+        {
+          "item": "wooden_handle",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron_dagger",
+          "qty": 1
+        }
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 5
     }
   },
   "entities": {
@@ -3582,6 +4031,57 @@ const STORY_WHISPERING_FOREST = {
       "tags": [
         "mythic",
         "sacred"
+      ]
+    },
+    "ice_wolf": {
+      "display": "ice wolf",
+      "summary": "A tundra wolf, larger than the forest kind and white as the snow it crosses. The cold lives in its eyes.",
+      "tone_hints": [
+        "cold",
+        "dangerous",
+        "silent",
+        "hungry"
+      ],
+      "hp": 35,
+      "attack_damage_range": [
+        5,
+        12
+      ],
+      "evasion": 0.05,
+      "hostile": true,
+      "base_drops": [
+        {
+          "item": "raw_meat",
+          "qty": 2
+        }
+      ],
+      "skinning_drops": [
+        {
+          "item": "fur",
+          "qty": 1
+        },
+        {
+          "item": "hide",
+          "qty": 1
+        }
+      ],
+      "rare_drops": [
+        {
+          "item": "frost_crystal",
+          "qty": 1,
+          "chance": 0.15
+        }
+      ],
+      "weaknesses": [
+        "slash"
+      ],
+      "resistances": [
+        "blunt"
+      ],
+      "tags": [
+        "predator",
+        "large",
+        "frozen"
       ]
     }
   },
@@ -4007,6 +4507,79 @@ const STORY_WHISPERING_FOREST = {
         ]
       },
       "completion_message": "\"This is good work.\" The smith presses an iron sword into your hand. \"Keep that axe. Take this too — and remember the price of iron.\""
+    },
+    "trappers_introduction": {
+      "title": "The Trapper's Pact: Pelts",
+      "description": "The northern trapper will pay for fur. Bring 2 fur from ice-wolves at the lake or in the caves.",
+      "giver": "hunter_trapper",
+      "auto_accept": false,
+      "objectives": [
+        {
+          "type": "have_item",
+          "item": "fur",
+          "qty": 2
+        }
+      ],
+      "rewards": {
+        "gold": 25,
+        "sparks": 15,
+        "items": []
+      },
+      "completion_message": "The trapper grunts approval and pays you in coins still warm from his palm."
+    },
+    "trappers_traps": {
+      "title": "The Trapper's Pact: Snares",
+      "description": "Craft 3 snares for the trapper. (Recipe: 1 wood + 1 rope. Skill: Trapping — learnable from him.)",
+      "giver": "hunter_trapper",
+      "auto_accept": false,
+      "requires": [
+        "trappers_introduction"
+      ],
+      "objectives": [
+        {
+          "type": "have_item",
+          "item": "snare",
+          "qty": 3
+        }
+      ],
+      "rewards": {
+        "gold": 40,
+        "sparks": 20,
+        "items": [
+          {
+            "item": "rope",
+            "qty": 2
+          }
+        ]
+      },
+      "completion_message": "\"Honest work. Set them well, and the lake rewards you.\" He pockets the snares."
+    },
+    "trappers_winter": {
+      "title": "The Trapper's Pact: Winter's Salve",
+      "description": "The trapper's old wound flares in the cold. Bring 3 frost-salve. (Herbalism + frost crystal + silver herb.)",
+      "giver": "hunter_trapper",
+      "auto_accept": false,
+      "requires": [
+        "trappers_traps"
+      ],
+      "objectives": [
+        {
+          "type": "have_item",
+          "item": "frost_salve",
+          "qty": 3
+        }
+      ],
+      "rewards": {
+        "gold": 80,
+        "sparks": 40,
+        "items": [
+          {
+            "item": "fur_cloak",
+            "qty": 1
+          }
+        ]
+      },
+      "completion_message": "He breathes out long and slow. \"You've done well, traveller. Take the cloak — the cold takes me first now, but you've bought me a winter.\""
     }
   },
   "signature": null
@@ -4189,6 +4762,70 @@ async function resolveActiveStory() {
 const STORY = await resolveActiveStory();
 
 // ============================================================
+//  STORY SIGNING / VERIFICATION (5.7) — schema v0.20
+// ============================================================
+// Stories may carry a top-level `signature` block proving authorship + integrity.
+// We sign by wrapping a sha256 hash of the canonical (key-sorted, signature-stripped)
+// story JSON inside a Nostr-style event of kind 30440 and using nostr-tools'
+// finalizeEvent / verifyEvent. This piggybacks on Schnorr-secp256k1 without
+// reimplementing the primitives, and lets authors sign with their existing nsec.
+const KIND_STORY_SIGNATURE = 30440;
+function canonicalJSON(obj) {
+  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+  if (Array.isArray(obj)) return '[' + obj.map(canonicalJSON).join(',') + ']';
+  const keys = Object.keys(obj).sort();
+  return '{' + keys.map(k => JSON.stringify(k) + ':' + canonicalJSON(obj[k])).join(',') + '}';
+}
+async function sha256Hex(str) {
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function verifyStorySignature(story) {
+  if (!story || !story.signature) return { ok: false, reason: 'unsigned' };
+  const sig = story.signature;
+  if (!sig.pubkey || !sig.sig || !sig.event_id || !sig.story_hash || sig.created_at == null)
+    return { ok: false, reason: 'malformed' };
+  // Recompute the canonical hash from the story with signature stripped
+  const clean = { ...story }; delete clean.signature;
+  const expectedHash = await sha256Hex(canonicalJSON(clean));
+  if (expectedHash !== sig.story_hash)
+    return { ok: false, reason: 'hash mismatch — story has been modified since signing' };
+  // Reconstruct the signing event and run nostr-tools verifyEvent on it
+  const evt = {
+    kind: KIND_STORY_SIGNATURE,
+    pubkey: sig.pubkey,
+    created_at: sig.created_at,
+    tags: [
+      ['d', `story:${story.meta.id}`],
+      ['story_hash', sig.story_hash],
+      ['version', story.meta.version || '1.0.0']
+    ],
+    content: sig.story_hash,
+    id: sig.event_id,
+    sig: sig.sig
+  };
+  try {
+    if (!verifyEvent(evt)) return { ok: false, reason: 'invalid Schnorr signature' };
+  } catch (e) {
+    return { ok: false, reason: 'verify threw: ' + (e?.message || e) };
+  }
+  let npubShort = '';
+  try { npubShort = nip19.npubEncode(sig.pubkey); npubShort = npubShort.slice(0, 12) + '…' + npubShort.slice(-6); } catch {}
+  return { ok: true, pubkey: sig.pubkey, npub: npubShort, signed_at: sig.created_at };
+}
+// Run verification asynchronously; show the badge once we know.
+let __storyVerification = null;  // populated after boot; consulted by status / chrome
+verifyStorySignature(STORY).then(r => {
+  __storyVerification = r;
+  if (typeof write === 'function' && document.readyState !== 'loading') {
+    if (r.ok) write(`[story signed by ${r.npub}, signature verified ✓]`, 'success');
+    else if (r.reason === 'unsigned') {/* silent — most stories are unsigned */ }
+    else write(`[⚠ story signature: ${r.reason}]`, 'error');
+  }
+});
+
+// ============================================================
 //  CONFIG
 // ============================================================
 const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band'];
@@ -4198,7 +4835,7 @@ function loadCustomRelays() {
     const raw = localStorage.getItem(STORAGE_RELAYS);
     if (!raw) return [];
     const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr.filter(s => typeof s === 'string' && /^wss?:\/\//i.test(s)) : [];
+    return Array.isArray(arr) ? arr : [];
   } catch { return []; }
 }
 function saveCustomRelays(arr) {
@@ -7092,7 +7729,14 @@ function attack() {
   const crit = Math.random() < critChance;
   const weaponBonus = (typeof __noAmmo !== 'undefined' && __noAmmo) ? 0 : bestWeaponBonus();
   const baseDmg = randInt(2, 5) + weaponBonus + (player.skills.has('hunting') ? 2 : 0);
-  const playerDmg = Math.max(1, Math.floor(baseDmg * typeMod * (crit ? 2 : 1)));
+  // 5.8: charge boosts this swing 1.5× (and queues a 1.5× recoil for the enemy hit)
+  const chargeMod = player.charge_pending ? 1.5 : 1;
+  const playerDmg = Math.max(1, Math.floor(baseDmg * typeMod * (crit ? 2 : 1) * chargeMod));
+  if (player.charge_pending) {
+    write(T('You charge — your blow comes in fast and reckless.'), 'spark');
+    player.charge_pending = false;
+    player.charge_recoil = true;  // enemy will counter-hit harder this round
+  }
   let didDamage = 0;
   if (Math.random() < (t.evasion || 0)) {
     write(T('You miss the {0}.', t.display), 'combat');
@@ -7203,6 +7847,8 @@ function attack() {
     fireEvents('on_kill', { entity: t.id });
     player.combat_target = null;
     player.combat_id = null;
+    // 5.8: reset per-combat flags so the next fight is fresh
+    player.parry_ready = false; player.charge_pending = false; player.charge_recoil = false; player.charge_used_this_combat = false;
     return;
   }
   let enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
@@ -7219,10 +7865,21 @@ function attack() {
     }
   }
   // 5.6: player profile evasion + agi-derived dodge (floor(agi/40) extra chance)
-  const dodgeChance = profileBonus('evasion_bonus') + (profileAttribute('agi') / 40);
+  // 5.8: parry stance set last turn = 60% dodge boost on the very next incoming hit
+  let dodgeChance = profileBonus('evasion_bonus') + (profileAttribute('agi') / 40);
+  if (player.parry_ready) {
+    dodgeChance += 0.6;
+    player.parry_ready = false;
+  }
   if (dodgeChance > 0 && Math.random() < dodgeChance) {
     write(T('You twist aside; the {0}\'s blow misses.', t.display), 'success');
     return;
+  }
+  // 5.8: charge → enemy hits 1.5× harder (high risk / high reward done last turn)
+  if (player.charge_recoil) {
+    enemyDmg = Math.floor(enemyDmg * 1.5);
+    player.charge_recoil = false;
+    write(T('Your charge cost you composure — the blow lands harder.'), 'error');
   }
   player.life -= enemyDmg;
   write(T('The {0} bites you for {1} damage. ({2}/{3} life)', t.display, enemyDmg, Math.max(0, Math.floor(player.life)), computeMaxLife()), 'error');
@@ -7241,7 +7898,81 @@ function flee() {
   if (player.life > 0) fireEvents('on_attacked', { entity: t.id, dmg: enemyDmg, source: 'flee' });
   player.combat_target = null;
   player.combat_id = null;  // 4.5: leaving a shared combat doesn't end it for others
+  player.parry_ready = false; player.charge_pending = false; player.charge_recoil = false; player.charge_used_this_combat = false;
   if (player.life <= 0) handleDeath(`killed by ${t.display} while fleeing`);
+}
+
+// 5.8: combat-depth additions — parry / charge / retreat.
+// parry: defensive stance, costs your attack this turn but the next incoming
+// blow has +60% dodge chance. Useful when low on life and waiting for an opening.
+function parry() {
+  if (!inCombat()) { write('There is nothing to parry.', 'error'); return; }
+  if (!player.equipment.hand) {
+    write('You need a weapon wielded to parry.', 'error'); return;
+  }
+  const t = player.combat_target;
+  player.parry_ready = true;
+  write(T('You take a parry stance, weapon raised, watching the {0}.', t.display), 'success');
+  // The enemy still takes their swing this turn — but with the +60% dodge chance.
+  let enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
+  // Companion absorbs 50%
+  if (player.companion && player.companion.hp > 0) {
+    const absorbed = Math.floor(enemyDmg / 2);
+    enemyDmg -= absorbed;
+    player.companion.hp -= absorbed;
+    write(`The ${t.display}'s blow lands partly on your ${STORY.entities[player.companion.entity].display} (${absorbed} dmg, ${Math.max(0, player.companion.hp)} hp left).`, 'error');
+    if (player.companion.hp <= 0) { write(`Your ${STORY.entities[player.companion.entity].display} falls.`, 'error'); player.companion = null; }
+  }
+  let dodgeChance = profileBonus('evasion_bonus') + (profileAttribute('agi') / 40) + 0.6;
+  player.parry_ready = false;
+  if (Math.random() < dodgeChance) {
+    write(T('Your blade meets theirs — the blow turns aside.'), 'success');
+    return;
+  }
+  // Parry partial: reduce damage by half on a failed dodge
+  enemyDmg = Math.max(1, Math.floor(enemyDmg / 2));
+  player.life -= enemyDmg;
+  write(T('You catch most of the blow; {0} damage gets through. ({1}/{2} life)', enemyDmg, Math.max(0, Math.floor(player.life)), computeMaxLife()), 'error');
+  if (player.life > 0) fireEvents('on_attacked', { entity: t.id, dmg: enemyDmg, source: 'parry' });
+  if (player.life <= 0) handleDeath(`killed by ${t.display}`);
+}
+
+// charge: skill-gated (Hunting). Sets a flag so your NEXT attack hits 1.5×
+// and the enemy hits you 1.5× harder in the same round. One-shot per combat.
+function charge() {
+  if (!inCombat()) { write('There is nothing to charge.', 'error'); return; }
+  if (!player.skills.has('hunting')) {
+    write('Charging into combat takes the Hunting skill.', 'error'); return;
+  }
+  if (player.charge_used_this_combat) {
+    write('You already committed your charge this fight.', 'error'); return;
+  }
+  if (player.charge_pending) {
+    write('You are already mid-charge — type "attack" to deliver the blow.', 'system');
+    return;
+  }
+  player.charge_pending = true;
+  player.charge_used_this_combat = true;
+  const t = player.combat_target;
+  write(T('You drop your shoulder and charge the {0}. (Your next "attack" will land 1.5× — but expect a counter-hit.)', t.display), 'spark');
+}
+
+// retreat: try to escape combat without taking parting damage. Base 70%, +20%
+// with Hunting. On failure, falls through to normal flee.
+function retreat() {
+  if (!inCombat()) { write('There is nothing to retreat from.', 'error'); return; }
+  const t = player.combat_target;
+  let chance = 0.7 + (player.skills.has('hunting') ? 0.2 : 0) + (profileAttribute('agi') / 60);
+  chance = Math.min(0.95, chance);
+  if (Math.random() < chance) {
+    write(T('You step back, watching for the lunge — and break clean. The {0} doesn\'t pursue.', t.display), 'success');
+    player.combat_target = null;
+    player.combat_id = null;
+    player.parry_ready = false; player.charge_pending = false; player.charge_recoil = false;
+    return;
+  }
+  write(T('You try to retreat — but the {0} reads you.', t.display), 'error');
+  flee();
 }
 
 function eat(arg) {
@@ -8790,78 +9521,149 @@ function shortRoomName(rid) {
   return last.charAt(0).toUpperCase() + last.slice(1);
 }
 
+// 5.8: layered (multi-z-level) map. Rooms are grouped by `room.layer`
+// (overhead / surface / underground; default surface). Each layer is BFS'd
+// in its own 2D grid, and rendered as a stacked column with inter-layer
+// "stairs" annotations between them. Up/down/in/out exits that cross layers
+// are rendered as labels rather than warped Y offsets.
 function showMap() {
   const rooms = player.rooms;
-  const positions = new Map();
-  positions.set(player.location, [0, 0]);
-  const queue = [player.location];
-  const dirOffset = { north:[0,-1], south:[0,1], east:[1,0], west:[-1,0], up:[0,-3], down:[0,3], in:[0,2], out:[0,-2] };
-  while (queue.length) {
-    const cur = queue.shift();
-    const [cx, cy] = positions.get(cur);
-    for (const [dir, rawTarget] of Object.entries(rooms[cur].exits || {})) {
-      const r = resolveExit(rawTarget); if (!r) continue;
-      const target = r.target;
-      if (!player.visited.has(target)) continue;   // fog-of-war: only visited
-      if (positions.has(target)) continue;
-      const off = dirOffset[dir];
-      if (!off) continue;
-      positions.set(target, [cx + off[0], cy + off[1]]);
-      queue.push(target);
-    }
+  // 1) Group visited rooms by layer
+  const layerOf = id => (rooms[id]?.layer || 'surface');
+  const visited = [...player.visited].filter(id => rooms[id]);
+  const byLayer = { overhead: [], surface: [], underground: [] };
+  for (const id of visited) {
+    const L = layerOf(id);
+    if (!byLayer[L]) byLayer[L] = [];
+    byLayer[L].push(id);
   }
-  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-  for (const [x, y] of positions.values()) { minX=Math.min(minX,x); maxX=Math.max(maxX,x); minY=Math.min(minY,y); maxY=Math.max(maxY,y); }
+  const orderedLayers = ['overhead', 'surface', 'underground'].filter(L => byLayer[L]?.length);
+  // For any custom layer values, append at the end
+  for (const L of Object.keys(byLayer)) {
+    if (!['overhead','surface','underground'].includes(L) && byLayer[L].length) orderedLayers.push(L);
+  }
+
+  // 2) For each layer, BFS positions starting from any room in that layer.
+  //    Prefer the player's own location as the seed for their layer.
+  const layoutByLayer = new Map();
+  for (const L of orderedLayers) {
+    const ids = byLayer[L];
+    const positions = new Map();
+    const seed = ids.includes(player.location) ? player.location : ids[0];
+    positions.set(seed, [0, 0]);
+    const queue = [seed];
+    const inLayer = new Set(ids);
+    const dirOffset = { north:[0,-1], south:[0,1], east:[1,0], west:[-1,0] };
+    while (queue.length) {
+      const cur = queue.shift();
+      const [cx, cy] = positions.get(cur);
+      for (const [dir, rawTarget] of Object.entries(rooms[cur].exits || {})) {
+        const r = resolveExit(rawTarget); if (!r) continue;
+        const target = r.target;
+        if (!inLayer.has(target)) continue;       // ignore inter-layer exits here
+        if (positions.has(target)) continue;
+        const off = dirOffset[dir]; if (!off) continue;
+        positions.set(target, [cx + off[0], cy + off[1]]);
+        queue.push(target);
+      }
+    }
+    // Catch any rooms in the layer not reached by BFS (graph islands), stack them
+    let stackY = 0;
+    for (const id of ids) {
+      if (!positions.has(id)) {
+        // find a free x to the right of any existing
+        let maxX = 0;
+        for (const [x, _y] of positions.values()) maxX = Math.max(maxX, x);
+        positions.set(id, [maxX + 2, stackY++]);
+      }
+    }
+    layoutByLayer.set(L, positions);
+  }
+
+  // 3) Render each layer to a string grid
   const labelMax = 8;
-  const boxW = labelMax + 4;   // ┌ + (* or space) + name + mark + ┐
-  const cellW = boxW + 2;       // 2-char gap for connectors
+  const boxW = labelMax + 4;
+  const cellW = boxW + 2;
   const cellH = 4;
-  const cols = (maxX - minX + 1) * cellW;
-  const rows = (maxY - minY + 1) * cellH;
-  const grid = Array(rows).fill(null).map(() => Array(cols).fill(' '));
-  function put(y, x, s) { for (let i = 0; i < s.length; i++) if (x+i>=0 && x+i<cols && y>=0 && y<rows) grid[y][x+i] = s[i]; }
-  for (const [room, [x, y]] of positions) {
-    const cx = (x - minX) * cellW, cy = (y - minY) * cellH;
-    const here = room === player.location;
-    // Chest takes priority — player most cares about their own caches.
-    let mark = ' ';
-    if (player.chests.has(room)) mark = '📦';
-    else if (rooms[room].hazards?.wolves) mark = '⚠';
-    else if (fireActive(room)) mark = '🔥';
-    const sn = shortRoomName(room);
-    const name = sn.length > labelMax ? sn.slice(0, labelMax-1) + '…' : sn;
-    const inner = (here ? '*' : ' ') + name.padEnd(labelMax) + mark;
-    put(cy + 0, cx, '┌' + '─'.repeat(boxW - 2) + '┐');
-    put(cy + 1, cx, '│' + inner + '│');
-    put(cy + 2, cx, '└' + '─'.repeat(boxW - 2) + '┘');
-  }
-  for (const [room, [x, y]] of positions) {
-    const cx = (x - minX) * cellW, cy = (y - minY) * cellH;
-    for (const [dir, rawTarget] of Object.entries(rooms[room].exits || {})) {
-      const r = resolveExit(rawTarget); if (!r) continue;
-      const target = r.target;
-      if (!positions.has(target)) continue;
-      const [tx, ty] = positions.get(target);
-      const dx = tx - x, dy = ty - y;
-      if (dx === 1 && dy === 0)      put(cy + 1, cx + boxW, '──');
-      else if (dx === 0 && dy === 1) put(cy + 3, cx + Math.floor(boxW/2), '│');
-      else if (dx === 0 && dy === 2) put(cy + 3, cx + Math.floor(boxW/2), '┊');  // in (dotted — going inside)
-      else if (dx === 0 && dy === 3) put(cy + 3, cx + Math.floor(boxW/2), '╎');  // down
+  function renderLayerGrid(L, positions) {
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for (const [x, y] of positions.values()) { minX=Math.min(minX,x); maxX=Math.max(maxX,x); minY=Math.min(minY,y); maxY=Math.max(maxY,y); }
+    if (!isFinite(minX)) return '(no rooms)';
+    const cols = (maxX - minX + 1) * cellW;
+    const rowsH = (maxY - minY + 1) * cellH;
+    const grid = Array(rowsH).fill(null).map(() => Array(cols).fill(' '));
+    function put(y, x, s) { for (let i = 0; i < s.length; i++) if (x+i>=0 && x+i<cols && y>=0 && y<rowsH) grid[y][x+i] = s[i]; }
+    // Boxes
+    for (const [room, [x, y]] of positions) {
+      const cx = (x - minX) * cellW, cy = (y - minY) * cellH;
+      const here = room === player.location;
+      let mark = ' ';
+      if (player.chests.has(room)) mark = '📦';
+      else if (rooms[room].hazards?.wolves) mark = '⚠';
+      else if (fireActive(room)) mark = '🔥';
+      // 5.8: inter-layer stairs marker if this room has up/down/in/out to another layer
+      let stair = '';
+      for (const [dir, rawTarget] of Object.entries(rooms[room].exits || {})) {
+        const r = resolveExit(rawTarget); if (!r) continue;
+        if (!player.visited.has(r.target)) continue;
+        if (layerOf(r.target) === L) continue;
+        if (dir === 'up') stair = '↑';
+        else if (dir === 'down') stair = '↓';
+        else if (dir === 'in') stair = '→';
+        else if (dir === 'out') stair = '←';
+      }
+      if (stair && mark === ' ') mark = stair;
+      const sn = shortRoomName(room);
+      const name = sn.length > labelMax ? sn.slice(0, labelMax-1) + '…' : sn;
+      const inner = (here ? '*' : ' ') + name.padEnd(labelMax) + mark;
+      put(cy + 0, cx, '┌' + '─'.repeat(boxW - 2) + '┐');
+      put(cy + 1, cx, '│' + inner + '│');
+      put(cy + 2, cx, '└' + '─'.repeat(boxW - 2) + '┘');
     }
+    // Connectors (intra-layer only)
+    for (const [room, [x, y]] of positions) {
+      const cx = (x - minX) * cellW, cy = (y - minY) * cellH;
+      for (const [dir, rawTarget] of Object.entries(rooms[room].exits || {})) {
+        const r = resolveExit(rawTarget); if (!r) continue;
+        const target = r.target;
+        if (!positions.has(target)) continue;
+        const [tx, ty] = positions.get(target);
+        const dx = tx - x, dy = ty - y;
+        if (dx === 1 && dy === 0)      put(cy + 1, cx + boxW, '──');
+        else if (dx === 0 && dy === 1) put(cy + 3, cx + Math.floor(boxW/2), '│');
+      }
+    }
+    return grid.map(row => row.join('').replace(/\s+$/, '')).join('\n');
   }
-  // Render in a horizontally-scrollable container so wide maps still fit on phones
+
   const wrap = document.createElement('div');
   wrap.className = 'map-wrap';
   const header = document.createElement('div');
   header.className = 'line system';
-  header.textContent = `-- map (* = you, ⚠ = wolves, 📦 = chest, 🔥 = fire) — ${player.visited.size} room${player.visited.size === 1 ? '' : 's'} discovered --`;
+  const layerHint = orderedLayers.length > 1 ? ` · layers: ${orderedLayers.join(' / ')}` : '';
+  header.textContent = `-- map (* = you, ⚠ = wolves, 📦 = chest, 🔥 = fire, ↑↓→← = inter-layer)${layerHint} — ${player.visited.size} room${player.visited.size === 1 ? '' : 's'} discovered --`;
   wrap.appendChild(header);
-  const pre = document.createElement('pre');
-  pre.className = 'map-pre';
-  pre.textContent = grid.map(row => row.join('').replace(/\s+$/, '')).join('\n');
-  wrap.appendChild(pre);
+
+  const playerLayer = layerOf(player.location);
+  for (const L of orderedLayers) {
+    const positions = layoutByLayer.get(L);
+    const isPlayer = L === playerLayer;
+    const layerLabel = document.createElement('div');
+    layerLabel.className = 'line system';
+    layerLabel.style.fontWeight = isPlayer ? '700' : '400';
+    layerLabel.style.opacity = isPlayer ? '1' : '0.65';
+    layerLabel.style.marginTop = '6px';
+    layerLabel.textContent = `[ ${L.toUpperCase()} ]${isPlayer ? '  ← you are here' : ''}  (${positions.size} room${positions.size===1?'':'s'})`;
+    wrap.appendChild(layerLabel);
+    const pre = document.createElement('pre');
+    pre.className = 'map-pre';
+    pre.style.opacity = isPlayer ? '1' : '0.7';
+    pre.textContent = renderLayerGrid(L, positions);
+    wrap.appendChild(pre);
+  }
   out.appendChild(wrap);
-  // total exits hint: undiscovered exits from visited rooms
+
+  // Unexplored exits
   const undiscovered = [];
   for (const room of player.visited) {
     for (const [dir, rawTarget] of Object.entries(rooms[room].exits || {})) {
@@ -8953,7 +9755,7 @@ function maybeAdvanceTutorial(cmd) {
       showHint('first_inv'); break;
     case 'talk':
       showHint('first_talk'); break;
-    case 'hunt': case 'attack': case 'assist': case 'help_attack':
+    case 'hunt': case 'attack': case 'assist': case 'help_attack': case 'parry': case 'charge': case 'retreat':
       showHint('first_combat'); break;
     case 'quests': case 'q': case 'accept': case 'turn': case 'turnin':
       showHint('first_quests'); break;
@@ -9009,6 +9811,9 @@ function help() {
     T('Gathering:       chop / forage / gather (needs skill)'),
     T('Crafting:        recipes · craft <recipe> · craft <qty> <recipe>  (batch; each craft awards sparks)'),
     T('Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest · sleep'),
+    T('                 parry  (defensive stance — next blow has +60% dodge)'),
+    T('                 charge  (Hunting only, +50% damage on next attack but enemy hits 1.5×; once per fight)'),
+    T('                 retreat  (try to escape without parting damage; 70% base, +20% with Hunting)'),
     T('                 assist [<name>]  (join another player\'s fight in the same room)'),
     T('Equipment:       wear / wield <x> · unwear <slot> · equipment / eq'),
     T('Smithing:        sharpen <x> · repair <x>  (at the village blacksmith)'),
@@ -9114,6 +9919,9 @@ function handleCommand(input) {
     case 'hunt':                 hunt(); break;
     case 'attack':               attack(); break;
     case 'flee':                 flee(); break;
+    case 'parry':                parry(); break;
+    case 'charge':               charge(); break;
+    case 'retreat':              retreat(); break;
     case 'assist': case 'help_attack': assist(argRaw); break;
     case 'eat':                  eat(arg); break;
     case 'drink':                drink(arg); break;
@@ -9143,6 +9951,19 @@ function handleCommand(input) {
     case 'import':               importSoul(argRaw); consumesTurn = false; break;
     case 'characters': case 'chars': charactersCommand(argRaw); consumesTurn = false; break;
     case 'profile':              showProfile(); consumesTurn = false; break;
+    case 'signature': case 'sig':
+      (async () => {
+        const r = await verifyStorySignature(STORY);
+        if (!STORY.signature) write('This story is unsigned.', 'system');
+        else if (r.ok) {
+          write(`Story signed by ${r.npub} ✓ (signature verified)`, 'success');
+          try { write(`  full npub: ${nip19.npubEncode(r.pubkey)}`, 'system'); } catch {}
+          if (r.signed_at) write(`  signed at: ${new Date(r.signed_at * 1000).toISOString()}`, 'system');
+        } else {
+          write(`⚠ Signature ${r.reason}`, 'error');
+        }
+      })();
+      consumesTurn = false; break;
     case 'new':                  if (arg === 'character' || arg === '') newCharacter(); else write('Did you mean "new character"?', 'error'); consumesTurn = false; break;
     case 'reset':                newCharacter(); consumesTurn = false; break;
     case 'rename':               renameCharacter(argRaw); consumesTurn = false; break;
@@ -9218,7 +10039,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.24 ===`, 'title');
+write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.25 ===`, 'title');
 write(`developed by AWB_ 🇨🇭`, 'system');
 write('');
 
@@ -9293,6 +10114,21 @@ if (!player.weather) {
 advanceDailyQuest(dayPart().day);
 
 write(`Identity: ${npubShort}`, 'system');
+// 5.7: signature badge — print whatever we have so far, and patch in the result
+// later if verification is still pending.
+if (STORY.signature) {
+  if (__storyVerification) {
+    if (__storyVerification.ok) write(`Story: signed by ${__storyVerification.npub} ✓`, 'success');
+    else write(`Story: ⚠ signature ${__storyVerification.reason}`, 'error');
+  } else {
+    write('Story: signature present, verifying…', 'system');
+    verifyStorySignature(STORY).then(r => {
+      __storyVerification = r;
+      if (r.ok) write(`Story: signed by ${r.npub} ✓`, 'success');
+      else write(`Story: ⚠ signature ${r.reason}`, 'error');
+    });
+  }
+}
 write(`${Object.keys(STORY.rooms).length} rooms · ${Object.keys(STORY.skills).length} skills · ${Object.keys(STORY.recipes).length} recipes · ${Object.keys(STORY.entities).length} entities`, 'system');
 write(`Connecting to ${RELAYS.length} Nostr relays…`, 'system');
 write('');
