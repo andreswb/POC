@@ -4778,6 +4778,15 @@ const BUILTIN_STORIES = {
   'whispering-forest-v1': STORY_WHISPERING_FOREST
 };
 
+// 5.13 marketplace listings discovered over Nostr. Declared here (above the
+// story picker) because the picker can fire before the marketplace section of
+// the file executes — top-level await on resolveActiveStory() pauses module
+// init, and TDZ errors would leave the list empty.
+//   story_id -> { id, title, author, author_pubkey, description, url, story_hash,
+//                 version, language, schema_version, published_at,
+//                 listing_event_id, verified }
+const marketplaceStories = new Map();
+
 // Async loader. Tries manifest first; falls back to hardcoded list.
 // Validates minimal shape before adding to BUILTIN_STORIES so a malformed
 // file can't break the picker.
@@ -5991,7 +6000,8 @@ const notices = new Map();   // notice_id -> { roomId, author, name, text, poste
 const carvings = new Map();  // carving_id -> { roomId, author, name, title, text, posted_at }
 const dmInbox = [];          // received DMs (most recent first), { from_pubkey, from_name, text, received_at }
 const bounties = new Map();  // 5.11: bounty_id -> { entity, gold, poster_pubkey, poster_name, posted_at, expires_at, claimed_by? }
-const marketplaceStories = new Map();  // 5.13: story_id -> { id, title, author, author_pubkey, description, url, story_hash, version, language, schema_version, published_at, listing_event_id, verified }
+// marketplaceStories declared earlier (before listAllStoryOptions) to avoid TDZ
+// when the story picker fires before this point — see line ~4779.
 
 // ============================================================
 //  LOGIN STREAKS + TITLES (4.8)
