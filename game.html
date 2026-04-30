@@ -9662,6 +9662,12 @@ function showMap() {
       north:[0,-1], south:[0,1], east:[1,0], west:[-1,0],
       up:[0,-2], down:[0,2], in:[2,0], out:[-2,0]
     };
+    // Track occupied cells to detect collisions: BFS by itself can land two
+    // rooms on the same grid cell when they're reachable from different
+    // sub-trees (e.g. hilltop_ruins via red_canyon.up and frozen_lake via
+    // frozen_north → east both want [1,-2]).
+    const occupied = new Set();
+    occupied.add(`${0},${0}`);
     while (queue.length) {
       const cur = queue.shift();
       const [cx, cy] = positions.get(cur);
@@ -9671,7 +9677,20 @@ function showMap() {
         if (!inLayer.has(target)) continue;       // inter-layer = handled as marker, not 2D edge
         if (positions.has(target)) continue;
         const off = dirOffset[dir]; if (!off) continue;
-        positions.set(target, [cx + off[0], cy + off[1]]);
+        let nx = cx + off[0], ny = cy + off[1];
+        // Collision-avoid: push further along the same direction until a
+        // free cell is found. This keeps the spatial intuition (east is east)
+        // while preventing two rooms from stacking on top of each other.
+        let guard = 0;
+        const stepX = off[0] === 0 ? 0 : Math.sign(off[0]);
+        const stepY = off[1] === 0 ? 0 : Math.sign(off[1]);
+        while (occupied.has(`${nx},${ny}`) && guard < 20) {
+          nx += stepX || 1;  // if both are zero (shouldn't happen) drift east
+          ny += stepY;
+          guard++;
+        }
+        positions.set(target, [nx, ny]);
+        occupied.add(`${nx},${ny}`);
         queue.push(target);
       }
     }
