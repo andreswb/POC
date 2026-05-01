@@ -5,11 +5,11 @@
     "title": "Saltbound",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.0.0",
+    "version": "1.0.2",
     "created_at": "2026-05-01T00:00:00Z",
     "language": "en",
     "languages": ["en"],
-    "tone": "Honest survival prose. Salt, heat, patience. The island is harsh but not cruel. There are answers if you walk far enough. No magic that announces itself; only weather, hunger, water, work, and a few old things that the jungle has not finished hiding.",
+    "tone": "Honest survival prose. Pacific, anno 1850. A merchantman lost on uncharted reef; one survivor. Salt, heat, patience. The island is harsh but not cruel. There are answers if you walk far enough. No magic that announces itself; only weather, hunger, water, work, and a few old things that the jungle has not finished hiding.",
     "creative_license": "moderate",
     "starting_location": "shipwreck_beach",
     "starting_inventory": ["torn_journal"],
@@ -32,21 +32,21 @@
     },
     "character_profiles": {
       "castaway": {
-        "display": "Castaway (ordinary)",
-        "summary": "You woke on the beach. Salt in your hair, no boots, no name worth keeping. Survival is a job; you'll learn it like any other.",
+        "display": "Castaway (passenger)",
+        "summary": "You took passage from Valparaíso bound for Sydney. The reef found the ship faster than the lookout did. You woke on the beach. Salt in your hair, no boots, no name worth keeping. Survival is a job; you'll learn it like any other.",
         "attributes": {"str": 10, "agi": 10, "int": 10},
         "tags": ["mortal"]
       },
       "sailor": {
         "display": "Sailor",
-        "summary": "Your hands know rope, your stomach knows weather. Land is the strange place; the sea is your room.",
+        "summary": "You went to sea as a boy, before the schoolhouse. Your hands know rope and your stomach knows weather; you read what charts ask you to read, and no more. Land is the strange place; the sea is your room.",
         "attributes": {"str": 12, "agi": 10, "int": 8},
         "attack_bonus": 1,
         "tags": ["mortal"]
       },
       "scholar": {
         "display": "Scholar",
-        "summary": "You were on the ship to study coastal birds. The birds are still here. The ship is not. You take notes anyway.",
+        "summary": "You were aboard to study the coastal birds of the southern Pacific — a small expedition out of Edinburgh, funded for two years. The birds are still here. The ship is not. You take notes anyway.",
         "attributes": {"str": 8, "agi": 10, "int": 12},
         "starting_skills_extra": ["herbalism"],
         "tags": ["mortal"]
@@ -57,10 +57,11 @@
   "rooms": {
     "shipwreck_beach": {
       "name": "The Shipwreck Beach",
-      "summary": "A long beach of pale sand. Behind you, the wreck of your ship, broken on the reef. Gulls call. The interior of the wreck still has the sea inside it. North, the jungle. East, palms. West, driftwood. The interior of the wreck is below.",
+      "summary": "A long beach of pale sand. Behind you, the wreck of the brig Helena — broken on the reef in the small hours of a moonless night, anno 1850. Gulls call. The interior of the wreck still has the sea inside it. North, the jungle. East, palms. West, driftwood. The interior of the wreck is below.",
       "example_descriptions": [
-        "Salt smell. The sand is hot. A cracked oar lies half-buried.",
-        "A pelican lands ten feet away, considers you, and walks off."
+        "Salt smell. The sand is hot. A cracked oar half-buried; the ship's name plate, faded gilt, sun-bleached.",
+        "A pelican lands ten feet away, considers you, and walks off.",
+        "You count the survivors twice. Once: only you. Twice: still only you."
       ],
       "tone_hints": ["bright", "hot", "lonely", "patient"],
       "exits": {
@@ -75,7 +76,7 @@
       "tags": ["outdoor", "beach"],
       "resources": [
         {"id": "stone_chip", "skill": "stone_knapping", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 120},
-        {"id": "driftwood", "skill": "foraging", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 180}
+        {"id": "driftwood", "skill": "foraging", "verb": "forage", "yield_qty": 1, "regenerates": true, "regen_seconds": 180}
       ],
       "hazards": {},
       "spawn_table": [],
@@ -150,7 +151,7 @@
       "riddle": null,
       "tags": ["outdoor", "beach"],
       "resources": [
-        {"id": "driftwood", "skill": "foraging", "verb": "gather", "yield_qty": 2, "regenerates": true, "regen_seconds": 120},
+        {"id": "driftwood", "skill": "foraging", "verb": "forage", "yield_qty": 2, "regenerates": true, "regen_seconds": 120},
         {"id": "sail_cloth", "skill": "foraging", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 600}
       ],
       "hazards": {},
@@ -187,16 +188,16 @@
       "summary": "A clearing of broad-leafed trees heavy with green-and-orange fruit. Wasps. Below, the palm grove and the beach. North, a rougher monkey wood. West, the inland path.",
       "example_descriptions": [
         "Fruit drops with a soft thud, every minute or so. The smell is hot and sweet.",
-        "The botanist has set up a small camp here — pressed leaves, ink-stained paper, a hammock between two trees."
+        "An old camp half-claimed by vine: a hammock rotted to thread, pressed leaves still legible in a leather folio. A figure leans over the folio that is not quite there in the bright sun."
       ],
-      "tone_hints": ["sweet", "warm", "alive"],
+      "tone_hints": ["sweet", "warm", "alive", "haunted"],
       "exits": {
         "south": "palm_grove",
         "north": "monkey_hollow",
         "west": "jungle_path"
       },
       "items": [],
-      "npcs": ["the_botanist"],
+      "npcs": ["botanists_ghost"],
       "riddle": null,
       "tags": ["outdoor", "forest"],
       "resources": [
@@ -295,9 +296,9 @@
       "summary": "A grass-and-rock crest with a view of the whole island and the long curve of sea beyond. The wind is steady here. East, ancient stone. West, an old camp. North, the volcano. South, back down to the falls.",
       "example_descriptions": [
         "The sea looks as if you could walk across it. You cannot.",
-        "The navigator sits cross-legged on the highest stone, watching the horizon, scratching marks on a piece of slate."
+        "On the highest stone, a figure of salt-light and uniform. He scratches marks on a piece of slate that is not in his hand. He has been here a long time."
       ],
-      "tone_hints": ["high", "windy", "vast", "patient"],
+      "tone_hints": ["high", "windy", "vast", "patient", "haunted"],
       "exits": {
         "south": "stream_falls",
         "east": "ancient_ruins",
@@ -305,7 +306,7 @@
         "north": "lava_field"
       },
       "items": [],
-      "npcs": ["the_navigator"],
+      "npcs": ["navigators_ghost"],
       "riddle": "navigator_riddle",
       "tags": ["outdoor", "high"],
       "resources": [],
@@ -319,15 +320,15 @@
       "summary": "Grey stone older than the island's memory. Steps lead nowhere; a doorway opens onto a wall. In the centre, a carved tablet whose script no living tongue reads. The elder is here when she chooses. East, an old wooden tower.",
       "example_descriptions": [
         "Lichen-soft, wind-soft. The carvings are still sharp where the stone was cut against the grain.",
-        "The elder sits with her back to the tablet, weaving something from grasses, and does not turn."
+        "A spirit sits with her back to the tablet, weaving something from grasses that aren't there. She does not turn. She is older than the stone."
       ],
-      "tone_hints": ["old", "patient", "watchful", "sacred"],
+      "tone_hints": ["old", "patient", "watchful", "sacred", "haunted"],
       "exits": {
         "west": "hilltop_view",
         "east": "lookout_tower"
       },
       "items": [],
-      "npcs": ["the_native_elder"],
+      "npcs": ["elders_spirit"],
       "riddle": "ancient_tablet_riddle",
       "tags": ["outdoor", "sacred"],
       "resources": [],
@@ -342,15 +343,15 @@
       "name": "The Abandoned Camp",
       "summary": "A small clearing, a low lean-to, a fire-circle long cold. Tools rest on a stone. Someone lived here a long time and left without packing. East, the hilltop.",
       "example_descriptions": [
-        "A fishing rod, a knife with a worn wooden handle, a pot. A parrot in a wicker cage that has long since been opened.",
-        "The old castaway tends the fire-circle, looks up, nods. The parrot squawks once and watches you with both eyes."
+        "A fishing rod, a bone-handle knife, a pot. An empty wicker cage where a bird once lived. A figure crouches at the fire-circle that is not lit, that has not been lit in years.",
+        "The ghost looks up when you come, nods once, and goes back to tending coals that are not there."
       ],
-      "tone_hints": ["lived-in", "patient", "warm"],
+      "tone_hints": ["lived-in", "patient", "warm", "haunted"],
       "exits": {
         "east": "hilltop_view"
       },
-      "items": [],
-      "npcs": ["the_old_castaway", "the_parrot"],
+      "items": ["bone_handle_knife", "worn_letter"],
+      "npcs": ["castaways_ghost"],
       "riddle": "parrot_riddle",
       "tags": ["outdoor", "shelter"],
       "resources": [],
@@ -830,7 +831,7 @@
     "captains_log": {
       "display": "captain's log",
       "article": "a",
-      "description": "Salt-bloated. Last legible entry: 'we were not blown here. The island wanted us. — Captain Auer'",
+      "description": "The brig Helena, out of Valparaíso, bound Sydney. Salt-bloated, but legible at the edges. Last entry, dated 14 March 1850: 'we were not blown here. The island wanted us. The chart shows nothing. The chart is wrong. — Capt. Auer'",
       "value": 0,
       "weight": 0.3,
       "tags": ["lore"],
@@ -903,6 +904,56 @@
       "category": "good",
       "stackable": false,
       "image": "🛶"
+    },
+    "smoked_fish": {
+      "display": "smoked fish",
+      "article": "a",
+      "description": "Cured in slow driftwood smoke. Light, long-keeping, dense calories. Provisions for a long walk or a longer sea.",
+      "value": 12,
+      "weight": 0.2,
+      "tags": ["food"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 16},
+      "consumable_action": "eat",
+      "image": "🐟"
+    },
+    "smoked_meat": {
+      "display": "smoked meat",
+      "article": "some",
+      "description": "Boar, cured slow over salt-driftwood. Black-edged, dense, travel-ready.",
+      "value": 18,
+      "weight": 0.3,
+      "tags": ["food"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 22},
+      "consumable_action": "eat",
+      "image": "🥩"
+    },
+    "bone_handle_knife": {
+      "display": "bone-handle knife",
+      "article": "a",
+      "description": "Carved from a fish-vertebra, edge of beach-flint. The previous castaway used it for forty years.",
+      "value": 5,
+      "weight": 0.4,
+      "tags": ["weapon"],
+      "category": "good",
+      "stackable": false,
+      "slot": "hand",
+      "effects": {"attack_bonus": 2, "damage_type": "slash"},
+      "image": "🔪"
+    },
+    "worn_letter": {
+      "display": "weathered letter",
+      "article": "a",
+      "description": "Sealed in a tin, never sent. 'To Mary, of Falmouth — if this finds you, I did not. The island held me longer than I held myself.' Signed with a single initial: J.",
+      "value": 0,
+      "weight": 0.1,
+      "tags": ["lore"],
+      "category": "good",
+      "stackable": false,
+      "image": "✉"
     }
   },
   "skills": {
@@ -932,11 +983,35 @@
     },
     "firemaking": {
       "display": "Firemaking",
-      "description": "Coax a flame from kindling. Needed for cooking, brewing, and most cold nights.",
+      "description": "Coax a flame from kindling. Needed for cooking, smoking, brewing, and most cold nights.",
       "tier": 1,
       "spark_cost": 0,
       "prereqs": [],
       "unlocks": {"verbs": ["light"], "recipes": [], "interactions": []}
+    },
+    "cooking": {
+      "display": "Cooking",
+      "description": "Roast fish, crab, and game over a fire. Hot food restores more than raw, and won't make you sick.",
+      "tier": 1,
+      "spark_cost": 12,
+      "prereqs": ["firemaking"],
+      "unlocks": {
+        "verbs": [],
+        "recipes": ["cook_fish", "cook_crab", "cook_meat"],
+        "interactions": []
+      }
+    },
+    "smoking": {
+      "display": "Smoking",
+      "description": "Cure cooked food in slow smoke. Smoked provisions are lighter, last longer, and travel further than fresh.",
+      "tier": 2,
+      "spark_cost": 25,
+      "prereqs": ["cooking"],
+      "unlocks": {
+        "verbs": [],
+        "recipes": ["smoke_fish", "smoke_meat"],
+        "interactions": []
+      }
     },
     "stone_knapping": {
       "display": "Stone-knapping",
@@ -981,32 +1056,58 @@
     "cook_fish": {
       "display": "Cooked fish",
       "description": "Roast a fish over a fire.",
-      "skill": "firemaking",
+      "skill": "cooking",
       "inputs": [{"item": "raw_fish", "qty": 1}],
       "outputs": [{"item": "cooked_fish", "qty": 1}],
       "requires_fire": true,
       "duration_seconds": 0,
-      "sparks_reward": 1
+      "sparks_reward": 2
     },
     "cook_crab": {
       "display": "Cooked crab",
       "description": "Roast crab meat in the shell.",
-      "skill": "firemaking",
+      "skill": "cooking",
       "inputs": [{"item": "raw_crab", "qty": 1}],
       "outputs": [{"item": "cooked_crab", "qty": 1}],
       "requires_fire": true,
       "duration_seconds": 0,
-      "sparks_reward": 1
+      "sparks_reward": 2
     },
     "cook_meat": {
       "display": "Cooked boar meat",
       "description": "Slow-roast boar meat over the fire.",
-      "skill": "firemaking",
+      "skill": "cooking",
       "inputs": [{"item": "raw_meat", "qty": 1}],
       "outputs": [{"item": "cooked_meat", "qty": 1}],
       "requires_fire": true,
       "duration_seconds": 0,
-      "sparks_reward": 1
+      "sparks_reward": 2
+    },
+    "smoke_fish": {
+      "display": "Smoked fish",
+      "description": "Cure cooked fish in slow smoke. Lighter, longer-keeping than fresh.",
+      "skill": "smoking",
+      "inputs": [
+        {"item": "cooked_fish", "qty": 1},
+        {"item": "driftwood", "qty": 1}
+      ],
+      "outputs": [{"item": "smoked_fish", "qty": 1}],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 4
+    },
+    "smoke_meat": {
+      "display": "Smoked meat",
+      "description": "Cure cooked meat in slow smoke. Travel-grade provisions.",
+      "skill": "smoking",
+      "inputs": [
+        {"item": "cooked_meat", "qty": 1},
+        {"item": "driftwood", "qty": 1}
+      ],
+      "outputs": [{"item": "smoked_meat", "qty": 1}],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 4
     },
     "coconut_flask": {
       "display": "Coconut-shell flask",
@@ -1103,7 +1204,9 @@
       "attack_damage_range": [1, 3],
       "evasion": 0.3,
       "hostile": true,
-      "base_drops": [],
+      "base_drops": [
+        {"item": "raw_meat", "qty": 1}
+      ],
       "skinning_drops": [],
       "rare_drops": [
         {"item": "map_fragment", "qty": 1, "chance": 0.15},
@@ -1234,10 +1337,10 @@
     },
     "parrot_riddle": {
       "location": "abandoned_camp",
-      "prompt": "The parrot squawks: I am hot when wet, cold when dry; I wash, but cannot wash myself. What am I?",
+      "prompt": "Scratched into the lean-to door, in a child's hand: 'I am hot when wet, cold when dry; I wash, but cannot wash myself. What am I?'",
       "answers": ["sand", "the sand", "beach"],
       "reward_sparks": 25,
-      "on_solve_message": "The parrot bobs on its perch, satisfied. 'Pretty! Pretty! Pretty!' The old castaway laughs. 'He liked you. He doesn't, mostly.'",
+      "on_solve_message": "Beneath the riddle, in the same hand, an answer scratched and crossed out and scratched again. The ghost watches you, almost smiling.",
       "reward_items": [],
       "repeatable": false
     },
@@ -1252,42 +1355,38 @@
     }
   },
   "npcs": {
-    "the_old_castaway": {
-      "display": "the old castaway",
+    "castaways_ghost": {
+      "display": "the castaway's ghost",
       "location": "abandoned_camp",
-      "summary": "A weathered man with a long beard, deep tan, and the patience of someone who has stopped trying to leave. He has been here longer than this island has had a name.",
-      "tone_hints": ["weathered", "patient", "kind", "tired"],
+      "summary": "A weathered man, half-translucent in the late sun, longer in shadow when the moon is up. He tends a fire-circle that has been cold for fifty years. He notices you about half the time.",
+      "tone_hints": ["weathered", "patient", "tired", "haunted"],
       "dialogue_seeds": [
-        "Sit, if you want. The fire is small but it knows its work.",
-        "I came in '89. Or thereabouts. The years don't keep separate any more.",
-        "Two ways off this island. The signal at the tower — slow, depends on a ship passing. Or the raft. Build it well; the sea is unforgiving."
+        "Sit. The fire knows its work, even now.",
+        "I came in '89. The years stopped keeping separate after the second winter alone.",
+        "Two ways off this island, traveller. The signal at the tower — slow, depends on a ship passing. Or the raft. Build it well; the sea took mine."
       ],
-      "behaviors": ["buys_items", "tells_rumors", "teaches_skill"],
-      "buys_tags": ["fur", "fabric", "wood", "lore"],
-      "is_marketplace": true,
-      "initial_stock": [
-        {"item": "fresh_water", "qty": 4, "price_gold": 6},
-        {"item": "cooked_fish", "qty": 3, "price_gold": 8},
-        {"item": "antiseptic_paste", "qty": 2, "price_gold": 25}
-      ],
+      "behaviors": ["tells_rumors", "teaches_skill"],
+      "is_marketplace": false,
+      "initial_stock": [],
       "teaches": ["carpentry"],
-      "hours": {"open": 6, "close": 22},
+      "hours": {"open": 0, "close": 24},
       "dialogue_trees": {
         "default": {
           "lines": [
-            "Welcome, friend. Salt-stiff, sun-burnt, the usual. Sit and tell me what you need."
+            "You see me. Most don't, the first day. Sit, traveller — tell me what brought you to my reef."
           ],
           "choices": [
             {"label": "How do I get off this island?", "goto": "leaving"},
             {"label": "Tell me about the island.", "goto": "island_lore"},
             {"label": "Tell me about the ruins.", "goto": "ruins_lore"},
+            {"label": "How did you die?", "goto": "death_lore"},
             {"label": "Goodbye.", "end": true}
           ]
         },
         "leaving": {
           "lines": [
-            "Two ways. The signal-fire on the tower — bring me dry tinder, sail-cloth, and an oil-soaked rag, and I'll teach you to build a fire that holds. A ship will see it within two weeks. Maybe.",
-            "Or you build a raft. Bamboo from the thicket, driftwood from the cove, sail-cloth from the wreck. Lash with rope. The sea is a hard road but it is yours."
+            "Two ways. The signal-fire on the tower — bring dry sail-cloth and driftwood, climb up, and light it. A ship will see it within a fortnight, maybe.",
+            "Or build a raft. Bamboo from the thicket, driftwood from the cove, sail-cloth from your wreck. Lash with rope. The sea is a hard road, but it is yours."
           ],
           "choices": [
             {"label": "What about the ruins?", "goto": "ruins_lore"},
@@ -1296,8 +1395,8 @@
         },
         "island_lore": {
           "lines": [
-            "The island is older than what the captain wrote in his log. The ruins were here long before any ship reached this water.",
-            "There is something in the deep grotto under the sea-caves. Don't go there alone. Don't go there at all, if you can help it."
+            "The island is older than what your captain wrote in his log. The ruins were here long before any ship reached this water.",
+            "There is something in the deep grotto under the sea-caves. I would not advise visiting. (You will, anyway.)"
           ],
           "choices": [
             {"label": "Back.", "goto": "default"}
@@ -1305,8 +1404,17 @@
         },
         "ruins_lore": {
           "lines": [
-            "The elder lives there now. She was here when I came. She'll be here when I go.",
-            "She doesn't speak much. But she remembers. If she speaks to you, listen — there are not many who hear what she says."
+            "The spirit who keeps the ruins was old when I arrived, sixty years past. She is older now. She does not speak much. But she remembers.",
+            "If she speaks to you — listen. Few hear what she says."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "death_lore": {
+          "lines": [
+            "Drowning. Not from the wreck — that, I survived. From the lake-pool below the falls, twenty years on. I was thirsty, and I was tired.",
+            "I stayed to mind the camp. The new ones come every decade or so. Most don't last as long as I did. You might."
           ],
           "choices": [
             {"label": "Back.", "goto": "default"}
@@ -1314,51 +1422,45 @@
         }
       }
     },
-    "the_botanist": {
-      "display": "the botanist",
+    "botanists_ghost": {
+      "display": "the botanist's ghost",
       "location": "mango_grove",
-      "summary": "A wiry, sun-burnt woman, ink on her fingers. She came on an earlier ship to study the coastal birds. Now she studies whatever doesn't kill her.",
-      "tone_hints": ["focused", "wry", "kind"],
+      "summary": "A wiry, sun-bleached woman who isn't quite there in the bright noon. She bends over pressed leaves that aren't there either. Ink on her fingers — old ink, dry decades.",
+      "tone_hints": ["focused", "wry", "patient", "haunted"],
       "dialogue_seeds": [
-        "Bring me herbs and I'll teach you what they do. Bring me three and I'll pay you in something more useful than gold here.",
-        "There are seven medicinal plants on this island. I have catalogued five. The sixth is in the lava field. The seventh — I haven't found yet."
+        "There are seven medicinal plants on this island. I catalogued five before the fever took me. The sixth is in the lava field. The seventh — never found.",
+        "Bring me herbs if you like. I cannot hold them, but I can teach you what they do.",
+        "The ink-stain on my fingers won't wash. Some marks last."
       ],
-      "behaviors": ["buys_items", "tells_rumors", "teaches_skill"],
-      "buys_tags": ["herb", "alchemy"],
-      "is_marketplace": true,
-      "initial_stock": [
-        {"item": "antiseptic_paste", "qty": 3, "price_gold": 22},
-        {"item": "herb", "qty": 8, "price_gold": 4}
-      ],
+      "behaviors": ["tells_rumors", "teaches_skill"],
+      "is_marketplace": false,
+      "initial_stock": [],
       "teaches": ["herbalism"],
-      "hours": {"open": 6, "close": 20}
+      "hours": {"open": 0, "close": 24}
     },
-    "the_navigator": {
-      "display": "the navigator",
+    "navigators_ghost": {
+      "display": "the navigator's ghost",
       "location": "hilltop_view",
-      "summary": "A tall, thin woman with the steady eyes of someone who has read sky and sea for thirty years. She watches the horizon. She is waiting for one specific thing.",
-      "tone_hints": ["steady", "patient", "watchful"],
+      "summary": "A tall, thin figure of salt-light in a ship's coat. The brass buttons still catch the afternoon. She watches the horizon for a ship that does not come, that will not come.",
+      "tone_hints": ["steady", "patient", "watchful", "haunted"],
       "dialogue_seeds": [
-        "Bring me the brass compass from the wreck. It's no use to drowned men.",
-        "I am waiting for a ship I have a feeling about. It will come, or it won't.",
-        "The map you piece together — three fragments — shows where the deep grotto is. Bring it back."
+        "I climbed up here to die looking at it. The sea, I mean. Better than below.",
+        "Three fragments of the old chart. I had them once. I lost two before the end. They are scattered in the woods now — one rests with the monkey-troop, one with whatever lives in the sea-caves.",
+        "If you piece them together, the X is where the temple was. Where it still is."
       ],
-      "behaviors": ["buys_items", "tells_rumors"],
-      "buys_tags": ["tool", "lore"],
-      "is_marketplace": true,
-      "initial_stock": [
-        {"item": "fresh_water", "qty": 4, "price_gold": 6}
-      ],
-      "hours": {"open": 6, "close": 24}
+      "behaviors": ["tells_rumors"],
+      "is_marketplace": false,
+      "initial_stock": [],
+      "hours": {"open": 0, "close": 24}
     },
-    "the_native_elder": {
-      "display": "the elder",
+    "elders_spirit": {
+      "display": "the elder's spirit",
       "location": "ancient_ruins",
-      "summary": "An old woman in undyed cloth, weaving grass into a basket without looking at her hands. She is older than the camp. She may be older than the ruins.",
-      "tone_hints": ["ancient", "patient", "watchful"],
+      "summary": "An old woman of light and dust, weaving grass that isn't grass. She is older than the ruins. She has been watching this island since there were people on it.",
+      "tone_hints": ["ancient", "patient", "watchful", "sacred"],
       "dialogue_seeds": [
         "...",
-        "The island remembers, but only in pieces. Bring the pieces."
+        "The island remembers in pieces. Bring the pieces."
       ],
       "behaviors": ["tells_rumors"],
       "is_marketplace": false,
@@ -1367,7 +1469,7 @@
       "dialogue_trees": {
         "default": {
           "lines": [
-            "You come back. Most do not. Sit, then. Tell me what you have learned."
+            "You return. Most do not. Tell me what you have learned, traveller."
           ],
           "choices": [
             {"label": "Teach me the lore.", "goto": "teach_lore", "requires_item": "ancient_tablet"},
@@ -1377,7 +1479,7 @@
         },
         "ruins_speak": {
           "lines": [
-            "They say: the island held people once. They left, or were taken. A few of us remained, the way moss remains when the tree has fallen.",
+            "They say: the island held people, once. My people. They left, or were taken. A few of us remained, the way moss remains when the tree has fallen.",
             "They say: the deep grotto was a temple before it was a grotto. What you find there will be older than the temple."
           ],
           "choices": [
@@ -1399,29 +1501,12 @@
           ]
         }
       }
-    },
-    "the_parrot": {
-      "display": "the parrot",
-      "location": "abandoned_camp",
-      "summary": "A green-and-yellow parrot, older than seems possible. It sits on a perch and watches with both eyes.",
-      "tone_hints": ["loud", "watchful", "small"],
-      "dialogue_seeds": [
-        "Pretty! Pretty!",
-        "Two ways off! Two ways!",
-        "Beware the deep!",
-        "Bring the tablet! Bring the tablet!",
-        "The hunter pays! The hunter pays!"
-      ],
-      "behaviors": ["tells_rumors"],
-      "is_marketplace": false,
-      "initial_stock": [],
-      "hours": {"open": 0, "close": 24}
     }
   },
   "quests": {
     "intro_castaway": {
       "title": "Saltbound",
-      "description": "You woke on the beach. Before night: drink fresh water and light a fire. Before dawn: find someone who knows this island.",
+      "description": "You woke on the beach. Before night: drink fresh water and light a fire. Before dawn: find what's left of those who came before.",
       "giver": null,
       "auto_accept": true,
       "objectives": [
@@ -1429,12 +1514,12 @@
         {"type": "visited", "room": "abandoned_camp"}
       ],
       "rewards": {"gold": 10, "sparks": 10, "items": []},
-      "completion_message": "You know where the water is. You know the old castaway. You can begin to choose your way out."
+      "completion_message": "You know where the water is. You have seen the camp of an earlier survivor — and the ghost who tends it still. You can begin to choose your way out."
     },
     "the_signal": {
       "title": "The Signal Fire",
-      "description": "The old castaway speaks of a tower at the eastern edge of the ruins. A signal lit there can be seen from very far. Climb the tower. Light the brazier. A ship may come.",
-      "giver": "the_old_castaway",
+      "description": "The castaway's ghost speaks of a tower at the eastern edge of the ruins. A signal lit there can be seen from very far. Climb the tower. Light the brazier. A ship may come.",
+      "giver": "castaways_ghost",
       "auto_accept": false,
       "requires": ["intro_castaway"],
       "objectives": [
@@ -1447,8 +1532,8 @@
     },
     "the_raft": {
       "title": "The Raft",
-      "description": "If you can build a raft of bamboo, driftwood, and sailcloth, you can sail. The old castaway has a recipe and a piece of advice: build it well.",
-      "giver": "the_old_castaway",
+      "description": "Build a raft of bamboo, driftwood, and sailcloth, and you can sail. The ghost remembers losing his. Build yours better.",
+      "giver": "castaways_ghost",
       "auto_accept": false,
       "requires": ["intro_castaway"],
       "objectives": [
@@ -1457,70 +1542,34 @@
       "rewards": {"gold": 60, "sparks": 60, "items": []},
       "completion_message": "The raft is finished. Drag it to the beach and `use raft` when you are ready to leave."
     },
-    "the_naturalist": {
-      "title": "The Naturalist",
-      "description": "The botanist needs ten herb samples for her catalogue. Bring them all at once.",
-      "giver": "the_botanist",
-      "auto_accept": false,
-      "requires": ["intro_castaway"],
-      "objectives": [
-        {"type": "have_item", "item": "herb", "qty": 10}
-      ],
-      "rewards": {"gold": 30, "sparks": 20, "items": [{"item": "antiseptic_paste", "qty": 2}]},
-      "completion_message": "She accepts them with quick, careful hands, and starts pressing them between sheets before you've left."
-    },
-    "the_compass": {
-      "title": "The Brass Compass",
-      "description": "The navigator wants the brass compass from the wreck.",
-      "giver": "the_navigator",
-      "auto_accept": false,
-      "requires": ["intro_castaway"],
-      "objectives": [
-        {"type": "have_item", "item": "compass", "qty": 1}
-      ],
-      "rewards": {"gold": 20, "sparks": 15, "items": [{"item": "fresh_water", "qty": 4}]},
-      "completion_message": "She turns the compass in her hand and finally smiles. 'Now we can read the sea.'"
-    },
-    "boar_hunt": {
-      "title": "Boar Hunt",
-      "description": "The old castaway will pay for boar meat. Bring three.",
-      "giver": "the_old_castaway",
-      "auto_accept": false,
-      "requires": ["intro_castaway"],
-      "objectives": [
-        {"type": "have_item", "item": "raw_meat", "qty": 3}
-      ],
-      "rewards": {"gold": 24, "sparks": 12, "items": []},
-      "completion_message": "He nods, weighs them, and tucks them into a covered crate. 'Bring more next time.'"
-    },
     "the_three_fragments": {
       "title": "The Three Fragments",
-      "description": "Three pieces of an old chart. The navigator says: assemble the three and the elder will read what they say.",
-      "giver": "the_navigator",
+      "description": "The navigator's ghost speaks of three pieces of an old chart, scattered when she lost them. Assemble all three. The X marks the deep grotto.",
+      "giver": "navigators_ghost",
       "auto_accept": false,
       "requires": ["intro_castaway"],
       "objectives": [
         {"type": "have_item", "item": "map_fragment", "qty": 3}
       ],
       "rewards": {"gold": 30, "sparks": 25, "items": []},
-      "completion_message": "She lays the three fragments on the slate. They fit. The mark — an X — is at the deep grotto."
+      "completion_message": "She lays the three fragments on a slate that is not there. They fit. The mark — an X — is at the deep grotto."
     },
     "the_tablet": {
       "title": "The Ancient Tablet",
-      "description": "The elder's tablet rests in the ancient ruins. The guardian guards it. Bring it back to her.",
-      "giver": "the_native_elder",
+      "description": "The elder's spirit speaks of a stone tablet, taken by the guardian when the temple fell. Recover it.",
+      "giver": "elders_spirit",
       "auto_accept": false,
       "requires": ["intro_castaway"],
       "objectives": [
         {"type": "have_item", "item": "ancient_tablet", "qty": 1, "consume": false}
       ],
       "rewards": {"gold": 60, "sparks": 40, "items": []},
-      "completion_message": "She receives the tablet, places it in front of her, and gestures you to sit. (Talk to her with `talk elder` and pick the 'Teach me the lore' branch.)"
+      "completion_message": "She receives the tablet, places it where the chart-table once was, and gestures you to sit. (Talk to her with `talk elder` and pick the 'Teach me the lore' branch.)"
     },
     "the_deep_grotto": {
       "title": "The Deep Grotto",
       "description": "The fragments and the tablet point to the deep grotto, below the sea-caves. Something old waits there. Find it. Bring back what is there.",
-      "giver": "the_native_elder",
+      "giver": "elders_spirit",
       "auto_accept": false,
       "requires": ["the_three_fragments", "the_tablet"],
       "objectives": [
@@ -1547,7 +1596,7 @@
       "trigger_params": {"room": "shipwreck_beach"},
       "once": true,
       "effects": [
-        {"type": "narrate", "text": ">>> The wreck is broken behind you. The sea took most of it; the reef took the rest. You are alone, and the island has not noticed you yet.", "cls": "system"}
+        {"type": "narrate", "text": ">>> Anno 1850. The brig Helena, three weeks out of Valparaíso, struck reef in the small hours and broke in two before the long-boat could be lowered. The sea took most of it; the reef took the rest. You washed up here. You are alone, and the island has not noticed you yet.", "cls": "system"}
       ]
     },
     "first_water": {
