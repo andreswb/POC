@@ -54,6 +54,40 @@
     50%      { opacity: 0.5; }
   }
 
+  /* v0.37: notification toasts. Bottom-right stack, soft slide-in, click to
+     dismiss, auto-fade after 5 s. Used for incoming DMs, gifts, world-event
+     starts, bounty-claimable hints — events that previously blended into
+     the prose stream. */
+  #toast-stack {
+    position: fixed; bottom: 16px; right: 16px; z-index: 50;
+    display: flex; flex-direction: column-reverse; gap: 8px;
+    max-width: 320px; pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 4px; padding: 10px 12px;
+    font-size: 13px; line-height: 1.4;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    cursor: pointer;
+    animation: tf-toast-in 0.22s ease-out;
+  }
+  .toast.fading { opacity: 0; transition: opacity 0.4s ease-in; }
+  .toast .toast-tag { font-size: 11px; color: var(--muted); margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .toast.dm     { border-left-color: var(--purple); }
+  .toast.gift   { border-left-color: var(--gold); }
+  .toast.event  { border-left-color: var(--spark); }
+  .toast.bounty { border-left-color: var(--gold); }
+  .toast.heal   { border-left-color: var(--green); }
+  @keyframes tf-toast-in {
+    from { transform: translateX(20px); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+  }
+  @media (max-width: 760px) {
+    #toast-stack { bottom: 8px; right: 8px; left: 8px; max-width: none; }
+  }
+
   /* ---------------- DEATH DRAMA (5.4) ---------------- */
   #death-veil {
     position: fixed; inset: 0; pointer-events: none; z-index: 100;
@@ -173,7 +207,9 @@
       <span class="room" id="mh-room">…</span>
       <button id="drawer-toggle" aria-label="Open panel">☰</button>
     </div>
-    <div id="output"></div>
+    <div id="output"><div id="boot-loading" style="color:var(--muted);padding:14px;font-size:13px;">
+      <span style="display:inline-block;animation:tf-pulse 1.4s ease-in-out infinite;">Loading worlds…</span>
+    </div></div>
     <div id="prompt-row">
       <span class="prompt">&gt;</span>
       <input id="cmd" type="text" name="cmd"
@@ -182,9 +218,13 @@
         data-form-type="other" data-1p-ignore="true" data-lpignore="true"
         aria-autocomplete="none" />
     </div>
+    <!-- v0.37: ghost-text completion hint. Shown when there's a single
+         unique completion for the typed prefix or 2-5 candidates. -->
+    <div id="completion-hint" style="display:none;padding:0 12px 6px;font-size:11px;color:var(--muted);"></div>
   </div>
   <div id="drawer-backdrop"></div>
   <div id="death-veil"></div>
+  <div id="toast-stack" aria-live="polite"></div>
   <aside id="side">
     <button class="close-btn" id="drawer-close">close</button>
     <section>
@@ -206,6 +246,10 @@
     <section>
       <h3 data-i18n="Equipment">Equipment</h3>
       <div class="mat-list" id="equipment"></div>
+    </section>
+    <section id="questTrackerSection" style="display:none;">
+      <h3 data-i18n="Active quest">Active quest</h3>
+      <div class="mat-list" id="questTracker"></div>
     </section>
     <section id="companionSection" style="display:none;">
       <h3 data-i18n="Companion">Companion</h3>
@@ -4759,7 +4803,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.36';
+const ENGINE_VERSION_LABEL = 'v0.37';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -6337,6 +6381,7 @@ function notifyBountyClaimable(entityId) {
     if (player.bounty_claims.has(b.bid)) continue;
     write(T('>>> Bounty available: {0} gold for the {1} ({2}). Type "bounty claim {3}" to collect.',
       b.gold, STORY.entities[entityId]?.display || entityId, b.poster_name || '?', b.bid.slice(0, 8)), 'spark');
+    showToast(`Bounty: ${b.gold}g for ${STORY.entities[entityId]?.display || entityId}. claim ${b.bid.slice(0, 8)}`, 'bounty');
   }
 }
 
@@ -6380,6 +6425,15 @@ function showBestiary() {
   const others = ids.filter(id => !ents[id].hostile);
   hostiles.sort((a, b) => (ents[b].hp || 0) - (ents[a].hp || 0));
   others.sort();
+  // v0.37: kill-count progress bar relative to the player's max kill count.
+  // Reads at-a-glance which entity is your most-hunted versus barely-seen.
+  const allKills = ids.map(id => player.stats.kills?.[id] || 0);
+  const maxKills = Math.max(1, ...allKills);
+  function killBar(kills) {
+    if (kills <= 0) return '';
+    const filled = Math.min(8, Math.round((kills / maxKills) * 8));
+    return ' ' + '▓'.repeat(filled) + '░'.repeat(8 - filled);
+  }
   function entLine(id) {
     const e = ents[id];
     const kills = player.stats.kills?.[id] || 0;
@@ -6387,21 +6441,24 @@ function showBestiary() {
     const tagStr = tags ? ` [${tags}]` : '';
     const weakStr = e.weaknesses?.length ? ` weak: ${e.weaknesses.join('/')}` : '';
     const resistStr = e.resistances?.length ? ` resists: ${e.resistances.join('/')}` : '';
-    const killStr = kills > 0 ? ` — ${kills} killed` : (e.tags?.includes('unique') ? ' — never seen' : '');
+    const killStr = kills > 0 ? ` —${killBar(kills)} ${kills} killed` : (e.tags?.includes('unique') ? ' — never seen' : '');
     write(`  ${id}  —  ${t(e.display) || id}${tagStr}${weakStr}${resistStr}${killStr}`, kills > 0 ? 'success' : 'system');
     const summary = t(e.summary);
     if (summary) write(`    ${summary.slice(0, 140)}${summary.length > 140 ? '…' : ''}`, 'system');
   }
-  if (hostiles.length) {
-    write('-- Bestiary: hostile creatures --', 'title');
-    write(`  HP-sorted; "killed" counts are this character\'s lifetime tally.`, 'system');
-    hostiles.forEach(entLine);
-  }
-  if (others.length) {
-    write('-- Bestiary: passive creatures --', 'system');
-    others.forEach(entLine);
-  }
-  write('Use "bounty post <entity_id> <gold>" to post a bounty on a hostile.', 'system');
+  // v0.35-style writeBlock so mobile lands at the top.
+  writeBlock('=== Bestiary ===', () => {
+    if (hostiles.length) {
+      write('-- hostile creatures --', 'system');
+      write(`  HP-sorted; bar shows kills relative to your most-hunted (max ${maxKills}).`, 'system');
+      hostiles.forEach(entLine);
+    }
+    if (others.length) {
+      write('-- passive creatures --', 'system');
+      others.forEach(entLine);
+    }
+    write('Use "bounty post <entity_id> <gold>" to post a bounty on a hostile.', 'system');
+  }, '── end of bestiary ──');
 }
 
 function showBounties() {
@@ -6739,6 +6796,10 @@ async function fetchAndRestoreState(timeoutMs = 5000) {
 // ============================================================
 const out = document.getElementById('output');
 function write(text='', cls='') {
+  // v0.37: clear the boot-loading placeholder on first real terminal write.
+  // Cheap one-time check; subsequent writes skip the lookup.
+  const boot = document.getElementById('boot-loading');
+  if (boot) boot.remove();
   const div = document.createElement('div');
   div.className = 'line ' + cls;
   // 6.0 fix: render as HTML when the text contains either an <img ...> tag
@@ -6755,6 +6816,39 @@ function write(text='', cls='') {
   }
   out.appendChild(div);
   out.scrollTop = out.scrollHeight;
+}
+
+// v0.37: notification toast — small bottom-right card for incoming events
+// (DMs, gifts, world events, bounties, heals) so the player doesn't have to
+// scan the prose stream to notice them. Auto-fades after 5 s; click to
+// dismiss early. The terminal-line write also still happens for full history.
+const TOAST_TTL = 5000;
+function showToast(text, kind = '') {
+  const stack = document.getElementById('toast-stack');
+  if (!stack) return;
+  const card = document.createElement('div');
+  card.className = 'toast' + (kind ? (' ' + kind) : '');
+  if (kind) {
+    const tag = document.createElement('div');
+    tag.className = 'toast-tag';
+    tag.textContent = kind;
+    card.appendChild(tag);
+  }
+  const body = document.createElement('div');
+  body.textContent = String(text);
+  card.appendChild(body);
+  function dismiss() {
+    if (!card.parentNode) return;
+    card.classList.add('fading');
+    setTimeout(() => { try { card.remove(); } catch {} }, 400);
+  }
+  card.addEventListener('click', dismiss);
+  stack.appendChild(card);
+  setTimeout(dismiss, TOAST_TTL);
+  // Cap stack at 5 — drop the oldest if more pile up.
+  while (stack.children.length > 5) {
+    try { stack.children[0].remove(); } catch { break; }
+  }
 }
 
 function refreshSidebar() {
@@ -6821,6 +6915,55 @@ function refreshSidebar() {
     }
   }
 
+  // v0.37: sidebar quest tracker. Shows the most-recently-progressed active
+  // quest (or the first active one if none has progress yet) with a small
+  // unicode bar per objective. Hidden if no active quests. Reads at-a-glance
+  // what the current goal is without typing `quests`.
+  const trackerSec = document.getElementById('questTrackerSection');
+  const trackerEl = document.getElementById('questTracker');
+  if (trackerSec && trackerEl) {
+    const active = [];
+    for (const [qid, ps] of Object.entries(player.quests || {})) {
+      if (ps?.state !== 'active') continue;
+      const q = STORY.quests[qid]; if (!q) continue;
+      active.push({ qid, q, ps });
+    }
+    if (active.length === 0) {
+      trackerSec.style.display = 'none';
+    } else {
+      // Pick the quest with the highest fractional progress; break ties by
+      // most-recently-accepted (we don't track that explicitly, so fall back
+      // to the first one).
+      let best = null, bestFrac = -1;
+      for (const a of active) {
+        const prog = questProgress(a.qid);
+        if (!prog.length) continue;
+        let frac = 0;
+        for (const p of prog) frac += Math.min(1, (p.cur || 0) / Math.max(1, p.target));
+        frac /= prog.length;
+        if (frac > bestFrac) { bestFrac = frac; best = a; }
+      }
+      if (!best) best = active[0];
+      trackerSec.style.display = '';
+      trackerEl.innerHTML = '';
+      const title = document.createElement('div');
+      title.className = 'row';
+      const tag = best.q.recurrence === 'daily' ? ' [daily]' : '';
+      title.innerHTML = `<span style="color:var(--accent);">${escapeHtml(t(best.q.title))}${tag}</span>`;
+      trackerEl.appendChild(title);
+      for (const p of questProgress(best.qid)) {
+        const cur = Math.min(p.cur, p.target);
+        const filled = Math.min(8, Math.round((cur / Math.max(1, p.target)) * 8));
+        const bar = '▓'.repeat(filled) + '░'.repeat(8 - filled);
+        const mark = p.done ? '✓' : '·';
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.style.fontSize = '11px';
+        row.innerHTML = `<span style="color:var(--muted);">[${mark}] ${escapeHtml(p.label)}</span><span class="qty" style="color:var(--accent);">${bar} ${cur}/${p.target}</span>`;
+        trackerEl.appendChild(row);
+      }
+    }
+  }
   // Companion (only visible when one is bound)
   const compSec = document.getElementById('companionSection');
   const compEl = document.getElementById('companionPanel');
@@ -7283,6 +7426,7 @@ function handleRemoteGiftOffer(event) {
   write(`📦 ${p.from_name || event.pubkey.slice(0,8) + '…'} offers you ${p.qty || 1} ${itemDisplay(p.item)}.`, 'spark');
   if (p.message) write(`   "${p.message}"`, 'whisper');
   write(`   (claim ${offer_id.slice(0,8)} / decline ${offer_id.slice(0,8)})`, 'system');
+  showToast(`${p.from_name || 'Someone'} offers ${p.qty || 1}× ${STORY.items[p.item]?.display || p.item}. claim ${offer_id.slice(0,8)}`, 'gift');
 }
 
 function handleRemoteGiftAccept(event) {
@@ -7320,6 +7464,7 @@ function handleRemoteHeal(event) {
   player.life = Math.min(computeMaxLife(), player.life + restore);
   const actual = Math.floor(player.life - before);
   write(`💚 ${p.from_name || event.pubkey.slice(0,8) + '…'} heals you. (+${actual} life)`, 'success');
+  showToast(`${p.from_name || 'Someone'} healed you (+${actual} life)`, 'heal');
   refreshSidebar();
 }
 
@@ -7490,6 +7635,7 @@ async function handleRemoteDM(event) {
     dmInbox.unshift({ from_pubkey: event.pubkey, from_name: fromName, text: p.text, received_at: event.created_at * 1000 });
     while (dmInbox.length > 50) dmInbox.pop();
     write(`[dm from ${fromName}] ${p.text}`, 'whisper');
+    showToast(`${fromName}: ${p.text.slice(0, 100)}${p.text.length > 100 ? '…' : ''}`, 'dm');
   } catch {}
 }
 
@@ -7962,6 +8108,33 @@ function handleDeath(cause) {
   __dying = true;
   write('');
   write(`=== You have died (${cause}). ===`, 'error');
+  // v0.37: run-summary preview before the dramatized fade. Gives the death
+  // weight by reflecting the run's accomplishments. Pulls from player.stats
+  // + player.visited + player.skills + the in-game day count.
+  try {
+    const turnsAlive = player.turn || 0;
+    const tpd = STORY.meta.turns_per_day || 96;
+    const daysAlive = Math.floor(turnsAlive / tpd);
+    const roomsExplored = (player.visited && typeof player.visited.size === 'number') ? player.visited.size : (Array.isArray(player.visited) ? player.visited.length : 0);
+    const totalK = Object.values(player.stats?.kills || {}).reduce((a, b) => a + b, 0);
+    const skillsLearned = (player.skills && typeof player.skills.size === 'number') ? player.skills.size : 0;
+    const goldEarned = player.stats?.gold_earned || 0;
+    const sparksEarned = player.stats?.sparks_earned || 0;
+    const riddlesSolved = player.stats?.riddles_solved || 0;
+    const crafts = player.stats?.crafts || 0;
+    const questsDone = player.stats?.quests_completed || 0;
+    write('');
+    write('Your run:', 'system');
+    write(`  · ${daysAlive} day${daysAlive === 1 ? '' : 's'} alive (${turnsAlive} turns)`, 'system');
+    write(`  · ${roomsExplored} room${roomsExplored === 1 ? '' : 's'} explored`, 'system');
+    write(`  · ${totalK} kill${totalK === 1 ? '' : 's'}`, 'system');
+    write(`  · ${skillsLearned} skill${skillsLearned === 1 ? '' : 's'} learned`, 'system');
+    write(`  · ${goldEarned} gold · ${sparksEarned} sparks earned`, 'system');
+    if (riddlesSolved) write(`  · ${riddlesSolved} riddle${riddlesSolved === 1 ? '' : 's'} solved`, 'system');
+    if (crafts)        write(`  · ${crafts} craft${crafts === 1 ? '' : 's'}`, 'system');
+    if (questsDone)    write(`  · ${questsDone} quest${questsDone === 1 ? '' : 's'} completed`, 'system');
+    write('');
+  } catch {}
   const droppedItems = [];
   for (const it of player.inventory) droppedItems.push({ item: it, qty: 1 });
   for (const [it, qty] of Object.entries(player.materials)) if (qty > 0) droppedItems.push({ item: it, qty });
@@ -8255,8 +8428,24 @@ function bury(arg) {
   refreshSidebar();
 }
 
+// v0.37: color category for an item id — grouping by primary tag.
+// Returns a CSS class fragment that maps to existing .line.* color rules.
+// Order matters: lore beats weapon (a magic book is lore), weapon beats food, etc.
+function inventoryColorClass(itemId) {
+  const tags = (STORY.items[itemId]?.tags || []).map(t => String(t).toLowerCase());
+  if (tags.includes('lore') || tags.includes('sacred')) return 'spark';      // gold-ish for special
+  if (tags.includes('weapon') || tags.includes('armor')) return 'combat';    // red for combat gear
+  if (tags.includes('consumable') || tags.includes('food') || tags.includes('fish'))
+                                                          return 'success';  // green for food
+  if (tags.includes('herb') || tags.includes('alchemy')) return 'success';   // green for herbs
+  if (tags.includes('tool') || tags.includes('crafted')) return 'gold';      // gold for crafted
+  if (tags.includes('trinket')) return 'spark';
+  return '';                                                                  // default — no class
+}
 function showInventory() {
   // v0.35: wrapped in writeBlock for mobile-overflow polish.
+  // v0.37: each item line is now color-coded by its primary tag category so
+  // food / weapons / lore / tools read at a glance instead of a monochrome wall.
   writeBlock('=== Inventory ===', () => {
     if (!player.inventory.length) write(T('You carry no discrete items.'));
     else {
@@ -8268,20 +8457,23 @@ function showInventory() {
         if (player.edges?.has(i)) unique.push(i);
         else groups.set(i, (groups.get(i) || 0) + 1);
       }
-      const parts = [];
+      // v0.37: write one line per group/unique item so each can carry its
+      // own color class. Slightly taller block, but much easier to scan.
+      write(T('You carry:'));
       for (const [id, n] of groups) {
-        parts.push(n > 1 ? `${itemDisplay(id, true)} ×${n}` : itemDisplay(id, true));
+        const label = n > 1 ? `  · ${itemDisplay(id, true)} ×${n}` : `  · ${itemDisplay(id, true)}`;
+        write(label, inventoryColorClass(id));
       }
-      for (const i of unique) parts.push(itemDisplay(i, true));
-      write(T('You carry: {0}', parts.join(', ')));
+      for (const i of unique) write(`  · ${itemDisplay(i, true)}`, inventoryColorClass(i));
     }
     const mats = Object.entries(player.materials).filter(([_, q]) => q > 0);
     if (mats.length) {
-      write(T('Materials: {0}', mats.map(([k, q]) => {
+      write(T('Materials:'));
+      for (const [k, q] of mats) {
         const left = freshnessRemaining(k);
         const fresh = (left != null) ? ' ' + T('(rots in {0} turn{1})', left, left === 1 ? '' : 's') : '';
-        return `${itemDisplay(k)} ×${q}${fresh}`;
-      }).join(', ')), 'gold');
+        write(`  · ${itemDisplay(k)} ×${q}${fresh}`, inventoryColorClass(k) || 'gold');
+      }
     }
     write(T('Load: {0}/{1}', Math.round(computeWeight()*10)/10, computeMaxCapacity()), 'system');
   }, '── end of inventory ──');
@@ -9280,17 +9472,60 @@ function unwear(arg) {
   publishAction('unwear', { item: itemId, slot });
 }
 
+// v0.37: ASCII paper-doll for `eq`. Five canonical slots laid out around a
+// stick figure, with the worn item id (truncated) below each slot label.
+// Empty slots show as "—". Bonuses summarized below the figure. The block
+// always renders even with no equipment so players see the full set of
+// available slots and what they could fill.
+function paperDollLine(slot, item, width) {
+  const label = slot.padEnd(7);
+  const display = item ? itemDisplay(item) : '—';
+  // Strip any HTML/SVG that itemDisplay might inject; just take the text label.
+  const text = item ? (STORY.items[item]?.display || item) : '—';
+  return `${label} ${text}`;
+}
 function showEquipment() {
-  const slots = Object.entries(player.equipment);
-  if (slots.length === 0) { write('You wear nothing.'); return; }
-  write('Equipped:', 'system');
-  for (const [slot, item] of slots) {
-    const eff = STORY.items[item]?.effects || {};
-    let parts = [];
-    if (eff.life_max_bonus) parts.push(`+${eff.life_max_bonus} life`);
-    if (eff.carry_capacity_bonus) parts.push(`+${eff.carry_capacity_bonus} carry`);
-    write(`  ${slot}: ${itemDisplay(item, true)}${parts.length ? ' (' + parts.join(', ') + ')' : ''}`);
-  }
+  writeBlock('=== Equipment ===', () => {
+    const eq = player.equipment || {};
+    const slots = ['head', 'torso', 'hand', 'feet', 'back'];
+    // Render the paper-doll as a single block of pre-formatted lines.
+    const lines = [
+      '         ┌──────┐',
+      `  head ──┤ ${(eq.head ? '●' : '○')}    ├── ${eq.head ? (STORY.items[eq.head]?.display || eq.head) : '(nothing)'}`,
+      '         ├──────┤',
+      `  torso ─┤ ${(eq.torso ? '●' : '○')} ${(eq.back ? '●' : '○')}  ├── ${eq.torso ? (STORY.items[eq.torso]?.display || eq.torso) : '(nothing)'}` + (eq.back ? `  · back: ${STORY.items[eq.back]?.display || eq.back}` : ''),
+      `  hand ──┤ ${(eq.hand ? '●' : '○')}    ├── ${eq.hand ? (STORY.items[eq.hand]?.display || eq.hand) : '(nothing)'}`,
+      '         ├──────┤',
+      `  feet ──┤ ${(eq.feet ? '●' : '○') + ' ' + (eq.feet ? '●' : '○')}  ├── ${eq.feet ? (STORY.items[eq.feet]?.display || eq.feet) : '(nothing)'}`,
+      '         └──────┘'
+    ];
+    for (const l of lines) write(l);
+    // Aggregate bonuses across worn items so the player sees the net effect.
+    let lifeBonus = 0, carryBonus = 0, attackBonus = 0;
+    const def = totalDefenseBonus();
+    for (const slot of slots) {
+      const item = eq[slot]; if (!item) continue;
+      const ef = STORY.items[item]?.effects || {};
+      if (ef.life_max_bonus) lifeBonus += ef.life_max_bonus;
+      if (ef.carry_capacity_bonus) carryBonus += ef.carry_capacity_bonus;
+      if (ef.attack_bonus) attackBonus += ef.attack_bonus;
+    }
+    write('');
+    const bonusParts = [];
+    if (lifeBonus)   bonusParts.push(`+${lifeBonus} life`);
+    if (carryBonus)  bonusParts.push(`+${carryBonus} carry`);
+    if (attackBonus) bonusParts.push(`+${attackBonus} attack`);
+    if (def)         bonusParts.push(`+${def} defense`);
+    if (bonusParts.length) write(`Net bonuses: ${bonusParts.join(' · ')}`, 'success');
+    else write('Net bonuses: none — equip items to gain stat bonuses.', 'echo');
+    // Other slots that exist but aren't shown in the doll (custom story slots).
+    const customSlots = Object.keys(eq).filter(s => !slots.includes(s));
+    if (customSlots.length) {
+      write('');
+      write('Other slots:', 'system');
+      for (const s of customSlots) write(`  ${s}: ${itemDisplay(eq[s], true)}`);
+    }
+  }, '── end of equipment ──');
 }
 
 // --- Quests ---
@@ -9625,6 +9860,8 @@ function advanceWorldEvents(currentDay) {
       write('');
       write(t(narr), 'spark');
       if (ev.description) write(`    ${t(ev.description)}`, 'system');
+      // v0.37: also surface the event start as a toast.
+      showToast(`World event: ${t(ev.title || eid)}`, 'event');
       const hasStages = Array.isArray(ev.stages) && ev.stages.length > 0;
       if (hasStages) {
         // v0.34: narrate the first stage. Top-level objective is treated as a
@@ -10888,19 +11125,38 @@ async function loot(arg) {
 }
 
 // --- marketplace ---
-function showMarket() {
+function showMarket(query) {
   if (combatBlock('market')) return;
   const room = player.rooms[player.location];
   const merchantId = npcsHere(player.location).find(n => STORY.npcs[n].is_marketplace);
   if (!merchantId) { write('No merchant here.', 'error'); return; }
-  const listings = getActiveListings(merchantId);
-  write(`-- ${STORY.npcs[merchantId].display}'s listings --`, 'system');
-  if (listings.length === 0) { write('  (nothing listed)'); return; }
-  listings.forEach((l, i) => {
+  const allListings = getActiveListings(merchantId);
+  // v0.37: optional filter — case-insensitive match against item display,
+  // item id, or seller short-hex. "market wolf" → all wolf-pelt / wolf-tooth
+  // listings. "market <8-char-prefix>" → that seller's listings only.
+  const q = (query || '').trim().toLowerCase();
+  let listings = allListings;
+  if (q) {
+    listings = allListings.filter(l => {
+      const disp = (STORY.items[l.item]?.display || l.item || '').toLowerCase();
+      const sellerHex = (l.seller_pubkey || '').toLowerCase();
+      return disp.includes(q) || (l.item || '').toLowerCase().includes(q) || sellerHex.startsWith(q);
+    });
+  }
+  write(`-- ${STORY.npcs[merchantId].display}'s listings${q ? ` · matching "${query}" (${listings.length}/${allListings.length})` : ''} --`, 'system');
+  if (allListings.length === 0) { write('  (nothing listed)'); return; }
+  if (q && listings.length === 0) { write(`  (no listings matching "${query}")`, 'echo'); return; }
+  // The displayed [#] is the position in the *unfiltered* list so `buy <#>`
+  // works the same with or without a filter active. Filter just hides rows.
+  for (const l of listings) {
+    const idx = allListings.indexOf(l);
     const seller = l.source === 'system' ? 'house' : (l.seller_pubkey === pk ? 'YOU' : l.seller_pubkey.slice(0, 8) + '…');
-    write(`  [${i + 1}]  ${itemDisplay(l.item)}  —  ${l.price_gold} gold  (${seller})`);
-  });
-  write(`Type "buy <#>" to purchase.`, 'system');
+    write(`  [${idx + 1}]  ${itemDisplay(l.item)}  —  ${l.price_gold} gold  (${seller})`);
+  }
+  write(q
+    ? `Type "buy <#>" to purchase, or "market" without a filter to see everything.`
+    : `Type "buy <#>" to purchase. Tip: "market <keyword>" to filter (e.g. "market sword" / "market <seller-hex>").`,
+    'system');
 }
 
 async function buy(arg) {
@@ -11831,7 +12087,14 @@ function writeBlock(headerText, bodyFn, footerText = '── end ──') {
   });
 }
 
-function help() {
+function help(query) {
+  // v0.37: filter the help block by keyword if a query is given. Matches case-
+  // insensitively against each line. Common usage: "help combat" trims to
+  // attack/flee/parry/charge/retreat lines, "help market" → buy/sell/listings.
+  const filterQ = (query || '').trim().toLowerCase();
+  return helpImpl(filterQ);
+}
+function helpImpl(filterQ) {
   // 6.0: filter story-specific lines based on what the loaded STORY uses.
   // Some commands (transform/revert, sharpen/repair, taming) only matter
   // in stories that wire them up. Showing all of them in stories where they
@@ -11898,12 +12161,23 @@ function help() {
     T('Tutorial:        tutorial  (beginner\'s guide)  ·  tutorial topics / topic <name>  (replay one)  ·  tutorial off  (silence hints)'),
     T('Feedback:        bug / report  (open a bug-report dialog)'),
     T('Updates:         reload story  (fetch the latest version of the active story without losing progress)'),
-    T('Misc:            clear · help')
+    T('Misc:            clear · help · help <topic>  (filter by keyword, e.g. "help combat" / "help market")')
   ];
   // v0.35: routed through writeBlock() so the same scroll-to-top + sentinel
   // affordance applies uniformly across help / map / inventory / recipes.
-  writeBlock('=== Help ===', () => {
-    for (const l of lines) write(l, 'system');
+  // v0.37: optional filter trims the lines block to those matching a keyword.
+  let filtered = lines;
+  let header = '=== Help ===';
+  if (filterQ) {
+    filtered = lines.filter(l => l.toLowerCase().includes(filterQ));
+    header = `=== Help · matching "${filterQ}" (${filtered.length}/${lines.length} lines) ===`;
+    if (filtered.length === 0) {
+      write(`No help lines match "${filterQ}". Type "help" for the full list.`, 'error');
+      return;
+    }
+  }
+  writeBlock(header, () => {
+    for (const l of filtered) write(l, 'system');
   }, '── end of help ──');
 }
 
@@ -11977,7 +12251,7 @@ function handleCommand(input) {
     case 'learn':                learn(arg); break;
     case 'recipes': case 'rec':  showRecipes(); consumesTurn = false; break;
     case 'craft':                craft(arg); break;
-    case 'market': case 'mkt':   showMarket(); consumesTurn = false; break;
+    case 'market': case 'mkt':   showMarket(argRaw); consumesTurn = false; break;
     case 'sell':                 sell(argRaw); break;
     case 'buy':                  buy(arg); break;
     case 'listings':             showListings(); consumesTurn = false; break;
@@ -12077,7 +12351,7 @@ function handleCommand(input) {
       write('Legend:  *=you · 📦=chest · ⚠=wolves · 🔥=fire · ↑↓=stairs (up/down) · ┊=in/out · ╎=through wall', 'echo');
     }, '── end of map ──'); consumesTurn = false; break;
     case 'recap': case 'last':   showRecap(); consumesTurn = false; break;
-    case 'help': case '?':       help(); consumesTurn = false; break;
+    case 'help': case '?':       help(argRaw); consumesTurn = false; break;
     case 'tutorial': case 'guide': tutorialCommand(argRaw); consumesTurn = false; break;
     case 'clear':                out.innerHTML = ''; consumesTurn = false; break;
     default:
@@ -12243,6 +12517,31 @@ function completionCandidates(prefix, tokenIdx) {
 }
 let tabState = { prefix: null, list: [], idx: 0 }; // cycle-on-repeated-Tab state
 
+// v0.37: ghost-text completion hint. Refreshed on every input change.
+const completionHint = document.getElementById('completion-hint');
+function refreshCompletionHint() {
+  if (!completionHint) return;
+  const raw = cmdInput.value;
+  if (!raw) { completionHint.style.display = 'none'; return; }
+  const lastSpace = raw.lastIndexOf(' ');
+  const head = raw.slice(0, lastSpace + 1);
+  const tail = raw.slice(lastSpace + 1);
+  if (!tail) { completionHint.style.display = 'none'; return; }
+  const tokenIdx = head.trim().split(/\s+/).filter(Boolean).length;
+  const list = completionCandidates(tail, tokenIdx);
+  if (list.length === 0) { completionHint.style.display = 'none'; return; }
+  if (list.length === 1) {
+    completionHint.textContent = `Tab → ${list[0]}`;
+  } else if (list.length <= 5) {
+    completionHint.textContent = `Tab → ${list.join(' · ')}`;
+  } else {
+    completionHint.textContent = `Tab → ${list.slice(0, 4).join(' · ')} … (${list.length} matches)`;
+  }
+  completionHint.style.display = 'block';
+}
+cmdInput.addEventListener('input', refreshCompletionHint);
+cmdInput.addEventListener('blur', () => { if (completionHint) completionHint.style.display = 'none'; });
+cmdInput.addEventListener('focus', refreshCompletionHint);
 cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const v = cmdInput.value;
@@ -12250,6 +12549,7 @@ cmdInput.addEventListener('keydown', e => {
     pushHistory(v);
     histDraft = '';
     tabState.prefix = null;
+    if (completionHint) completionHint.style.display = 'none';
     handleCommand(v);
     return;
   }
@@ -12293,6 +12593,7 @@ cmdInput.addEventListener('keydown', e => {
     }
     cmdInput.value = head + tabState.list[tabState.idx];
     requestAnimationFrame(() => { try { cmdInput.setSelectionRange(cmdInput.value.length, cmdInput.value.length); } catch {} });
+    refreshCompletionHint();
     return;
   }
   // Any other key invalidates the cycling state.
