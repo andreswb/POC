@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.56';
+const ENGINE_VERSION_LABEL = 'v0.56.1';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.56.1': 'Bug board upgraded to a modal with one-click ★ upvote (NIP-25 reactions). Builder Export now nudges if Playtest check finds critical issues.',
   'v0.56':   '`endings all` cross-story view with completion %. Story-version changelog detection (meta.changelog field). Picker filters now collapsible (auto-collapse after 5 opens). Public bug board on Nostr (kind-30445) with `bugs` command. Builder gained ✨ rewrite presets (darker/tighten/sensory/poetic/…) and a ▶ playtest checklist.',
   'v0.55.1': 'Age-gate fires at picker click time (visible immediately, not after the overlay closes). Stored acks now expire after 30 days; raising a story\'s minimum_age also re-prompts. New `forgetage` command clears stored acks for testing. Copyright bumped to 2026.',
   'v0.55':   'Engine source extracted to engine.mjs (game.html is now a 20KB shell). Right-clicking the page no longer captures the engine. Builder type-sync + service worker updated to fetch the new path.',
@@ -1137,23 +1138,49 @@ async function publishBugReport(desc, debug) {
   } catch (e) { console.warn('publishBugReport failed:', e); }
 }
 
+// Engine v0.56.1 — bug-board modal with one-click upvote.
+// Switched from terminal output to an overlay modal so each row can carry
+// a real ★ upvote button. Upvote = NIP-25 kind-7 reaction event referencing
+// the bug's `a`-tag (replaceable-event coordinate). Optimistic UI: bump the
+// count locally on click, the relay confirms async.
 async function showBugBoard() {
   if (typeof pool === 'undefined' || !pool) {
     write('Bug board needs the relay pool — try again after boot completes.', 'error');
     return;
   }
-  writeBlock('=== Public bug board ===', () => {
-    write('Loading recent bug reports from relays…', 'system');
-  }, '');
+  // Build modal shell up-front; show loading state.
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:680px;width:100%;max-height:90vh;overflow:auto;padding:22px;';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-size:18px;font-weight:bold;">🐛 Public bug board</div>
+      <button id="bb-close" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;">×</button>
+    </div>
+    <div style="color:#9c9388;font-size:12px;margin-bottom:12px;">Reports from the last 30 days. Click ★ to upvote — your reaction is signed by your nsec and broadcast publicly.</div>
+    <div id="bb-list"><div style="padding:14px;color:#9c9388;font-size:13px;text-align:center;">Loading from relays…</div></div>
+    <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#9c9388;">
+      <span>Type <code style="color:#bcb4a8;">bug</code> to file a new report.</span>
+      <span id="bb-status"></span>
+    </div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  panel.querySelector('#bb-close').onclick = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.remove(); });
+
   const since = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
   const reports = [];
-  const reactions = new Map();  // d-tag → upvote count
+  const reactions = new Map();  // address-coordinate → upvote count
+  const myUpvotes = new Set();  // address coords I've already reacted to
   try {
     await new Promise((resolve) => {
       let timer = setTimeout(() => resolve(), 4500);
       pool.subscribeMany(RELAYS, [
         { kinds: [KIND_BUG_REPORT], '#t': ['taleforge-bug'], since, limit: 60 },
-        { kinds: [7], '#t': ['taleforge-bug'], since, limit: 200 }
+        { kinds: [7], '#t': ['taleforge-bug'], since, limit: 400 }
       ], {
         onevent(event) {
           if (event.kind === KIND_BUG_REPORT) {
@@ -1163,49 +1190,101 @@ async function showBugBoard() {
               const story = (event.tags.find(t => t[0] === 'story') || [])[1] || '?';
               const engine = (event.tags.find(t => t[0] === 'engine') || [])[1] || '?';
               reports.push({
-                id: event.id,
-                dTag,
-                pubkey: event.pubkey,
-                created_at: event.created_at,
-                story,
-                engine,
+                id: event.id, dTag, pubkey: event.pubkey,
+                created_at: event.created_at, story, engine,
                 description: String(c.description || '').slice(0, 240),
                 room: c.room
               });
             } catch {}
           } else if (event.kind === 7) {
-            // NIP-25 reaction; group by referenced bug d-tag if present.
             const ref = (event.tags.find(t => t[0] === 'a') || [])[1] || '';
-            if (ref) reactions.set(ref, (reactions.get(ref) || 0) + 1);
+            if (ref) {
+              reactions.set(ref, (reactions.get(ref) || 0) + 1);
+              if (event.pubkey === pk) myUpvotes.add(ref);
+            }
           }
         },
         oneose() { clearTimeout(timer); setTimeout(resolve, 200); }
       });
     });
   } catch {}
-  writeBlock('=== Public bug board (last 30 days) ===', () => {
-    if (reports.length === 0) {
-      write('(no bug reports found on configured relays)', 'muted');
-      return;
-    }
-    // Dedup by d-tag (replaceable kind — keep newest per d-tag)
-    const byD = new Map();
-    for (const r of reports) {
-      const prev = byD.get(r.dTag);
-      if (!prev || prev.created_at < r.created_at) byD.set(r.dTag, r);
-    }
-    const list = [...byD.values()].sort((a, b) => b.created_at - a.created_at);
-    for (const r of list.slice(0, 25)) {
-      const ago = Math.floor((Date.now() / 1000 - r.created_at) / 86400);
-      const upvotes = reactions.get(`${KIND_BUG_REPORT}:${r.pubkey}:bug:${r.dTag.replace(/^bug:/, '')}`) || 0;
-      const npubShort = (() => { try { return nip19.npubEncode(r.pubkey).slice(0, 12) + '…'; } catch { return r.pubkey.slice(0, 8); } })();
-      write(`  [${ago}d ago] ${r.description}`, 'system');
-      write(`         story=${r.story} · engine=${r.engine}${r.room ? ' · room=' + r.room : ''} · by ${npubShort}${upvotes ? ' · ★' + upvotes : ''}`, 'echo');
-    }
-    if (list.length > 25) write(`  … and ${list.length - 25} older reports.`, 'muted');
-    write('');
-    write('Type "bug" to file a new report. Reports are public and tied to your nsec.', 'echo');
-  }, '── end of board ──');
+
+  // Dedup by d-tag (replaceable kind — keep newest per d-tag)
+  const byD = new Map();
+  for (const r of reports) {
+    const prev = byD.get(`${r.pubkey}:${r.dTag}`);
+    if (!prev || prev.created_at < r.created_at) byD.set(`${r.pubkey}:${r.dTag}`, r);
+  }
+  const list = [...byD.values()].sort((a, b) => b.created_at - a.created_at);
+  const listEl = panel.querySelector('#bb-list');
+  listEl.innerHTML = '';
+  if (list.length === 0) {
+    listEl.innerHTML = '<div style="padding:14px;color:#9c9388;font-size:13px;text-align:center;">(no bug reports on configured relays in the last 30 days)</div>';
+    return;
+  }
+  for (const r of list.slice(0, 30)) {
+    const ago = Math.floor((Date.now() / 1000 - r.created_at) / 86400);
+    const addr = `${KIND_BUG_REPORT}:${r.pubkey}:${r.dTag}`;
+    const upvotes = reactions.get(addr) || 0;
+    const alreadyVoted = myUpvotes.has(addr);
+    const npubShort = (() => { try { return nip19.npubEncode(r.pubkey).slice(0, 12) + '…'; } catch { return r.pubkey.slice(0, 8); } })();
+    const isMine = r.pubkey === pk;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;align-items:flex-start;background:#23201c;border:1px solid #3a352e;border-radius:4px;padding:10px 12px;margin-bottom:6px;';
+    const voteBtn = document.createElement('button');
+    voteBtn.style.cssText = `flex-shrink:0;padding:6px 10px;background:${alreadyVoted ? '#4a3a20' : '#2a2724'};color:${alreadyVoted ? '#f0b54a' : '#bcb4a8'};border:1px solid ${alreadyVoted ? '#f0b54a' : '#3a352e'};border-radius:4px;cursor:${alreadyVoted || isMine ? 'default' : 'pointer'};font:inherit;font-size:12px;min-width:40px;text-align:center;`;
+    voteBtn.innerHTML = `★ ${upvotes}`;
+    voteBtn.title = isMine ? 'You filed this report' : (alreadyVoted ? 'Already upvoted' : 'Upvote this bug');
+    if (alreadyVoted || isMine) voteBtn.disabled = true;
+    voteBtn.onclick = async () => {
+      if (alreadyVoted || isMine) return;
+      voteBtn.disabled = true;
+      try {
+        const evt = finalizeEvent({
+          kind: 7,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['t', 'taleforge-bug'],
+            ['a', addr],
+            ['e', r.id],
+            ['p', r.pubkey],
+            ['k', String(KIND_BUG_REPORT)]
+          ],
+          content: '+'
+        }, sk);
+        tryPublish(evt);
+        myUpvotes.add(addr);
+        reactions.set(addr, (reactions.get(addr) || 0) + 1);
+        voteBtn.innerHTML = `★ ${reactions.get(addr)}`;
+        voteBtn.style.background = '#4a3a20';
+        voteBtn.style.color = '#f0b54a';
+        voteBtn.style.borderColor = '#f0b54a';
+        const status = panel.querySelector('#bb-status');
+        if (status) { status.textContent = '✓ upvote sent'; status.style.color = '#6dc28d'; setTimeout(() => { status.textContent = ''; }, 2500); }
+      } catch (e) {
+        voteBtn.disabled = false;
+        const status = panel.querySelector('#bb-status');
+        if (status) { status.textContent = 'upvote failed: ' + (e?.message || 'unknown'); status.style.color = '#c66'; }
+      }
+    };
+    const body = document.createElement('div');
+    body.style.cssText = 'flex:1;min-width:0;';
+    const desc = document.createElement('div');
+    desc.style.cssText = 'font-size:13px;line-height:1.45;color:#e8e6e3;margin-bottom:4px;word-wrap:break-word;';
+    desc.textContent = r.description;
+    const meta = document.createElement('div');
+    meta.style.cssText = 'font-size:11px;color:#9c9388;font-family:ui-monospace,monospace;';
+    meta.innerHTML = `${ago}d ago · story=<span style="color:#bcb4a8;">${escapeHtml(r.story)}</span> · engine=<span style="color:#bcb4a8;">${escapeHtml(r.engine)}</span>${r.room ? ' · room=<span style="color:#bcb4a8;">' + escapeHtml(r.room) + '</span>' : ''} · ${escapeHtml(npubShort)}${isMine ? ' <span style="color:#6dc28d;">(you)</span>' : ''}`;
+    body.append(desc, meta);
+    row.append(voteBtn, body);
+    listEl.appendChild(row);
+  }
+  if (list.length > 30) {
+    const more = document.createElement('div');
+    more.style.cssText = 'padding:8px 0;font-size:12px;color:#9c9388;font-style:italic;text-align:center;';
+    more.textContent = `…and ${list.length - 30} older reports.`;
+    listEl.appendChild(more);
+  }
 }
 
 function forgetAgeAcksCommand() {
