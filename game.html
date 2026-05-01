@@ -4766,6 +4766,22 @@ function markStoryPaid(id) {
   set.add(id);
   try { localStorage.setItem(PAID_STORIES_KEY, JSON.stringify([...set])); } catch {}
 }
+// 6.0: trial-room gating. If the loaded story is paid (price_sats > 0) AND
+// declares meta.license.trial_rooms, the engine restricts movement to those
+// rooms + the starting_location until the player has marked the story paid
+// via the marketplace honor-system flow. Free stories and stories without
+// trial_rooms always allow free roaming.
+function canEnterTrialRoom(roomId) {
+  const story = (typeof STORY !== 'undefined') ? STORY : null;
+  if (!story?.meta) return true;
+  const lic = story.meta.license || {};
+  if (!lic.price_sats || lic.price_sats <= 0) return true;        // free story
+  if (!Array.isArray(lic.trial_rooms) || lic.trial_rooms.length === 0) return true;
+  if (lic.trial_rooms.includes(roomId)) return true;              // in trial set
+  if (roomId === story.meta.starting_location) return true;       // always allow start
+  if (isStoryPaid(story.meta.id)) return true;                    // paid: full access
+  return false;
+}
 function isStoryPaid(id) {
   return loadPaidStories().has(id);
 }
@@ -8045,6 +8061,17 @@ function move(dir) {
   // 5.6: gated exits — refuse with reason if requirements not met
   const gateCheck = checkExitGate(gate);
   if (!gateCheck.ok) { write(gateCheck.why, 'error'); return; }
+  // 6.0: trial-room enforcement. If the active story is paid and defines
+  // meta.license.trial_rooms, only those rooms (plus the starting_location)
+  // are reachable until the player marks the story paid via the marketplace
+  // honor-system flow. Free stories and stories without trial_rooms skip.
+  if (!canEnterTrialRoom(target)) {
+    const lic = STORY.meta?.license || {};
+    const price = lic.price_sats ? `${lic.price_sats} sats` : 'a fee';
+    write(`[This room is past the free trial. Pay ${price} to unlock the rest of ${t(STORY.meta.title)}.]`, 'error');
+    if (lic.payment_url) write(`[Payment: ${lic.payment_url}  — once paid, return to the picker and click "I've paid → import" again.]`, 'system');
+    return;
+  }
   // Optional item consumption (e.g. a one-shot key that breaks on use)
   if (gate?.consume_item) {
     const idx = player.inventory.indexOf(gate.consume_item);
