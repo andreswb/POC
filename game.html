@@ -4860,7 +4860,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.43';
+const ENGINE_VERSION_LABEL = 'v0.44';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -5493,6 +5493,111 @@ function showBugReporter() {
   setTimeout(() => panel.querySelector('#bug-desc').focus(), 50);
 }
 
+// v0.44: age-gate / content-warning acknowledgment screen.
+// Stories that carry `meta.minimum_age` (a positive integer) and/or
+// `meta.age_gate_message` get a one-time confirmation modal before the
+// engine loads them. The acknowledgment is persisted per (story id +
+// browser) so the player isn't re-prompted every session for content they
+// already opted into. A `new character` reset OR a story-version bump that
+// the author opts into clears the ack so the gate can be re-shown if the
+// content materially changes.
+const AGE_ACK_KEY_PREFIX = 'taleforge:age_ack:';
+function ageAckKey(storyId) { return AGE_ACK_KEY_PREFIX + storyId; }
+function hasAgeAck(story) {
+  if (!story?.meta?.id) return true;
+  if (!storyNeedsAgeGate(story)) return true;
+  try {
+    const stored = localStorage.getItem(ageAckKey(story.meta.id));
+    if (!stored) return false;
+    // Optionally re-prompt on version bump if the author opted into that.
+    if (story.meta.age_gate_resets_on_version) {
+      const obj = JSON.parse(stored);
+      if (obj?.version !== story.meta.version) return false;
+      return true;
+    }
+    return true;
+  } catch { return false; }
+}
+function storyNeedsAgeGate(story) {
+  const m = story?.meta || {};
+  const minAge = Number(m.minimum_age) || 0;
+  return minAge > 0 || !!m.age_gate_message;
+}
+function recordAgeAck(story) {
+  if (!story?.meta?.id) return;
+  try {
+    localStorage.setItem(ageAckKey(story.meta.id), JSON.stringify({
+      acknowledged_at: Date.now(),
+      version: story.meta.version || null,
+      min_age: Number(story.meta.minimum_age) || 0
+    }));
+  } catch {}
+}
+// Async modal: resolves true if the player accepts, false if they decline.
+// Re-uses the same dim-overlay pattern as the ending modal.
+function showAgeGateModal(story) {
+  return new Promise(resolve => {
+    const m = story.meta || {};
+    const minAge = Number(m.minimum_age) || 0;
+    const customMsg = (typeof m.age_gate_message === 'string') ? m.age_gate_message : (m.age_gate_message?.en || '');
+    const cws = Array.isArray(m.content_warnings) ? m.content_warnings : [];
+    const tags = Array.isArray(m.tags) ? m.tags : [];
+    const title = (typeof m.title === 'string') ? m.title : (m.title?.en || m.id || 'this story');
+    // Build the modal DOM imperatively so we don't depend on outside CSS.
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(8,10,16,0.94);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit;color:#e8e6e3;';
+    const card = document.createElement('div');
+    card.style.cssText = 'max-width:540px;width:100%;background:#1a1815;border:1px solid #c08070;border-radius:8px;padding:24px;box-shadow:0 8px 40px rgba(192,128,112,0.3),0 0 0 1px #c08070 inset;';
+    const tag = document.createElement('div');
+    tag.style.cssText = 'color:#c08070;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;';
+    tag.textContent = '⚠ Content notice';
+    const h = document.createElement('h2');
+    h.style.cssText = 'color:#f0b54a;margin:6px 0 10px;font-size:20px;';
+    h.textContent = title;
+    const intro = document.createElement('p');
+    intro.style.cssText = 'color:#bcb4a8;font-size:13px;line-height:1.5;margin:0 0 14px;';
+    intro.textContent = customMsg || `This story is intended for mature audiences. It contains themes that may not be appropriate for all readers.`;
+    card.append(tag, h, intro);
+    if (cws.length || tags.length) {
+      const meta = document.createElement('div');
+      meta.style.cssText = 'background:#23201c;border-left:3px solid #c08070;padding:10px 12px;border-radius:4px;font-size:12px;line-height:1.6;margin-bottom:14px;';
+      if (tags.length) {
+        const r = document.createElement('div');
+        r.innerHTML = `<span style="color:#9c9388;">Genre:</span> <span style="color:#a8c7a0;">${tags.map(t => '<code>' + escapeHtml(t) + '</code>').join(', ')}</span>`;
+        meta.appendChild(r);
+      }
+      if (cws.length) {
+        const r = document.createElement('div');
+        r.innerHTML = `<span style="color:#9c9388;">Content:</span> <span style="color:#e0a890;">${cws.map(c => '<code>' + escapeHtml(c) + '</code>').join(', ')}</span>`;
+        meta.appendChild(r);
+      }
+      card.appendChild(meta);
+    }
+    if (minAge > 0) {
+      const age = document.createElement('p');
+      age.style.cssText = 'color:#e0a890;font-weight:600;font-size:13px;margin:0 0 16px;';
+      age.textContent = `By entering, you confirm you are at least ${minAge} years old.`;
+      card.appendChild(age);
+    }
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+    const btnEnter = document.createElement('button');
+    btnEnter.style.cssText = 'padding:12px 16px;background:#2a3528;border:1px solid #f0b54a;color:#f0b54a;border-radius:4px;cursor:pointer;font:inherit;font-size:14px;font-weight:600;text-align:left;';
+    btnEnter.textContent = minAge > 0
+      ? `✓ I am at least ${minAge} — enter "${title}"`
+      : `✓ Acknowledge — enter "${title}"`;
+    btnEnter.addEventListener('click', () => { recordAgeAck(story); overlay.remove(); resolve(true); });
+    const btnBack = document.createElement('button');
+    btnBack.style.cssText = 'padding:10px 16px;background:#23201c;border:1px solid #3a352e;color:#9c9388;border-radius:4px;cursor:pointer;font:inherit;font-size:13px;text-align:left;';
+    btnBack.textContent = '← Back to story picker';
+    btnBack.addEventListener('click', () => { overlay.remove(); resolve(false); });
+    actions.append(btnEnter, btnBack);
+    card.appendChild(actions);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+  });
+}
+
 async function resolveActiveStory() {
   // 5.9: fetch any sibling stories listed in EXTRA_STORY_URLS so the picker
   // can show them as built-ins. Silent on failure (file://, 404, CORS).
@@ -5501,16 +5606,34 @@ async function resolveActiveStory() {
   let id = null;
   try { id = localStorage.getItem(ACTIVE_STORY_KEY); } catch {}
   let s = id ? loadStoryById(id) : null;
+  // v0.44: enforce age gate even on the saved-active path so a player who
+  // bookmarked a deep link can't bypass the warning.
+  if (s && !hasAgeAck(s)) {
+    const ok = await showAgeGateModal(s);
+    if (!ok) {
+      // Player declined → forget this active story so the picker shows.
+      try { localStorage.removeItem(ACTIVE_STORY_KEY); } catch {}
+      s = null;
+    }
+  }
   if (s) return s;
   // No valid saved choice — show picker. Picker writes the id; we return the resolved story.
-  const picked = await showStoryPicker(id);
-  s = loadStoryById(picked);
-  if (!s) {
-    // Should never happen, but fall back to the bundled default rather than crash
-    s = STORY_WHISPERING_FOREST;
-    try { localStorage.setItem(ACTIVE_STORY_KEY, s.meta.id); } catch {}
+  // We loop because the player might decline a gated story and need to pick again.
+  while (true) {
+    const picked = await showStoryPicker(id);
+    s = loadStoryById(picked);
+    if (!s) {
+      s = STORY_WHISPERING_FOREST;
+      try { localStorage.setItem(ACTIVE_STORY_KEY, s.meta.id); } catch {}
+      return s;
+    }
+    if (hasAgeAck(s)) return s;
+    const ok = await showAgeGateModal(s);
+    if (ok) return s;
+    // Declined — clear active id and re-prompt with the picker.
+    try { localStorage.removeItem(ACTIVE_STORY_KEY); } catch {}
+    id = null;
   }
-  return s;
 }
 
 const STORY = await resolveActiveStory();
@@ -12377,11 +12500,20 @@ function relayCommand(argRaw) {
 }
 
 function switchStoryCommand() {
-  showStoryPicker(STORY.meta.id).then(id => {
+  showStoryPicker(STORY.meta.id).then(async id => {
     if (id && id !== STORY.meta.id) {
+      const target = loadStoryById(id);
+      // v0.44: enforce age gate on mid-session switch too. Player declines → stay put.
+      if (target && !hasAgeAck(target)) {
+        const ok = await showAgeGateModal(target);
+        if (!ok) {
+          write('Continuing in "' + STORY.meta.title + '".', 'system');
+          return;
+        }
+      }
       // Save state of current story before swap
       try { saveLocal(); } catch {}
-      write('Switching to "' + (loadStoryById(id)?.meta?.title || id) + '"... (reloading)', 'system');
+      write('Switching to "' + (target?.meta?.title || id) + '"... (reloading)', 'system');
       setTimeout(() => location.reload(), 400);
     } else {
       write('Continuing in "' + STORY.meta.title + '".', 'system');

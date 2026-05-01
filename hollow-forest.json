@@ -5,7 +5,7 @@
     "title": "The Hollow Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.4.1",
+    "version": "1.5.0",
     "created_at": "2026-04-30T00:00:00Z",
     "language": "en",
     "languages": [
@@ -124,6 +124,8 @@
     ],
     "tags": ["dark fantasy", "horror", "survival", "branching endings"],
     "content_warnings": ["death", "vampirism", "werewolves", "child in peril"],
+    "minimum_age": 16,
+    "age_gate_message": "The Hollow Forest is a gothic horror story. It contains werewolves, vampires, the death of children, blood-drinking and curses, scenes of villagers consumed by the woods, and themes of grief and slow dread. The prose is restrained but the subject matter is not. Recommended for readers 16 and up.",
     "daily_quest_pool": [
       "daily_dawn_revenants",
       "daily_three_pelts",
