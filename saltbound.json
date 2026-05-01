@@ -6,6 +6,11 @@
     "author": "awb_🇨🇭",
     "author_pubkey": null,
     "version": "1.2.2",
+    "changelog": {
+      "1.2.2": "Map fix: overhead-layer (mountain summit ↔ lava field) now renders correctly with stair markers ⇡⇣. No content changes.",
+      "1.2.0": "Tier 3 polish pass: 5 character_profiles added (castaway / surveyor / scholar / sailor / cook), tags + content_warnings declared, spawn timing tightened.",
+      "1.1.0": "Three endings declared: RESCUE (signal fire on the summit), SAIL (build the raft and leave), STAY (Deep Grotto path — bind to the island)."
+    },
     "created_at": "2026-05-01T00:00:00Z",
     "language": "en",
     "languages": ["en"],

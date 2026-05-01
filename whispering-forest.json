@@ -6,6 +6,10 @@
     "author": "awb_🇨🇭",
     "author_pubkey": null,
     "version": "1.17.0",
+    "changelog": {
+      "1.17.0": "Four endings added: PILGRIM (climb to the mountain peak with the hermit), MASTER_SMITH (forge the iron axe and earn the smith's blessing), FOREST_WARDEN (deliver three frost-salves to the trapper's pact), TRUSTED_MERCHANT (the long road quest — 10 cured meat + 3 leather to the weathered merchant).",
+      "1.16.3": "Skill-id typo fixes: valley_smith profile now points at smelting (was smithing); frozen_lake resource at stone_knapping (was mining)."
+    },
     "created_at": "2026-04-28T00:00:00Z",
     "language": "en",
     "tone": "eerie, sensory, hopeful undertones; never explain too much; favor sound and texture over exposition",
