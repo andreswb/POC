@@ -5,7 +5,7 @@
     "title": "Saltbound",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.0.2",
+    "version": "1.0.3",
     "created_at": "2026-05-01T00:00:00Z",
     "language": "en",
     "languages": ["en"],
@@ -954,6 +954,17 @@
       "category": "good",
       "stackable": false,
       "image": "✉"
+    },
+    "signal_kit": {
+      "display": "signal-fire kit",
+      "article": "a",
+      "description": "Three lengths of dry driftwood lashed together with strips of sail-cloth. A flint-striker tucked in the binding. Carry it up the lookout tower, lay it in the cold brazier, and you will not be missed by any ship that passes within ten miles.",
+      "value": 0,
+      "weight": 1.8,
+      "tags": ["unique"],
+      "category": "good",
+      "stackable": false,
+      "image": "🔥"
     }
   },
   "skills": {
@@ -1178,6 +1189,19 @@
       "requires_fire": false,
       "duration_seconds": 0,
       "sparks_reward": 25
+    },
+    "build_signal_kit": {
+      "display": "Signal-fire kit",
+      "description": "Lash dry driftwood with strips of sail-cloth and add a striker. Carry it up the lookout tower's brazier. The smoke will be seen.",
+      "skill": "firemaking",
+      "inputs": [
+        {"item": "sail_cloth", "qty": 1},
+        {"item": "driftwood", "qty": 3}
+      ],
+      "outputs": [{"item": "signal_kit", "qty": 1}],
+      "requires_fire": false,
+      "duration_seconds": 0,
+      "sparks_reward": 6
     }
   },
   "entities": {
@@ -1518,29 +1542,28 @@
     },
     "the_signal": {
       "title": "The Signal Fire",
-      "description": "The castaway's ghost speaks of a tower at the eastern edge of the ruins. A signal lit there can be seen from very far. Climb the tower. Light the brazier. A ship may come.",
-      "giver": "castaways_ghost",
-      "auto_accept": false,
+      "description": "Bundle dry driftwood and sail-cloth into a signal-fire kit (`craft build_signal_kit` — needs 1× sail_cloth + 3× driftwood). Carry it up the lookout tower. Set it in the brazier. The whole horizon will see the smoke.",
+      "giver": null,
+      "auto_accept": true,
       "requires": ["intro_castaway"],
       "objectives": [
         {"type": "visited", "room": "tower_top"},
-        {"type": "have_item", "item": "sail_cloth", "qty": 1, "consume": false},
-        {"type": "have_item", "item": "driftwood", "qty": 3, "consume": false}
+        {"type": "have_item", "item": "signal_kit", "qty": 1, "consume": true}
       ],
-      "rewards": {"gold": 30, "sparks": 30, "items": []},
-      "completion_message": "Climb the tower with these in hand and `light fire` to send the signal. A ship will see it. Eventually."
+      "rewards": {"gold": 50, "sparks": 80, "items": []},
+      "completion_message": "You set the signal-fire kit in the cold brazier and strike it. The driftwood catches first, fast; the salt-stiff sail-cloth flares last, hot and white. The flame stands tall against the dark — a column of smoke and light visible to the whole horizon, and farther.\n\nDays pass. Then more days. Then, in the cold grey of one dawn, a sail. A small one at first, then a larger one. They have seen you.\n\n>>> ENDING: RESCUE <<<\nYou are going home."
     },
     "the_raft": {
       "title": "The Raft",
-      "description": "Build a raft of bamboo, driftwood, and sailcloth, and you can sail. The ghost remembers losing his. Build yours better.",
-      "giver": "castaways_ghost",
-      "auto_accept": false,
+      "description": "Build a raft (`craft build_raft` — needs carpentry, 8× bamboo + 4× driftwood + 2× sail_cloth). When it's finished, push off. The sea is a hard road, but it is yours.",
+      "giver": null,
+      "auto_accept": true,
       "requires": ["intro_castaway"],
       "objectives": [
-        {"type": "have_item", "item": "raft", "qty": 1, "consume": false}
+        {"type": "have_item", "item": "raft", "qty": 1, "consume": true}
       ],
-      "rewards": {"gold": 60, "sparks": 60, "items": []},
-      "completion_message": "The raft is finished. Drag it to the beach and `use raft` when you are ready to leave."
+      "rewards": {"gold": 60, "sparks": 100, "items": []},
+      "completion_message": "You drag the raft down to the wash-line. The tide is going out. You lash your provisions to the spar, push off, and let the current take you.\n\nThe first night, the sea is kind. The second, it is not. The third — you wake to a ship's bell on the western horizon, and a long shadow above the swell, and a hand reaching down for yours.\n\n>>> ENDING: SAIL <<<\nYou made the road. You are still on it."
     },
     "the_three_fragments": {
       "title": "The Three Fragments",
@@ -1568,26 +1591,26 @@
     },
     "the_deep_grotto": {
       "title": "The Deep Grotto",
-      "description": "The fragments and the tablet point to the deep grotto, below the sea-caves. Something old waits there. Find it. Bring back what is there.",
-      "giver": "elders_spirit",
-      "auto_accept": false,
+      "description": "The fragments and the tablet point at the deep grotto, below the sea-caves. Something old waits there. Find it; bring it back to the elder's spirit at the ruins. (You will need ancient_lore to read what the temple says — the elder grants it when you bring her the tablet.)",
+      "giver": null,
+      "auto_accept": true,
       "requires": ["the_three_fragments", "the_tablet"],
       "objectives": [
-        {"type": "have_item", "item": "mysterious_idol", "qty": 1}
+        {"type": "have_item", "item": "mysterious_idol", "qty": 1, "consume": true}
       ],
-      "rewards": {"gold": 120, "sparks": 80, "items": [{"item": "obsidian_dagger", "qty": 1}]},
-      "completion_message": "She receives the idol with both hands and bows her head. 'The temple has its centre back. The island is whole, for now.'"
+      "rewards": {"gold": 120, "sparks": 100, "items": []},
+      "completion_message": "You return to the ruins with the mysterious idol heavy in your pack. You set it on the lintel where the tablet rests. The carvings on the walls steady. The elder's spirit nods once and looks past you, into a sky that is not the sky.\n\n'The temple has its centre back. The island is whole, for now.'\n\nYou understand, for the first time, that this is a place a person can choose to stay. The forest holds you. The sea holds the men who left. You belong to neither, now, and to both.\n\n>>> ENDING: STAY <<<\nYou are home, in a way you were not before."
     },
-    "leaving_or_staying": {
+    "the_three_endings": {
       "title": "Leaving or Staying",
-      "description": "Three ways to end your time on this island. The signal-fire (rescue). The raft (sail). The lore (stay). Choose.",
+      "description": "Three ways to end your time on this island. The signal-fire on the lookout tower (rescue). The raft pushed off the beach (sail). The lore in the ruins (stay). Each is its own ending. Choose any.",
       "giver": null,
       "auto_accept": true,
       "objectives": [
-        {"type": "have_item", "item": "raft", "qty": 1, "consume": false}
+        {"type": "visited", "room": "abandoned_camp"}
       ],
-      "rewards": {"gold": 100, "sparks": 100, "items": []},
-      "completion_message": "You stand at the edge of the beach with the raft at your side. The horizon is open. (Or take the lore. Or light the signal. Each is its own ending.)"
+      "rewards": {"gold": 0, "sparks": 5, "items": []},
+      "completion_message": "The castaway's ghost has told you the two ways out. The elder's spirit holds the third. The island is patient — choose when you are ready."
     }
   },
   "events": {
