@@ -1,32 +1,138 @@
-Taleforge engine and story-builder
-Copyright (c) 2025 Andres Wetzel
+TALEFORGE LICENSE (source-available · non-commercial use only)
+Copyright (c) 2025 Andres Wetzel. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software (the "Engine" — engine.mjs, game.html, sw.js, index.html,
+manifest.json, and any supporting documentation in this repository,
+collectively the "Software") is made available in source form for
+transparency, security audit, and personal use only. It is NOT open-source
+software, and no patent rights or trademark rights are granted by this
+license.
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+────────────────────────────────────────────────────────────────────────────
+GRANT OF LIMITED USE
+────────────────────────────────────────────────────────────────────────────
+
+Subject to the conditions below, the copyright holder grants you, the
+recipient, a non-exclusive, non-transferable, royalty-free, revocable
+license to:
+
+  (a) read, study, and audit the source code as published;
+  (b) execute the Software in your own browser for personal, non-commercial
+      play of stories hosted at https://taleforge.pages.dev or at any other
+      endpoint operated by the copyright holder;
+  (c) submit bug reports, security disclosures, and proposed fixes to the
+      copyright holder.
+
+Personal play, security review, and educational study of the source are the
+only uses granted by default. All other rights are reserved.
+
+────────────────────────────────────────────────────────────────────────────
+PROHIBITED USES
+────────────────────────────────────────────────────────────────────────────
+
+Without prior written permission from the copyright holder, you may NOT:
+
+  1. host, operate, mirror, or distribute the Software (in original or
+     modified form) as part of any public or private service that lets
+     third parties play stories with it;
+
+  2. use the Software, in whole or in part, in any commercial product or
+     service, including ad-supported, subscription, freemium, donation-
+     gated, lightning-zap-gated, or otherwise monetized offerings;
+
+  3. redistribute the Software in any medium, with or without modification,
+     including but not limited to: rehosting on another domain, bundling
+     into a downloadable application, packaging into a browser extension,
+     or republishing on code-sharing platforms;
+
+  4. create derivative works of the Software intended to compete with,
+     replace, fork, white-label, or otherwise substitute for the Taleforge
+     platform;
+
+  5. remove, alter, obscure, or fail to display the copyright notices,
+     license text, or version markers present in the source;
+
+  6. use the names "Taleforge", "Whispering Forest", "Hollow Forest",
+     "Saltbound", or any associated logos, marks, domain names, or
+     branding for any purpose other than accurately referring to the
+     original product;
+
+  7. use the Software to train, fine-tune, or otherwise develop machine
+     learning models, except for personal-use models that never produce
+     output for any third party.
+
+────────────────────────────────────────────────────────────────────────────
+STORIES (separately licensed)
+────────────────────────────────────────────────────────────────────────────
+
+The story content files (whispering-forest.json, hollow-forest.json,
+saltbound.json, and any future bundled stories) are creative content, not
+Software. Each story declares its own `creative_license` field inside the
+JSON; that field is authoritative for distribution and derivative-work
+permissions of the story content itself.
+
+Players are explicitly permitted to author and distribute their own story
+JSON files for use with the Engine, under any license they choose. The
+Engine is the platform; user-authored stories are content that runs on it.
+
+────────────────────────────────────────────────────────────────────────────
+STORY BUILDER (not part of this distribution)
+────────────────────────────────────────────────────────────────────────────
+
+The Taleforge Story Builder (story-builder.html and its associated
+features, prompts, and AI scaffolding) is a SEPARATE PRODUCT, distributed
+only under its own commercial terms. The Story Builder is NOT included in
+this repository or in any public deployment of the Engine, and NO rights to
+the Story Builder are granted by this license. The Story Builder is the
+copyright holder's commercial offering; access is available only via the
+copyright holder's distribution channels under separate terms.
+
+Reverse-engineering, reconstructing, or developing a substitute for the
+Story Builder using the Engine source as a starting point falls under the
+"derivative works" prohibition above (clause 4) and is not permitted.
+
+────────────────────────────────────────────────────────────────────────────
+TERMINATION
+────────────────────────────────────────────────────────────────────────────
+
+Any violation of this license terminates your rights under it
+automatically. Upon termination you must cease all use of the Software,
+delete all copies in your possession, and destroy any derivative works.
+
+The copyright holder may revoke or amend this grant at any time with
+notice posted on https://taleforge.pages.dev or in this repository's README
+file. Continued use of the Software after such posted notice constitutes
+acceptance of the new terms.
+
+────────────────────────────────────────────────────────────────────────────
+NO WARRANTY
+────────────────────────────────────────────────────────────────────────────
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF,
+OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN IT.
 
 ────────────────────────────────────────────────────────────────────────────
+COMMERCIAL LICENSING
+────────────────────────────────────────────────────────────────────────────
 
-Note on bundled stories:
-The included story files (whispering-forest.json, hollow-forest.json,
-saltbound.json) are creative content, not Software. Each story declares its
-own creative_license inside the JSON; treat that as authoritative for
-distribution and derivative-work permissions of the story content itself.
+For any use not covered by the limited grant above — hosting, redistribution,
+embedding in a commercial product, white-labeling, or any other use that
+would otherwise be prohibited — please contact:
 
-The MIT terms above cover the engine (engine.mjs), the builder
-(story-builder.html), the service worker (sw.js), the page shell (game.html,
-index.html), and any supporting documentation.
+    bandurria.apps@gmail.com
+
+The copyright holder is generally open to negotiated commercial licensing
+on reasonable terms.
+
+────────────────────────────────────────────────────────────────────────────
+GOVERNING LAW
+────────────────────────────────────────────────────────────────────────────
+
+This license is governed by the laws of the copyright holder's jurisdiction
+of residence, unless otherwise agreed in writing between the parties. Any
+disputes arising under this license shall be resolved in the courts of that
+jurisdiction.

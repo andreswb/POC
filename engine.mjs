@@ -1,5 +1,13 @@
-// Taleforge engine — extracted from game.html (engine v0.54+).
-// All rights reserved. See LICENSE.
+// Taleforge engine. Copyright (c) 2025 Andres Wetzel. All rights reserved.
+//
+// SOURCE-AVAILABLE, NON-COMMERCIAL LICENSE — NOT OPEN-SOURCE.
+// This source is published for transparency and personal play. You may
+// read it, audit it, and run it in your browser to play stories hosted
+// at taleforge.pages.dev. You may NOT redistribute, rehost, fork as a
+// competing service, or use this code in any commercial product without
+// prior written permission. The Taleforge Story Builder is a separate
+// commercial product and is NOT covered by any rights granted here.
+// See LICENSE for full terms. Commercial inquiries: bandurria.apps@gmail.com
 
 import {
   generateSecretKey, getPublicKey, finalizeEvent, verifyEvent, SimplePool, nip19, nip04
