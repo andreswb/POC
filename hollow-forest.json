@@ -5,7 +5,7 @@
     "title": "The Hollow Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.1.3",
+    "version": "1.2.0",
     "created_at": "2026-04-30T00:00:00Z",
     "language": "en",
     "languages": [
@@ -184,7 +184,6 @@
       ],
       "exits": {
         "south": "chapel",
-        "east": "village_square",
         "down": {
           "target": "crypt",
           "requires_item": "silver_key",
@@ -289,7 +288,6 @@
       ],
       "exits": {
         "north": "chapel",
-        "west": "graveyard",
         "east": "smith",
         "south": "forest_path"
       },
@@ -355,6 +353,7 @@
       "exits": {
         "north": "village_square",
         "south": "black_lake",
+        "east": "fen_path",
         "west": {
           "target": "wolf_den",
           "requires_flag": "is_wolf",
@@ -632,7 +631,7 @@
       },
       "items": [],
       "npcs": [],
-      "riddle": null,
+      "riddle": "alpha_question",
       "tags": [
         "outdoor",
         "forest",
@@ -649,6 +648,138 @@
       ],
       "drink_source": null,
       "image": "🌕"
+    },
+    "fen_path": {
+      "name": "The Fen Path",
+      "summary": "An old corduroy road runs east from the wood, sinking into bog. Reeds grow taller than a man. Pale lights flicker among the standing water — never the same place twice.",
+      "example_descriptions": [
+        "Black water on either side. The corduroy logs are slick with moss. A heron lifts and is gone.",
+        "Mosquitoes. The smell of cold mud, and underneath it, something the mud has not finished hiding."
+      ],
+      "tone_hints": ["wet", "watching", "patient", "ancient"],
+      "exits": {
+        "west": "forest_path",
+        "east": "mire_grove",
+        "south": "drowned_shrine"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "marsh", "wild"],
+      "resources": [
+        {"id": "wolfsbane", "skill": "foraging", "verb": "forage", "yield_qty": 1, "regenerates": true, "regen_seconds": 200},
+        {"id": "bog_iron", "skill": "foraging", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 300}
+      ],
+      "hazards": {
+        "wolves": {"encounter_chance": 0.15, "entity": "fen_wraith"}
+      },
+      "spawn_table": [
+        {"entity": "fen_wraith", "weight": 3},
+        {"entity": "fen_toad", "weight": 4}
+      ],
+      "drink_source": null,
+      "image": "🪻"
+    },
+    "mire_grove": {
+      "name": "The Mire Grove",
+      "summary": "A clearing in the bog. Black willows lean inward, roots half-drowned. A cairn stands in the middle, stones piled by hands that are no longer here. Something below the standing water hums faintly when you stop walking.",
+      "example_descriptions": [
+        "Frogs. Then no frogs. Then frogs again. Whatever quietened them moved on.",
+        "The cairn-stones are warm. Someone laid them recently — or they have always been warm."
+      ],
+      "tone_hints": ["watching", "quiet", "old", "wrong"],
+      "exits": {
+        "west": "fen_path",
+        "east": "witch_hut",
+        "down": "sunken_crypt"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "marsh", "sacred"],
+      "resources": [
+        {"id": "moonsilver_herb", "skill": "foraging", "verb": "forage", "yield_qty": 1, "regenerates": true, "regen_seconds": 240}
+      ],
+      "hazards": {},
+      "spawn_table": [
+        {"entity": "fen_wraith", "weight": 4},
+        {"entity": "plague_rat", "weight": 2}
+      ],
+      "drink_source": null,
+      "image": "🌳"
+    },
+    "witch_hut": {
+      "name": "The Hermit's Hut",
+      "summary": "A low cottage on stilts, wattle-and-daub, roof thick with moss. Bundled herbs swing from every beam. A copper still drips slow at the back. The hermit-witch keeps her own hours, and the door stays propped for travellers.",
+      "example_descriptions": [
+        "Smoke. Wormwood. The hermit-witch sits in a chair by the fire, peeling something pale.",
+        "Bottles in racks: clear, smoke-coloured, blood-coloured. A crow lifts from the rafters and resettles."
+      ],
+      "tone_hints": ["warm", "dry", "watchful", "kind"],
+      "exits": {
+        "west": "mire_grove"
+      },
+      "items": [],
+      "npcs": ["the_hermit_witch"],
+      "riddle": null,
+      "tags": ["indoor", "shelter"],
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": {"restore_life": 6, "cooldown_seconds": 60},
+      "image": "🏚️"
+    },
+    "drowned_shrine": {
+      "name": "The Drowned Shrine",
+      "summary": "A small stone chapel half-sunken in the bog. Only the bell-pediment is dry. The altar is below the water-line; a verse runs around the lintel above the stoop. The candles down there are still lit.",
+      "example_descriptions": [
+        "The water laps the second pew. Candles burn underwater. They shouldn't, and they do.",
+        "A drowned figure kneels at the altar. It does not turn when you enter."
+      ],
+      "tone_hints": ["wet", "sacred", "wrong", "patient"],
+      "exits": {
+        "north": "fen_path"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": "drowned_verse",
+      "tags": ["indoor", "sacred", "marsh"],
+      "resources": [],
+      "hazards": {
+        "wolves": {"encounter_chance": 0.25, "entity": "drowned_priest"}
+      },
+      "spawn_table": [
+        {"entity": "drowned_priest", "weight": 8}
+      ],
+      "drink_source": null,
+      "image": "⛲"
+    },
+    "sunken_crypt": {
+      "name": "The Sunken Crypt",
+      "summary": "Below the mire, a cold stone vault, water seeping through every joint. Bones in heaps along the walls. Older than the village. Older, possibly, than the priest.",
+      "example_descriptions": [
+        "Cold water around your ankles. Each step echoes wrong, doubled, off.",
+        "A stone chest in the centre, half submerged. The lid is tight."
+      ],
+      "tone_hints": ["cold", "wet", "old", "watching"],
+      "exits": {
+        "up": "mire_grove"
+      },
+      "items": ["cursed_locket"],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["underground", "marsh"],
+      "layer": "underground",
+      "resources": [
+        {"id": "silver_dust", "skill": "foraging", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 300}
+      ],
+      "hazards": {},
+      "spawn_table": [
+        {"entity": "fen_wraith", "weight": 3},
+        {"entity": "shade", "weight": 2}
+      ],
+      "drink_source": null,
+      "image": "💀"
     }
   },
   "items": {
@@ -915,6 +1046,163 @@
       "category": "good",
       "stackable": false,
       "image": "🦷"
+    },
+    "bog_iron": {
+      "display": "bog iron",
+      "article": "a chunk of",
+      "description": "Iron rust knit through bog-mat — heavy, dark, faintly cold. The smith pays for clean ore.",
+      "value": 8,
+      "weight": 0.5,
+      "tags": ["resource", "iron"],
+      "category": "resource",
+      "stackable": true,
+      "image": "🪨"
+    },
+    "hagstone": {
+      "display": "hagstone",
+      "article": "a",
+      "description": "A river-stone with a natural hole through it. Folk wisdom claims you can see truer things through it. Folk wisdom is sometimes right.",
+      "value": 18,
+      "weight": 0.2,
+      "tags": ["trinket", "sacred"],
+      "category": "good",
+      "stackable": false,
+      "image": "🟤"
+    },
+    "witch_water": {
+      "display": "witch-water",
+      "article": "a flask of",
+      "description": "Bitter, herbal, slightly metallic. Restores life. The hermit-witch will not say what's in it.",
+      "value": 14,
+      "weight": 0.2,
+      "tags": ["consumable", "alchemy"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 22},
+      "consumable_action": "drink",
+      "image": "🧪"
+    },
+    "cursed_locket": {
+      "display": "tarnished locket",
+      "article": "a",
+      "description": "A silver locket, blackened. Inside, a curl of dark hair and a name etched too small to read in this light.",
+      "value": 0,
+      "weight": 0.1,
+      "tags": ["trinket", "cursed", "lore"],
+      "category": "good",
+      "stackable": false,
+      "image": "📿"
+    },
+    "fen_pelt": {
+      "display": "fen-toad pelt",
+      "article": "a",
+      "description": "A heavy, oily skin. The hunter will buy it; better waterproofing than wolf-pelt for boots, she says.",
+      "value": 10,
+      "weight": 1.0,
+      "tags": ["fur"],
+      "category": "good",
+      "stackable": false,
+      "image": "🟢"
+    },
+    "fen_meat": {
+      "display": "fen meat",
+      "article": "some",
+      "description": "Pale, cold-tasting. Eat it warm or not at all.",
+      "value": 2,
+      "weight": 0.4,
+      "tags": ["food", "raw"],
+      "category": "resource",
+      "stackable": true,
+      "decay_turns": 60,
+      "effects": {"restore_life": 3},
+      "consumable_action": "eat",
+      "image": "🍖"
+    },
+    "witch_elixir": {
+      "display": "witch's elixir",
+      "article": "a stoppered flask of",
+      "description": "Distilled from things you'd rather not know. Powerful — and you will feel it before you taste it.",
+      "value": 60,
+      "weight": 0.2,
+      "tags": ["consumable", "alchemy"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 60},
+      "consumable_action": "drink",
+      "image": "🍶"
+    },
+    "silvered_torch": {
+      "display": "silvered torch",
+      "article": "a",
+      "description": "A torch dipped in silver oil. Burns longer; cursed things flinch from its light.",
+      "value": 12,
+      "weight": 0.5,
+      "tags": ["light", "silver", "weapon"],
+      "category": "good",
+      "stackable": false,
+      "slot": "hand",
+      "effects": {
+        "attack_bonus": 4,
+        "damage_type": "pierce"
+      },
+      "image": "🕯"
+    },
+    "silvered_bolt": {
+      "display": "silvered crossbow bolt",
+      "article": "a",
+      "description": "A short bolt with a silvered head. Single-use; you do not get it back.",
+      "value": 18,
+      "weight": 0.1,
+      "tags": ["ammo", "silver"],
+      "category": "resource",
+      "stackable": true,
+      "image": "🏹"
+    },
+    "bone_amulet": {
+      "display": "bone amulet",
+      "article": "a",
+      "description": "A finger-bone strung with silver wire. The smith will tell you it doesn't work. The smith is lying.",
+      "value": 25,
+      "weight": 0.1,
+      "tags": ["trinket", "bone", "silver"],
+      "category": "good",
+      "stackable": false,
+      "image": "🦴"
+    },
+    "lost_sister_journal": {
+      "display": "the lost sister's journal",
+      "article": "a",
+      "description": "A small leather book in a girl's hand. Last entry: 'I will go to the graveyard tonight. I will not let the Count have her too.'",
+      "value": 0,
+      "weight": 0.2,
+      "tags": ["lore", "trinket"],
+      "category": "good",
+      "stackable": false,
+      "image": "📖"
+    },
+    "gospel_fragment": {
+      "display": "page of the drowned gospel",
+      "article": "a",
+      "description": "A water-stained page in old script. The verse is worn but the title is clear: 'On Things That Drown And Yet Are Not Drowned.'",
+      "value": 6,
+      "weight": 0.05,
+      "tags": ["lore", "sacred"],
+      "category": "resource",
+      "stackable": true,
+      "image": "📜"
+    },
+    "brewed_restorative": {
+      "display": "brewed restorative",
+      "article": "a corked bottle of",
+      "description": "Holy water with crushed wolfsbane and moonsilver. Calming. Strong. The priest doesn't write the recipe down.",
+      "value": 35,
+      "weight": 0.2,
+      "tags": ["consumable", "alchemy", "sacred"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 50},
+      "consumable_action": "drink",
+      "image": "🍯"
     }
   },
   "skills": {
@@ -1025,6 +1313,20 @@
         "recipes": [],
         "interactions": []
       }
+    },
+    "hedgewitchery": {
+      "display": "Hedgewitchery",
+      "description": "Older than the priest's word, fouler than the Count's gift. Brews that bind the wild instead of taming it. Granted by the hermit's baptism — not taught.",
+      "tier": 3,
+      "spark_cost": 0,
+      "prereqs": [],
+      "acquisition": "trigger",
+      "unlocks": {
+        "verbs": [],
+        "recipes": ["brew_witch_water", "brew_witch_elixir"],
+        "interactions": []
+      },
+      "tags": ["sacred", "wild"]
     }
   },
   "recipes": {
@@ -1099,6 +1401,98 @@
       "requires_fire": true,
       "duration_seconds": 0,
       "sparks_reward": 6
+    },
+    "forge_silvered_torch": {
+      "display": "Silvered torch",
+      "description": "Dip a torch in silver oil. Cursed things flinch from its light.",
+      "skill": "smithing",
+      "inputs": [
+        {"item": "torch", "qty": 1},
+        {"item": "silver_oil", "qty": 1}
+      ],
+      "outputs": [
+        {"item": "silvered_torch", "qty": 1}
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 4
+    },
+    "craft_bone_amulet": {
+      "display": "Bone amulet",
+      "description": "Bind a finger-bone with silver wire. Folk wisdom, stronger than the smith claims.",
+      "skill": "smithing",
+      "inputs": [
+        {"item": "bone_relic", "qty": 1},
+        {"item": "silver_dust", "qty": 1}
+      ],
+      "outputs": [
+        {"item": "bone_amulet", "qty": 1}
+      ],
+      "requires_fire": false,
+      "duration_seconds": 0,
+      "sparks_reward": 5
+    },
+    "forge_silvered_bolts": {
+      "display": "Silvered bolts",
+      "description": "Forge five silvered bolts at a time.",
+      "skill": "smithing",
+      "inputs": [
+        {"item": "bog_iron", "qty": 1},
+        {"item": "silver_oil", "qty": 1}
+      ],
+      "outputs": [
+        {"item": "silvered_bolt", "qty": 5}
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 5
+    },
+    "brew_restorative": {
+      "display": "Brewed restorative",
+      "description": "A strong heal for those who drink the priest's brews.",
+      "skill": "alchemy",
+      "inputs": [
+        {"item": "holy_water", "qty": 1},
+        {"item": "wolfsbane", "qty": 1},
+        {"item": "moonsilver_herb", "qty": 1}
+      ],
+      "outputs": [
+        {"item": "brewed_restorative", "qty": 1}
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 6
+    },
+    "brew_witch_water": {
+      "display": "Witch-water",
+      "description": "The hermit-witch's working draught. Strong restorative.",
+      "skill": "hedgewitchery",
+      "inputs": [
+        {"item": "wolfsbane", "qty": 2},
+        {"item": "fen_meat", "qty": 1}
+      ],
+      "outputs": [
+        {"item": "witch_water", "qty": 2}
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 6
+    },
+    "brew_witch_elixir": {
+      "display": "Witch's elixir",
+      "description": "Distilled in iron from things best not catalogued.",
+      "skill": "hedgewitchery",
+      "inputs": [
+        {"item": "witch_water", "qty": 2},
+        {"item": "moonsilver_herb", "qty": 2},
+        {"item": "bog_iron", "qty": 1}
+      ],
+      "outputs": [
+        {"item": "witch_elixir", "qty": 1}
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 10
     }
   },
   "entities": {
@@ -1340,6 +1734,95 @@
         "unique",
         "large"
       ]
+    },
+    "fen_wraith": {
+      "display": "fen-wraith",
+      "summary": "A slow shape of mist and salt-water, knee-deep in the bog. Its hands are empty. Its grief is not.",
+      "tone_hints": ["sad", "cold", "patient"],
+      "hp": 18,
+      "attack_damage_range": [3, 6],
+      "evasion": 0.25,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [
+        {"item": "hagstone", "qty": 1, "chance": 0.15},
+        {"item": "silver_dust", "qty": 1, "chance": 0.1}
+      ],
+      "weaknesses": ["pierce"],
+      "resistances": ["blunt"],
+      "tags": ["spirit", "marsh"]
+    },
+    "fen_toad": {
+      "display": "fen toad",
+      "summary": "Heavy, slick, eyes the colour of stagnant water. Bigger than they should be. Bites. Doesn't think.",
+      "tone_hints": ["cold", "patient"],
+      "hp": 10,
+      "attack_damage_range": [2, 4],
+      "evasion": 0.0,
+      "hostile": true,
+      "base_drops": [
+        {"item": "fen_meat", "qty": 1}
+      ],
+      "skinning_drops": [
+        {"item": "fen_pelt", "qty": 1}
+      ],
+      "rare_drops": [],
+      "weaknesses": ["slash"],
+      "resistances": [],
+      "tags": ["beast", "marsh"]
+    },
+    "drowned_priest": {
+      "display": "the drowned priest",
+      "summary": "A figure in soaked vestments who kneels at an altar that is not there. He stands when you enter. The candles around him have not been lit by living hands.",
+      "tone_hints": ["sad", "patient", "old"],
+      "hp": 40,
+      "attack_damage_range": [5, 11],
+      "evasion": 0.05,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [
+        {"item": "gospel_fragment", "qty": 1, "chance": 1.0},
+        {"item": "silver_dust", "qty": 2, "chance": 0.5}
+      ],
+      "weaknesses": ["pierce"],
+      "resistances": ["blunt"],
+      "tags": ["undead", "sacred", "unique"]
+    },
+    "plague_rat": {
+      "display": "plague rat",
+      "summary": "Larger than it should be. Eyes too bright. The bite carries something the priest doesn't have a name for yet.",
+      "tone_hints": ["fast", "wrong", "many"],
+      "hp": 6,
+      "attack_damage_range": [1, 3],
+      "evasion": 0.2,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [
+        {"item": "raw_meat", "qty": 1, "chance": 0.3}
+      ],
+      "weaknesses": ["slash", "pierce"],
+      "resistances": [],
+      "tags": ["small", "fast", "vermin"]
+    },
+    "sleepwalker": {
+      "display": "sleepwalker",
+      "summary": "A villager in nightclothes, eyes open but not seeing. They walk where they are pulled. They do not wake when you call.",
+      "tone_hints": ["slow", "afraid", "unaware"],
+      "hp": 16,
+      "attack_damage_range": [2, 5],
+      "evasion": 0.0,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [
+        {"item": "lost_sister_journal", "qty": 1, "chance": 0.15}
+      ],
+      "weaknesses": ["blunt"],
+      "resistances": [],
+      "tags": ["mortal", "cursed"]
     }
   },
   "riddles": {
@@ -1360,6 +1843,42 @@
           "qty": 1
         }
       ],
+      "repeatable": false
+    },
+    "crypt_verse": {
+      "location": "crypt",
+      "prompt": "I bite the cursed but not the kind. I am cold to the warm and warm to the dead. The grave does not turn me away. What am I?",
+      "answers": ["silver", "the silver", "silvered"],
+      "reward_sparks": 30,
+      "on_solve_message": "The verse on the slab seems to brighten. Beneath the silver dagger, you find a thin sheet of paper folded in three.",
+      "reward_items": [{"item": "gospel_fragment", "qty": 1}],
+      "repeatable": false
+    },
+    "smith_iron": {
+      "location": "smith",
+      "prompt": "Born of bog and slept in stone, woken by fire and broken alone, edged by salt and edged by song — I am useful as long as you are strong. What am I?",
+      "answers": ["iron", "bog iron", "bog-iron"],
+      "reward_sparks": 25,
+      "on_solve_message": "The smith laughs, briefly, and tosses you a piece of bog-iron. 'Bring more if you find it. Iron is iron.'",
+      "reward_items": [{"item": "bog_iron", "qty": 2}],
+      "repeatable": false
+    },
+    "alpha_question": {
+      "location": "the_hollow",
+      "prompt": "I had a name once. I have a hunger now. I am older than your village and younger than your forest. What did I lose?",
+      "answers": ["your name", "name", "your shape", "the wolf", "yourself"],
+      "reward_sparks": 50,
+      "on_solve_message": "The alpha looks at you with eyes the colour of bone. The pack moves back. She inclines her head, once.",
+      "reward_items": [],
+      "repeatable": false
+    },
+    "drowned_verse": {
+      "location": "drowned_shrine",
+      "prompt": "I burn where I am drowned. I sing where I am silenced. I hold where the hand is gone. What am I?",
+      "answers": ["candle", "the candle", "a candle", "candles"],
+      "reward_sparks": 35,
+      "on_solve_message": "A candle below the waterline brightens by itself. Beside the altar, a hagstone rolls free of the silt.",
+      "reward_items": [{"item": "hagstone", "qty": 1}],
       "repeatable": false
     }
   },
@@ -1926,6 +2445,98 @@
           ]
         }
       ]
+    },
+    "the_hermit_witch": {
+      "display": "the hermit-witch",
+      "location": "witch_hut",
+      "summary": "A weathered, grey-haired woman with iron rings on every finger. She nods when you come in. She remembers everyone she has ever poisoned, and most she has not.",
+      "tone_hints": ["weathered", "wry", "patient", "knowing"],
+      "dialogue_seeds": [
+        "Sit, then. The kettle is warm.",
+        "Priest's wrong. Count's wrong. Both want you to choose between two cages. There's a third door if you want it.",
+        "Bog-iron, hagstone, holy water — bring the three and I'll show you what comes after the last cage."
+      ],
+      "behaviors": ["buys_items", "tells_rumors"],
+      "buys_tags": ["herb", "alchemy", "cursed", "lore"],
+      "is_marketplace": true,
+      "initial_stock": [
+        {"item": "witch_water", "qty": 4, "price_gold": 14},
+        {"item": "wolfsbane", "qty": 5, "price_gold": 6},
+        {"item": "moonsilver_herb", "qty": 3, "price_gold": 12}
+      ],
+      "hours": {"open": 0, "close": 24},
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "Welcome, traveller. The fen swallows most who come this far. You're not most.",
+            "There is tea, if you have time. There is more than tea, if you have need."
+          ],
+          "choices": [
+            {"label": "Tell me about the third path.", "goto": "third_path"},
+            {"label": "What do you know of the Count?", "goto": "count_lore"},
+            {"label": "What do you know of the priest?", "goto": "priest_lore"},
+            {"label": "I have what you asked.", "goto": "baptism_ready", "requires_flag": "witch_offered_baptism", "requires_item": "hagstone"},
+            {"label": "Goodbye.", "end": true}
+          ]
+        },
+        "third_path": {
+          "lines": [
+            "The priest will tell you to be cleansed. The Count will tell you to be remade. Both want you tame.",
+            "I tell you: there is older water than holy water. The fen baptises its own. It does not cure, and it does not gift. It binds. You become — neither, but kept."
+          ],
+          "choices": [
+            {"label": "What does it cost?", "goto": "third_cost"},
+            {"label": "I'll think on it.", "goto": "default"}
+          ]
+        },
+        "third_cost": {
+          "lines": [
+            "Bog-iron from the path. A hagstone — the shrine knows where they are. A vial of holy water from the chapel font.",
+            "Bring me the three. I'll do the rest. You will sleep, then you will rise. The hunger you carried — wolf or other — will not own you."
+          ],
+          "effects": [
+            {"type": "set_flag", "flag": "witch_offered_baptism"}
+          ],
+          "choices": [
+            {"label": "I will return.", "end": true}
+          ]
+        },
+        "count_lore": {
+          "lines": [
+            "He is older than this village by a long count. He came up the lake when this fen still drained.",
+            "He is courteous. He is also a wolf in his own way. The night-wolves know him; they don't bow. They keep their distance."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "priest_lore": {
+          "lines": [
+            "He is a good man with a small God. He believes in clean answers. The fen has none of those.",
+            "He has lost more than he says. The young woman of the village. She walked into the graveyard and did not come out. He has not slept since."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "baptism_ready": {
+          "lines": [
+            "You have all three. Sit by the fire. Drink. Hold still.",
+            "...",
+            "It is done. The fen knows you. You are neither cursed nor cured. You are kept. The hunger that was in you is in the water now."
+          ],
+          "effects": [
+            {"type": "revoke_skill", "skill": "lycanthropy"},
+            {"type": "revoke_skill", "skill": "vampirism"},
+            {"type": "grant_skill", "skill": "hedgewitchery"},
+            {"type": "set_flag", "flag": "fen_baptised"},
+            {"type": "narrate", "text": ">>> Cold water tastes of iron. The world dims, then sharpens. You are awake in a way you have never been. Your shadow is now part of the fen.", "cls": "spark"}
+          ],
+          "choices": [
+            {"label": "Thank you.", "end": true}
+          ]
+        }
+      }
     }
   },
   "quests": {
@@ -2125,6 +2736,78 @@
         ]
       },
       "completion_message": "He weeps, briefly, and sets the relic on the altar. \"Thank you. The family will come tonight.\""
+    },
+    "the_witch_offer": {
+      "title": "The Witch's Offer",
+      "description": "Visit the hermit-witch in the fen, east of the wood. She speaks of a third path — neither cure nor gift.",
+      "giver": null,
+      "auto_accept": true,
+      "objectives": [
+        {"type": "visited", "room": "witch_hut"}
+      ],
+      "rewards": {"gold": 10, "sparks": 8, "items": []},
+      "completion_message": "You have heard the third option. Choose."
+    },
+    "gather_for_baptism": {
+      "title": "The Fen Baptism",
+      "description": "The hermit-witch has offered to bind you to the fen. Bring her bog-iron, a hagstone, and a vial of holy water.",
+      "giver": "the_hermit_witch",
+      "auto_accept": false,
+      "requires": ["the_witch_offer"],
+      "objectives": [
+        {"type": "have_item", "item": "bog_iron", "qty": 1, "consume": false},
+        {"type": "have_item", "item": "hagstone", "qty": 1, "consume": false},
+        {"type": "have_item", "item": "holy_water", "qty": 1, "consume": false}
+      ],
+      "rewards": {"gold": 30, "sparks": 30, "items": []},
+      "completion_message": "She has what she needs. Talk to her with `talk witch` to drink the brew. (Pick the 'I have what you asked' branch.)"
+    },
+    "dawn_revenants": {
+      "title": "Dawn Revenants",
+      "description": "The watchman has seen revenants in the graveyard each morning since the trench was dug. End three of them.",
+      "giver": "the_watchman",
+      "auto_accept": false,
+      "requires": ["intro_chapel"],
+      "objectives": [
+        {"type": "kill", "entity": "revenant", "qty": 3}
+      ],
+      "rewards": {"gold": 25, "sparks": 12, "items": []},
+      "completion_message": "He nods and shifts his lantern from one hand to the other. 'Tomorrow there will be three more. Come back if you have the stomach.'"
+    },
+    "the_drowned_priest": {
+      "title": "The Drowned Priest",
+      "description": "The hermit speaks of a drowned shrine south of the fen-path. The priest who knelt there did not stop kneeling. End his vigil.",
+      "giver": "the_hermit_witch",
+      "auto_accept": false,
+      "requires": ["the_witch_offer"],
+      "objectives": [
+        {"type": "kill", "entity": "drowned_priest", "qty": 1}
+      ],
+      "rewards": {"gold": 60, "sparks": 25, "items": [{"item": "hagstone", "qty": 1}]},
+      "completion_message": "The candles below the water go out together. The hermit-witch bows her head briefly when you tell her, and pours you something stronger."
+    },
+    "plague_in_the_walls": {
+      "title": "Plague in the Walls",
+      "description": "Plague rats are nesting beyond the mire. End four of them before whatever's making them spreads.",
+      "giver": null,
+      "auto_accept": true,
+      "objectives": [
+        {"type": "kill", "entity": "plague_rat", "qty": 4}
+      ],
+      "rewards": {"gold": 18, "sparks": 8, "items": []},
+      "completion_message": "The rats scatter and don't return for a while. The villagers will sleep less afraid tonight."
+    },
+    "the_sisters_journal": {
+      "title": "The Sister's Journal",
+      "description": "The watchman recalls the young woman writing in a journal up to the night she went. Find it. The priest will want to know what she wrote.",
+      "giver": "the_priest",
+      "auto_accept": false,
+      "requires": ["the_lost_sister"],
+      "objectives": [
+        {"type": "have_item", "item": "lost_sister_journal", "qty": 1}
+      ],
+      "rewards": {"gold": 40, "sparks": 20, "items": [{"item": "brewed_restorative", "qty": 2}]},
+      "completion_message": "The priest reads the last entry, then closes the book gently. He does not look up for some time. 'Thank you. There was something I had not let myself know.'"
     }
   },
   "events": {
