@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.55.1';
+const ENGINE_VERSION_LABEL = 'v0.56';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.56':   '`endings all` cross-story view with completion %. Story-version changelog detection (meta.changelog field). Picker filters now collapsible (auto-collapse after 5 opens). Public bug board on Nostr (kind-30445) with `bugs` command. Builder gained ✨ rewrite presets (darker/tighten/sensory/poetic/…) and a ▶ playtest checklist.',
   'v0.55.1': 'Age-gate fires at picker click time (visible immediately, not after the overlay closes). Stored acks now expire after 30 days; raising a story\'s minimum_age also re-prompts. New `forgetage` command clears stored acks for testing. Copyright bumped to 2026.',
   'v0.55':   'Engine source extracted to engine.mjs (game.html is now a 20KB shell). Right-clicking the page no longer captures the engine. Builder type-sync + service worker updated to fetch the new path.',
   'v0.54':   'Endings completionist sidebar widget. Marketplace stories now respect picker filters/search. Map legend in zoom modal. Cross-device endings sync via Nostr (kind-30433, encrypted). Magic-link character handoff (`share` command, ?nsec=… URLs, QR codes). Builder gained AI region + AI quest-chain scaffolders.',
@@ -240,6 +241,56 @@ function reloadEngine() {
   setTimeout(() => {
     try { location.reload(); } catch {}
   }, 600);
+}
+
+// Engine v0.55.2 — Tier A2: story-version changelog. Tracks last-played
+// version per story in localStorage; on boot, if the current STORY's
+// meta.version is newer than what was last seen and meta.changelog exists,
+// surface the changelog entries between the two versions to the player.
+const STORY_VERSION_SEEN_PREFIX = 'taleforge:story_version_seen:';
+function showStoryChangelogIfBumped() {
+  try {
+    const id = STORY?.meta?.id;
+    if (!id) return;
+    const cur = STORY.meta.version || '';
+    const key = STORY_VERSION_SEEN_PREFIX + id;
+    const last = localStorage.getItem(key);
+    localStorage.setItem(key, cur);
+    if (!last || last === cur) return;
+    const log = STORY.meta.changelog;
+    if (!log) return;
+    // Accept either { "1.6.0": "note" } object form OR
+    // [{ version, note }, ...] array form.
+    let entries = [];
+    if (Array.isArray(log)) {
+      entries = log.map(e => ({ version: String(e.version || '?'), note: String(e.note || '') }));
+    } else if (typeof log === 'object') {
+      entries = Object.entries(log).map(([v, note]) => ({ version: String(v), note: String(note || '') }));
+    }
+    if (entries.length === 0) return;
+    // Versions strictly above `last` and at-or-below `cur` (semver-ish compare via parts).
+    function cmp(a, b) {
+      const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+      const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const x = pa[i] || 0, y = pb[i] || 0;
+        if (x !== y) return x - y;
+      }
+      return 0;
+    }
+    const since = entries.filter(e => cmp(e.version, last) > 0 && cmp(e.version, cur) <= 0)
+                          .sort((a, b) => cmp(b.version, a.version));
+    if (since.length === 0) return;
+    setTimeout(() => {
+      try {
+        const title = (typeof STORY.meta.title === 'string') ? STORY.meta.title : (STORY.meta.title?.en || id);
+        write('');
+        write(`=== "${title}" updated: ${last} → ${cur} ===`, 'title');
+        for (const e of since) write(`  v${e.version}: ${e.note}`, 'spark');
+        write('', 'echo');
+      } catch {}
+    }, 1800);
+  } catch {}
 }
 
 async function checkForStoryUpdate({ silentIfSame = true } = {}) {
@@ -428,6 +479,7 @@ function showStoryPicker(currentId = null) {
       </div>
       <div style="color:#9c9388;font-size:13px;margin-bottom:16px;">Each story is its own world with its own character. You can switch any time with the <code>switch story</code> command.</div>
       <div id="picker-continue" style="margin-bottom:14px;"></div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:6px;"><button id="picker-toggle-filters" style="background:transparent;border:none;color:#9c9388;font-size:11px;cursor:pointer;font:inherit;text-decoration:underline;padding:0;">⊞ filters</button></div>
       <div id="picker-controls" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px;font-size:12px;color:#9c9388;">
         <input id="picker-search" type="text" placeholder="search title / author / tag…" style="flex:1;min-width:160px;background:#0c0e10;border:1px solid #3a352e;color:#e8e6e3;border-radius:4px;padding:5px 8px;font:inherit;font-size:12px;">
         <select id="picker-sort" title="Sort order" style="background:#0c0e10;border:1px solid #3a352e;color:#e8e6e3;border-radius:4px;padding:5px 7px;font:inherit;font-size:12px;">
@@ -535,6 +587,36 @@ function showStoryPicker(currentId = null) {
     if (hideCwEl) {
       hideCwEl.checked = pickerState.hideCW;
       hideCwEl.addEventListener('change', () => { pickerState.hideCW = hideCwEl.checked; try { localStorage.setItem('taleforge:picker:hideCW', hideCwEl.checked ? '1' : '0'); } catch {} renderList(); });
+    }
+    // Engine v0.55.2 — Tier A3: compact-mode toggle for filters + tag chips.
+    // Default: collapsed (controls + tag chips hidden) once the player has
+    // opened the picker 5+ times (assume they know it; reduce visual noise).
+    // Click "⊞ filters" to show; click again to hide. State persists.
+    let pickerOpenCount = 0;
+    try { pickerOpenCount = parseInt(localStorage.getItem('taleforge:picker:open_count') || '0', 10) || 0; } catch {}
+    pickerOpenCount++;
+    try { localStorage.setItem('taleforge:picker:open_count', String(pickerOpenCount)); } catch {}
+    let filtersExpanded;
+    const explicit = (() => { try { return localStorage.getItem('taleforge:picker:filters_expanded'); } catch { return null; } })();
+    if (explicit === '1') filtersExpanded = true;
+    else if (explicit === '0') filtersExpanded = false;
+    else filtersExpanded = pickerOpenCount <= 5;  // default: expanded for first 5 opens, then collapse
+    const controlsEl = panel.querySelector('#picker-controls');
+    const tagchipsEl = panel.querySelector('#picker-tagchips');
+    const toggleBtn = panel.querySelector('#picker-toggle-filters');
+    function applyFilterVisibility() {
+      const show = filtersExpanded;
+      if (controlsEl) controlsEl.style.display = show ? '' : 'none';
+      if (tagchipsEl) tagchipsEl.style.display = show ? '' : 'none';
+      if (toggleBtn) toggleBtn.textContent = show ? '× hide filters' : '⊞ filters';
+    }
+    applyFilterVisibility();
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        filtersExpanded = !filtersExpanded;
+        try { localStorage.setItem('taleforge:picker:filters_expanded', filtersExpanded ? '1' : '0'); } catch {}
+        applyFilterVisibility();
+      });
     }
     function renderTagChips() {
       const wrap = panel.querySelector('#picker-tagchips');
@@ -960,6 +1042,28 @@ function showBugReporter() {
       panel.querySelector('#bug-msg').textContent = 'Email composer opened. Send it from your mail app.';
     };
   }
+  // Engine v0.55.2 — Tier C9: also publish to public bug board on Nostr.
+  // Adds a checkbox; if checked, a kind-30445 event with the description +
+  // safe debug context is broadcast so other players can see/upvote
+  // recurring issues. The email path is independent.
+  const publicRow = document.createElement('div');
+  publicRow.style.cssText = 'margin-top:10px;display:flex;align-items:center;gap:8px;font-size:12px;color:#9c9388;';
+  publicRow.innerHTML = `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="bug-public" type="checkbox" checked> publish to public bug board (Nostr)</label><a id="bug-board-link" href="#" style="color:var(--accent);font-size:11px;margin-left:auto;">view board</a>`;
+  panel.insertBefore(publicRow, panel.querySelector('#bug-msg'));
+  panel.querySelector('#bug-board-link').onclick = (ev) => { ev.preventDefault(); close(); showBugBoard(); };
+  // Wrap the existing send button to also broadcast.
+  const origOnClick = sendBtn.onclick;
+  sendBtn.onclick = (ev) => {
+    const desc = panel.querySelector('#bug-desc').value;
+    if (panel.querySelector('#bug-public')?.checked && desc.trim()) {
+      try { publishBugReport(desc, debug); } catch {}
+    }
+    if (origOnClick) origOnClick(ev);
+    else {
+      panel.querySelector('#bug-msg').style.color = '#6dc28d';
+      panel.querySelector('#bug-msg').textContent = 'Bug published to the public board. Type "bugs" any time to view.';
+    }
+  };
 
   overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   setTimeout(() => panel.querySelector('#bug-desc').focus(), 50);
@@ -996,6 +1100,114 @@ function hasAgeAck(story) {
 }
 // Tier "age-gate fix" — debug helper to clear stored acks so authors and
 // testers can verify the gate fires.
+// Engine v0.55.2 — Tier C9: public bug board.
+// publishBugReport — broadcast a kind-30445 event with description + safe
+// debug fields. Replaceable per (author, story, summary-hash).
+async function publishBugReport(desc, debug) {
+  try {
+    if (typeof sk === 'undefined' || !sk) return;
+    // Hash the first 80 chars to make a deterministic d-tag — same bug
+    // report twice from the same player overwrites instead of dup'ing.
+    const summary = (desc || '').slice(0, 80).replace(/\s+/g, ' ').trim();
+    const enc = new TextEncoder().encode(summary);
+    const hash = await crypto.subtle.digest('SHA-256', enc);
+    const hashHex = Array.from(new Uint8Array(hash)).slice(0, 8).map(b => b.toString(16).padStart(2, '0')).join('');
+    const evt = finalizeEvent({
+      kind: KIND_BUG_REPORT,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ['t', 'taleforge-bug'],
+        ['d', `bug:${hashHex}`],
+        ['engine', debug?.engine || ENGINE_VERSION_LABEL],
+        ['story', debug?.story_id || '?'],
+        ['platform', String(debug?.platform || '').slice(0, 80)]
+      ],
+      content: JSON.stringify({
+        v: 1,
+        description: desc.slice(0, 4000),
+        engine: debug?.engine,
+        story_id: debug?.story_id,
+        story_version: debug?.story_version,
+        room: debug?.room,
+        locale: debug?.locale,
+        time: debug?.time
+      })
+    }, sk);
+    tryPublish(evt);
+  } catch (e) { console.warn('publishBugReport failed:', e); }
+}
+
+async function showBugBoard() {
+  if (typeof pool === 'undefined' || !pool) {
+    write('Bug board needs the relay pool — try again after boot completes.', 'error');
+    return;
+  }
+  writeBlock('=== Public bug board ===', () => {
+    write('Loading recent bug reports from relays…', 'system');
+  }, '');
+  const since = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
+  const reports = [];
+  const reactions = new Map();  // d-tag → upvote count
+  try {
+    await new Promise((resolve) => {
+      let timer = setTimeout(() => resolve(), 4500);
+      pool.subscribeMany(RELAYS, [
+        { kinds: [KIND_BUG_REPORT], '#t': ['taleforge-bug'], since, limit: 60 },
+        { kinds: [7], '#t': ['taleforge-bug'], since, limit: 200 }
+      ], {
+        onevent(event) {
+          if (event.kind === KIND_BUG_REPORT) {
+            try {
+              const c = JSON.parse(event.content);
+              const dTag = (event.tags.find(t => t[0] === 'd') || [])[1] || event.id.slice(0, 12);
+              const story = (event.tags.find(t => t[0] === 'story') || [])[1] || '?';
+              const engine = (event.tags.find(t => t[0] === 'engine') || [])[1] || '?';
+              reports.push({
+                id: event.id,
+                dTag,
+                pubkey: event.pubkey,
+                created_at: event.created_at,
+                story,
+                engine,
+                description: String(c.description || '').slice(0, 240),
+                room: c.room
+              });
+            } catch {}
+          } else if (event.kind === 7) {
+            // NIP-25 reaction; group by referenced bug d-tag if present.
+            const ref = (event.tags.find(t => t[0] === 'a') || [])[1] || '';
+            if (ref) reactions.set(ref, (reactions.get(ref) || 0) + 1);
+          }
+        },
+        oneose() { clearTimeout(timer); setTimeout(resolve, 200); }
+      });
+    });
+  } catch {}
+  writeBlock('=== Public bug board (last 30 days) ===', () => {
+    if (reports.length === 0) {
+      write('(no bug reports found on configured relays)', 'muted');
+      return;
+    }
+    // Dedup by d-tag (replaceable kind — keep newest per d-tag)
+    const byD = new Map();
+    for (const r of reports) {
+      const prev = byD.get(r.dTag);
+      if (!prev || prev.created_at < r.created_at) byD.set(r.dTag, r);
+    }
+    const list = [...byD.values()].sort((a, b) => b.created_at - a.created_at);
+    for (const r of list.slice(0, 25)) {
+      const ago = Math.floor((Date.now() / 1000 - r.created_at) / 86400);
+      const upvotes = reactions.get(`${KIND_BUG_REPORT}:${r.pubkey}:bug:${r.dTag.replace(/^bug:/, '')}`) || 0;
+      const npubShort = (() => { try { return nip19.npubEncode(r.pubkey).slice(0, 12) + '…'; } catch { return r.pubkey.slice(0, 8); } })();
+      write(`  [${ago}d ago] ${r.description}`, 'system');
+      write(`         story=${r.story} · engine=${r.engine}${r.room ? ' · room=' + r.room : ''} · by ${npubShort}${upvotes ? ' · ★' + upvotes : ''}`, 'echo');
+    }
+    if (list.length > 25) write(`  … and ${list.length - 25} older reports.`, 'muted');
+    write('');
+    write('Type "bug" to file a new report. Reports are public and tied to your nsec.', 'echo');
+  }, '── end of board ──');
+}
+
 function forgetAgeAcksCommand() {
   let removed = 0;
   try {
@@ -1222,6 +1434,7 @@ const KIND_BOUNTY       = 30437;
 const KIND_BOUNTY_CLAIM = 30438;
 const KIND_STORY_LISTING= 30441;
 const KIND_PROGRESSION  = 30433;  // Tier C9 — encrypted cross-device endings sync
+const KIND_BUG_REPORT   = 30445;  // Tier C9 (round 2) — public bug-report board
 const TOPIC_LISTINGS    = 'nta:story-listings';
 const TOPIC = 'story:' + STORY.meta.id;
 const FIRE_DURATION_TURNS = 20;
@@ -3546,10 +3759,54 @@ function syncAutoAcceptQuests() {
   }
 }
 
-function showEndings() {
+function showEndings(arg) {
+  // Engine v0.55.2 — Tier A1: cross-story view via "endings all".
+  // Default: just the current story's endings.
+  // "endings all": every story on this browser, with completion %.
+  const showAll = (arg || '').trim().toLowerCase() === 'all';
+  if (showAll) {
+    const allStories = (typeof listAllStoryOptions === 'function') ? listAllStoryOptions() : [];
+    const globalAcks = (typeof loadGlobalEndings === 'function') ? loadGlobalEndings() : {};
+    writeBlock('=== Endings — all stories ===', () => {
+      let totalReached = 0, totalAvailable = 0;
+      const rows = [];
+      for (const opt of allStories) {
+        if (opt.source === 'marketplace') continue;  // listings have no quest data
+        const all = listStoryEndings(opt.story);
+        if (all.length === 0) continue;
+        const reached = new Set(globalAcks[opt.id] || []);
+        const reachedCount = all.filter(e => reached.has(e.tag)).length;
+        totalReached += reachedCount;
+        totalAvailable += all.length;
+        rows.push({ opt, all, reached, reachedCount });
+      }
+      if (rows.length === 0) {
+        write('No stories on this browser declare endings yet.', 'muted');
+      } else {
+        rows.sort((a, b) => (b.reachedCount / b.all.length) - (a.reachedCount / a.all.length));
+        for (const { opt, all, reached, reachedCount } of rows) {
+          const pct = Math.round((reachedCount / all.length) * 100);
+          const bar = '▓'.repeat(Math.round(reachedCount * 8 / all.length)) + '░'.repeat(8 - Math.round(reachedCount * 8 / all.length));
+          const label = (typeof opt.story.meta?.title === 'string') ? opt.story.meta.title : (opt.story.meta?.title?.en || opt.id);
+          write(`  ${label}  ${bar}  ${reachedCount}/${all.length}  (${pct}%)`, reachedCount === all.length ? 'success' : 'system');
+          for (const e of all) {
+            const got = reached.has(e.tag);
+            write(`    ${got ? '★' : '·'} ${e.tag}${got ? '' : ' '.repeat(Math.max(0, 18 - e.tag.length)) + ' (locked)'}`, got ? 'success' : 'muted');
+          }
+        }
+        write('');
+        const totalPct = totalAvailable > 0 ? Math.round((totalReached / totalAvailable) * 100) : 0;
+        write(`Total: ${totalReached} / ${totalAvailable} endings (${totalPct}%)`, 'spark');
+      }
+      write('');
+      write(`Legacy carry-over: ${player.legacy_gold || 0} gold, ${player.legacy_sparks || 0} sparks.`, 'spark');
+    }, '── end of endings ──');
+    return;
+  }
   const set = player.endings_reached || new Set();
   if (set.size === 0) {
     write('No endings reached yet. Story endings unlock when you finish one.', 'system');
+    write('Type "endings all" for the cross-story view.', 'system');
     write(`Legacy carry-over so far: ${player.legacy_gold || 0} gold, ${player.legacy_sparks || 0} sparks.`, 'system');
     return;
   }
@@ -3567,6 +3824,7 @@ function showEndings() {
     write('');
     write(`Legacy carry-over: ${player.legacy_gold || 0} gold, ${player.legacy_sparks || 0} sparks.`, 'spark');
     write(`(Applied as starting padding on every fresh run of any story.)`, 'system');
+    write('Type "endings all" for the cross-story view.', 'echo');
   }, '── end of endings ──');
 }
 
@@ -8332,6 +8590,7 @@ function handleCommand(input) {
     case 'sharpen':              sharpen(arg); break;
     case 'repair':               repair(arg); break;
     case 'bug': case 'report':   showBugReporter(); consumesTurn = false; break;
+    case 'bugs':                 showBugBoard(); consumesTurn = false; break;
     case 'read':                 readItem(arg); break;
     case 'examine': case 'inspect': case 'x':  examineItem(arg); consumesTurn = false; break;
     case 'reload': case 'update':
@@ -8424,7 +8683,7 @@ function handleCommand(input) {
     case 'whatsnew': case 'changelog': showWhatsNewCommand(); consumesTurn = false; break;
     case 'forgetage': case 'resetage': forgetAgeAcksCommand(); consumesTurn = false; break;
     case 'recap': case 'last':   showRecap(); consumesTurn = false; break;
-    case 'endings':              showEndings(); consumesTurn = false; break;
+    case 'endings':              showEndings(argRaw); consumesTurn = false; break;
     case 'restart':              restartCommand(); consumesTurn = false; break;
     case 'legacy':               showLegacy(); consumesTurn = false; break;
     case 'help': case '?':       help(argRaw); consumesTurn = false; break;
@@ -8647,6 +8906,8 @@ setTimeout(() => { try { checkForEngineUpdate({ silentIfSame: true }); } catch {
 setInterval(() => { try { checkForEngineUpdate({ silentIfSame: true }); } catch {} }, 10 * 60 * 1000);
 // Tier D18: post-reload "what's new" digest.
 try { showWhatsNewIfUpdated(); } catch {}
+// Tier A2: per-story changelog detection.
+try { showStoryChangelogIfBumped(); } catch {}
 let __lastVisCheck = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
