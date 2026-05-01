@@ -1,4 +1,4 @@
-// Taleforge engine. Copyright (c) 2025 Andres Wetzel. All rights reserved.
+// Taleforge engine. Copyright (c) 2026 Andres Wetzel. All rights reserved.
 //
 // SOURCE-AVAILABLE, NON-COMMERCIAL LICENSE — NOT OPEN-SOURCE.
 // This source is published for transparency and personal play. You may
@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.55';
+const ENGINE_VERSION_LABEL = 'v0.55.1';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.55.1': 'Age-gate fires at picker click time (visible immediately, not after the overlay closes). Stored acks now expire after 30 days; raising a story\'s minimum_age also re-prompts. New `forgetage` command clears stored acks for testing. Copyright bumped to 2026.',
   'v0.55':   'Engine source extracted to engine.mjs (game.html is now a 20KB shell). Right-clicking the page no longer captures the engine. Builder type-sync + service worker updated to fetch the new path.',
   'v0.54':   'Endings completionist sidebar widget. Marketplace stories now respect picker filters/search. Map legend in zoom modal. Cross-device endings sync via Nostr (kind-30433, encrypted). Magic-link character handoff (`share` command, ?nsec=… URLs, QR codes). Builder gained AI region + AI quest-chain scaffolders.',
   'v0.53':   'WS reconnect with exponential backoff. Marketplace preview modal. Sidebar bounty tracker. Cold-backup character (`backup` / `restore`). `fight` auto-attack command. Hollow Forest now has 3 endings (HUMAN / VAMPIRE / WEREWOLF); Whispering Forest gained 4 (PILGRIM / MASTER_SMITH / FOREST_WARDEN / TRUSTED_MERCHANT). Builder learned to author endings via dedicated UI.',
@@ -444,7 +445,17 @@ function showStoryPicker(currentId = null) {
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
 
-    function pick(id) {
+    // Engine v0.55.1 — age-gate fires AT click time, inside the picker.
+    // Previously the picker resolved first, then the gate fired afterward;
+    // that hid the gate from users who were watching the picker for
+    // confirmation. Now: clicking an age-gated card opens the gate over the
+    // picker; declining keeps you in the picker (no flash).
+    async function pick(id) {
+      const story = loadStoryById(id);
+      if (story && !hasAgeAck(story)) {
+        const ok = await showAgeGateModal(story);
+        if (!ok) return;  // stay in the picker
+      }
       try { localStorage.setItem(ACTIVE_STORY_KEY, id); } catch {}
       overlay.remove();
       resolve(id);
@@ -955,6 +966,12 @@ function showBugReporter() {
 }
 
 const AGE_ACK_KEY_PREFIX = 'taleforge:age_ack:';
+// Engine v0.55.1: ack expires after 30 days, even without explicit
+// reset-on-version. Industry-standard practice for content-warning gates,
+// and ensures the gate is visibly active for testers / new sessions on a
+// shared browser. Stories that set `age_gate_resets_on_version: true`
+// additionally re-prompt on every version bump.
+const AGE_ACK_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 function ageAckKey(storyId) { return AGE_ACK_KEY_PREFIX + storyId; }
 function hasAgeAck(story) {
   if (!story?.meta?.id) return true;
@@ -962,13 +979,35 @@ function hasAgeAck(story) {
   try {
     const stored = localStorage.getItem(ageAckKey(story.meta.id));
     if (!stored) return false;
+    const obj = JSON.parse(stored);
+    // Expire stale acks (30 days).
+    const ackedAt = Number(obj?.acknowledged_at) || 0;
+    if (!ackedAt || (Date.now() - ackedAt) > AGE_ACK_MAX_AGE_MS) return false;
+    // Story-opt-in: re-prompt on every version bump.
     if (story.meta.age_gate_resets_on_version) {
-      const obj = JSON.parse(stored);
       if (obj?.version !== story.meta.version) return false;
-      return true;
     }
+    // If the story raised its minimum_age since the ack, re-prompt.
+    const ackedMin = Number(obj?.min_age) || 0;
+    const currentMin = Number(story.meta.minimum_age) || 0;
+    if (currentMin > ackedMin) return false;
     return true;
   } catch { return false; }
+}
+// Tier "age-gate fix" — debug helper to clear stored acks so authors and
+// testers can verify the gate fires.
+function forgetAgeAcksCommand() {
+  let removed = 0;
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(AGE_ACK_KEY_PREFIX)) keys.push(k);
+    }
+    for (const k of keys) { localStorage.removeItem(k); removed++; }
+  } catch {}
+  write(`Cleared ${removed} stored age-gate acknowledgement${removed === 1 ? '' : 's'}.`, 'success');
+  write('Switch story or reload — the gate will fire again on the next play of any age-gated story.', 'system');
 }
 function storyNeedsAgeGate(story) {
   const m = story?.meta || {};
@@ -8383,6 +8422,7 @@ function handleCommand(input) {
     }, '── end of map ──'); consumesTurn = false; break;
     case 'mapview': case 'bigmap': case 'mv': showMapModal(); consumesTurn = false; break;
     case 'whatsnew': case 'changelog': showWhatsNewCommand(); consumesTurn = false; break;
+    case 'forgetage': case 'resetage': forgetAgeAcksCommand(); consumesTurn = false; break;
     case 'recap': case 'last':   showRecap(); consumesTurn = false; break;
     case 'endings':              showEndings(); consumesTurn = false; break;
     case 'restart':              restartCommand(); consumesTurn = false; break;
