@@ -26,6 +26,31 @@ self.addEventListener('install', (e) => {
   );
 });
 
+// v0.49: skip-waiting handshake. The engine's `reload engine` command and
+// the manifest-update toast both ask the SW to drop the HTML cache so the
+// next reload definitely fetches the new build instead of serving a stale
+// cached HTML. Posting "SKIP_WAITING" as a fallback in case a v2 SW is
+// waiting; posting "CLEAR_HTML_CACHE" walks the cache and drops only HTML
+// entries (JSON / module deps stay cached for offline).
+self.addEventListener('message', (e) => {
+  if (!e.data) return;
+  if (e.data === 'SKIP_WAITING' || e.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  } else if (e.data === 'CLEAR_HTML_CACHE' || e.data?.type === 'CLEAR_HTML_CACHE') {
+    e.waitUntil((async () => {
+      try {
+        const cache = await caches.open(CACHE);
+        const reqs = await cache.keys();
+        for (const r of reqs) {
+          if (/\.html?$/i.test(r.url) || r.mode === 'navigate' || r.url.endsWith('/')) {
+            await cache.delete(r);
+          }
+        }
+      } catch {}
+    })());
+  }
+});
+
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     Promise.all([

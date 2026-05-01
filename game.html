@@ -43,6 +43,45 @@
     --gold: #ffd000; --spark: #d870ff; --life: #ff5050;
     --fire: #ff8030; --load: #00e070;
   }
+  /* v0.49: font-size variants. Default body is 14px. Variants override
+     via body classes set by `fontsize <name>`. The terminal output, prompt,
+     sidebar text, and modal text all inherit so this scales the whole UI. */
+  body.font-small  { font-size: 12px; }
+  body.font-medium { font-size: 14px; }
+  body.font-large  { font-size: 16.5px; }
+
+  /* v0.49: world-feed colour categories. Theme-aware via CSS variables.
+     Applied as classes on .feed-item by feedCategoryClass(). The .msg span
+     inherits the color so we keep the .sig prefix in the muted shade. */
+  .feed-item.cat-combat .msg  { color: var(--red); }
+  .feed-item.cat-craft .msg   { color: var(--gold); }
+  .feed-item.cat-chat .msg    { color: var(--purple); font-style: italic; }
+  .feed-item.cat-trade .msg   { color: var(--gold); }
+  .feed-item.cat-mark .msg    { color: var(--blue); }
+  .feed-item.cat-death .msg   { color: var(--red); font-weight: 600; }
+  .feed-item.cat-bounty .msg  { color: var(--gold); font-weight: 600; }
+  .feed-item.cat-event .msg   { color: var(--spark); }
+
+  /* v0.49: time-of-day color tint. Subtle hue overlay applied via a body
+     pseudo-element so it sits on top of the chosen theme without disturbing
+     contrast inside individual UI elements. The strength is gentle (max
+     0.08 alpha) so prose readability never suffers. Disabled in
+     high-contrast theme — accessibility wins over atmosphere there. */
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    transition: background 8s ease;
+    background: transparent;
+  }
+  body.tod-dawn::before    { background: linear-gradient(180deg, rgba(255,170,110,0.08), rgba(255,170,110,0.02)); }
+  body.tod-morning::before { background: linear-gradient(180deg, rgba(255,225,160,0.05), transparent); }
+  body.tod-noon::before    { background: linear-gradient(180deg, rgba(255,245,200,0.04), transparent); }
+  body.tod-afternoon::before { background: linear-gradient(180deg, rgba(255,200,140,0.05), transparent); }
+  body.tod-dusk::before    { background: linear-gradient(180deg, rgba(255,140,90,0.07), rgba(180,80,120,0.05)); }
+  body.tod-evening::before { background: linear-gradient(180deg, rgba(80,90,140,0.07), rgba(40,40,80,0.05)); }
+  body.tod-night::before   { background: linear-gradient(180deg, rgba(30,40,80,0.10), rgba(20,20,50,0.06)); }
+  body.theme-contrast::before { background: transparent !important; }
+  /* Children must sit above the overlay layer. */
+  #layout, #toast-stack, #ending-overlay, #drawer-backdrop, #death-veil { position: relative; z-index: 2; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text);
     font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; font-size: 14px;
@@ -435,7 +474,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.48';
+const ENGINE_VERSION_LABEL = 'v0.49';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -588,6 +627,16 @@ async function checkForEngineUpdate({ silentIfSame = true } = {}) {
 }
 function reloadEngine() {
   write('Reloading engine — your character state is saved on Nostr and locally.', 'system');
+  // v0.49: SW handshake. Ask the active worker to drop the HTML cache and
+  // skip-waiting so the upcoming reload definitely picks up the new build
+  // rather than rehydrating from the same cached HTML. Falls through
+  // gracefully if no SW is registered (file:// dev, older browsers).
+  try {
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage('CLEAR_HTML_CACHE');
+      navigator.serviceWorker.controller.postMessage('SKIP_WAITING');
+    }
+  } catch {}
   // Brief delay so the message renders before the page tears down.
   setTimeout(() => {
     try { location.reload(); } catch {}
@@ -3779,10 +3828,27 @@ function formatActionSummary(action, p) {
   }
 }
 
+// v0.49: classify a feed message into a category for color-coding. Reads
+// the verb (first word of the action summary) and falls back to keyword
+// scan. Each category has a CSS class hooked up in the stylesheet so the
+// colour is theme-aware.
+function feedCategoryClass(msg) {
+  const m = String(msg || '').toLowerCase();
+  if (/\b(killed|hunt|hunted|attacked)\b/.test(m)) return 'cat-combat';
+  if (/\b(crafted|crafts|smelted|tanned|baked)\b/.test(m)) return 'cat-craft';
+  if (/\b(dm|whispered|shouted|whisper|messag)/.test(m)) return 'cat-chat';
+  if (/\b(healed|gifted|listed|bought|sold|loot)\b/.test(m)) return 'cat-trade';
+  if (/\b(carved|pinned|notice)\b/.test(m)) return 'cat-mark';
+  if (/\b(died|death|fell)\b/.test(m)) return 'cat-death';
+  if (/\b(bounty|claim|posted)\b/.test(m)) return 'cat-bounty';
+  if (/\b(world event|stir|moon|caravan|invasion)\b/.test(m)) return 'cat-event';
+  return '';
+}
 function addToFeed(id, msg, sigPrefix) {
   const feed = document.getElementById(id);
   feed.querySelector('.empty')?.remove();
-  const div = document.createElement('div'); div.className = 'feed-item';
+  const cat = feedCategoryClass(msg);
+  const div = document.createElement('div'); div.className = 'feed-item' + (cat ? ' ' + cat : '');
   const sigEl = document.createElement('span'); sigEl.className = 'sig'; sigEl.textContent = sigPrefix;
   const msgEl = document.createElement('span'); msgEl.className = 'msg'; msgEl.textContent = msg;
   div.append(sigEl, msgEl);
@@ -4043,6 +4109,16 @@ function tickTurn() {
   if (newDay !== prevDay) advanceDailyQuest(newDay);
   // 5.12: world events — announce just-started, expire just-finished
   if (newDay !== prevDay) advanceWorldEvents(newDay);
+  // v0.49: day-count milestones — fires once per character on the in-game
+  // day rollover at meaningful thresholds. 5 = the early-survival mark,
+  // 10 = a real character, 30/100 = veterans.
+  if (newDay !== prevDay) {
+    try {
+      checkCountMilestones('days', newDay, [5, 10, 30, 100],
+        n => `🌅 Day ${n}`,
+        n => 'Time keeps. So do you.');
+    } catch {}
+  }
   // Weather effects
   if (player.weather === 'snow') player.life -= 0.3;
   player.life -= STORY.meta.life_decay_per_turn;
@@ -4060,6 +4136,10 @@ function tickTurn() {
       'night': 'Night falls. Take care.'
     };
     if (transitions[newPeriod]) write(`[${transitions[newPeriod]}]`, 'system');
+    // v0.49: update body class for the time-of-day color tint. The 8s CSS
+    // transition on body::before makes the colour shift feel like dusk
+    // settling rather than a hard cut.
+    try { applyTimeOfDayTint(newPeriod); } catch {}
   }
   const room = player.rooms[player.location];
   if (!player.combat_target && room.hazards?.wolves) {
@@ -4949,6 +5029,84 @@ function themeCommand(arg) {
 // flash of dark + repaint.
 applyTheme(loadTheme());
 
+// v0.49: first-time milestone celebrations. Smaller-than-achievement
+// markers for moments worth a tiny bit of fanfare: first kill, first
+// craft, first sleep, first riddle, first fire, first ending. Dedups via
+// a flag on the player so each milestone fires at most once per character.
+// Achievements remain the bigger system; this catches the first ten
+// minutes of new-player experience that achievements don't.
+function firstTimeMilestone(flagKey, label, subtitle) {
+  if (!player || !player.flags) return;
+  if (player.flags.has('milestone:' + flagKey)) return;
+  player.flags.add('milestone:' + flagKey);
+  try {
+    showToast(label, 'milestone', { celebrate: true, tag: 'First time!', subtitle });
+  } catch {}
+}
+// v0.49: count-based milestone — fires once per (key,n) so 10/100/1000
+// kills don't duplicate-fire across reloads. Same flag dedup as
+// firstTimeMilestone but the flag includes the count.
+function countMilestone(flagKey, count, label, subtitle) {
+  if (!player || !player.flags) return;
+  const k = `milestone:${flagKey}:${count}`;
+  if (player.flags.has(k)) return;
+  player.flags.add(k);
+  try {
+    showToast(label, 'milestone', { celebrate: true, tag: `${count}!`, subtitle });
+  } catch {}
+}
+// v0.49: convenience helper — checks if a counter has just crossed any
+// of a list of thresholds, fires the appropriate milestone toast.
+function checkCountMilestones(flagKey, currentCount, thresholds, makeLabel, makeSubtitle) {
+  if (!Array.isArray(thresholds)) return;
+  for (const t of thresholds) {
+    if (currentCount >= t) countMilestone(flagKey, t, makeLabel(t), makeSubtitle ? makeSubtitle(t) : '');
+  }
+}
+
+// v0.49: font-size control. Persists per-browser alongside the theme.
+// Three named sizes — "small" / "medium" (default) / "large" — applied as
+// body classes that override the base font-size. Terminal lines, sidebar
+// text, modal text, and toasts all inherit and scale together.
+const FONTSIZE_KEY = 'taleforge:fontsize';
+const FONTSIZES = ['small', 'medium', 'large'];
+function applyFontSize(name) {
+  const valid = FONTSIZES.includes(name) ? name : 'medium';
+  for (const f of FONTSIZES) document.body.classList.remove('font-' + f);
+  document.body.classList.add('font-' + valid);
+  try { localStorage.setItem(FONTSIZE_KEY, valid); } catch {}
+}
+function loadFontSize() {
+  try { return localStorage.getItem(FONTSIZE_KEY) || 'medium'; } catch { return 'medium'; }
+}
+function fontsizeCommand(arg) {
+  const a = (arg || '').trim().toLowerCase();
+  if (!a) {
+    write(`Current font size: ${loadFontSize()}`, 'system');
+    write(`Available: ${FONTSIZES.join(' · ')}.  Use "fontsize <name>".`, 'system');
+    return;
+  }
+  // Allow short aliases.
+  const aliases = { s: 'small', sm: 'small', m: 'medium', md: 'medium', l: 'large', lg: 'large' };
+  const target = aliases[a] || a;
+  if (!FONTSIZES.includes(target)) {
+    write(`Unknown font size "${a}". Available: ${FONTSIZES.join(', ')}.`, 'error');
+    return;
+  }
+  applyFontSize(target);
+  write(`Font size: ${target}.`, 'success');
+}
+applyFontSize(loadFontSize());
+
+// v0.49: time-of-day tint helper. Sets a body class that the CSS layer
+// translates into a soft hue overlay. Called from tickTurn on day-period
+// change AND once at boot to seed the initial tint without waiting a turn.
+const TIME_OF_DAY_PERIODS = ['dawn','morning','noon','afternoon','dusk','evening','night'];
+function applyTimeOfDayTint(period) {
+  for (const p of TIME_OF_DAY_PERIODS) document.body.classList.remove('tod-' + p);
+  if (TIME_OF_DAY_PERIODS.includes(period)) document.body.classList.add('tod-' + period);
+}
+
 // v0.47: skill-tree visualization. Groups skills by tier, then shows the
 // prereq chain inline so the player can see what they need to unlock to
 // reach a particular skill. Status glyph at the start of each line:
@@ -5154,6 +5312,7 @@ function craft(argRaw) {
     write(`(+${totalReward} sparks for ${qty} craft${qty === 1 ? '' : 's'})`, 'spark');
   }
   player.stats.crafts += qty;
+  firstTimeMilestone('first_craft', '🔨 First craft', `${itemDisplay(STORY.recipes[recipeId]?.outputs?.[0]?.item) || 'Something'} from raw stock. Try "recipes" to see what else your skills unlock.`);
   // 5.5: per-recipe craft tally for `crafts_of_gte` event condition
   if (!player.stats.crafts_per_recipe) player.stats.crafts_per_recipe = {};
   player.stats.crafts_per_recipe[recipeId] = (player.stats.crafts_per_recipe[recipeId] || 0) + qty;
@@ -5402,6 +5561,7 @@ function answer(text) {
     player.sparks += r.reward_sparks;
     player.stats.sparks_earned += r.reward_sparks;
     player.stats.riddles_solved++;
+    firstTimeMilestone('first_riddle', '🧩 First riddle solved', 'Try other rooms — voices in stones, candles, lakes…');
     gainRenown('riddle');  // 5.11
     write(r.on_solve_message, 'success');
     write(`(+${r.reward_sparks} sparks)`, 'spark');
@@ -5719,6 +5879,14 @@ function attack() {
       return;
     }
     write(T('The {0} falls.', t.display), 'success');
+    firstTimeMilestone('first_kill', '⚔ First kill', `Your first ${t.display}. The world records the deed.`);
+    // v0.49: kill-count milestones (lifetime total across all entities).
+    try {
+      const total = Object.values(player.stats?.kills || {}).reduce((a, b) => a + b, 0) + 1; // +1 because the increment happens after this point in some paths
+      checkCountMilestones('kills', total, [10, 50, 100, 500],
+        n => `⚔ ${n} kills`,
+        n => 'Hunting becomes a livelihood.');
+    } catch {}
     const allDrops = [...t.base_drops];
     if (player.skills.has('skinning')) allDrops.push(...t.skinning_drops);
     for (const rd of (t.rare_drops || [])) {
@@ -6268,6 +6436,11 @@ function turnInQuest(qid) {
   }
   ps.state = 'completed';
   player.stats.quests_completed++;
+  // v0.49: quest milestone toasts.
+  firstTimeMilestone('first_quest', '✓ First quest complete', 'Talk to NPCs for more — most stories have chains.');
+  checkCountMilestones('quests', player.stats.quests_completed, [10, 25, 50],
+    n => `✓ ${n} quests completed`,
+    n => 'A reliable hand. NPCs notice.');
   gainRenown('quest');  // 5.11
   // If this was a daily quest, increment the lifetime daily counter and clear the active slot.
   // The state stays in player.quests as 'completed' so it's visible in stats; advanceDailyQuest
@@ -6902,6 +7075,7 @@ function lightFire() {
   }
   player.fires.set(player.location, player.turn + FIRE_DURATION_TURNS);
   write(`You light a fire. It will burn for ${FIRE_DURATION_TURNS} turns.`, 'fire');
+  firstTimeMilestone('first_fire', '🔥 First fire', 'Sleep next to fire restores more life. Some recipes need fire too.');
   publishAction('lit_fire', { location: player.location });
 }
 
@@ -7224,6 +7398,7 @@ function sleep() {
   const restore = Math.floor((maxLife - player.life) * restoreFraction);
   player.life = Math.min(maxLife, player.life + restore);
   write(`You sleep ${label}. (+${restore} life · 8 hours pass)`, 'success');
+  firstTimeMilestone('first_sleep', '🌙 First night', 'A safe shelter is worth more than gold. Sleep heals more by a fire and even more in a village.');
   publishAction('slept', { location: player.location, restored: restore });
 }
 
@@ -8909,6 +9084,7 @@ function helpImpl(filterQ) {
     T('Offline:         (no command — events queue automatically when offline, sync on reconnect)'),
     T('Language:        lang  (show)  ·  lang <code>  (switch, e.g. "lang de")'),
     T('Theme:           theme  (show)  ·  theme <dark|light|sepia|contrast>'),
+    T('Font size:       fontsize  (show)  ·  fontsize <small|medium|large>'),
     T('Tutorial:        tutorial  (beginner\'s guide)  ·  tutorial topics / topic <name>  (replay one)  ·  tutorial off  (silence hints)'),
     T('Feedback:        bug / report  (open a bug-report dialog)'),
     T('Updates:         reload story  (fetch the latest version of the active story without losing progress)'),
@@ -9007,6 +9183,7 @@ function handleCommand(input) {
     case 'skills': case 'sk':    showSkills(); consumesTurn = false; break;
     case 'skilltree': case 'tree': case 'st':  showSkillTree(); consumesTurn = false; break;
     case 'theme':                themeCommand(arg); consumesTurn = false; break;
+    case 'fontsize': case 'font': fontsizeCommand(arg); consumesTurn = false; break;
     case 'learn':                learn(arg); break;
     case 'recipes': case 'rec':  showRecipes(); consumesTurn = false; break;
     case 'craft':                craft(arg); break;
@@ -9238,7 +9415,7 @@ const STATIC_VERBS = [
   'who','give','gifts','offers','claim','decline','heal','soul','import','rename','characters',
   'switch','stories','relay','lang','tutorial','bug','report','reload','clear','help','map',
   'go','n','s','e','w','u','d','in','out','north','south','east','west','up','down',
-  'donate','support','recap','last','complete','finish','feed','endings','restart','legacy','whoami','me','skilltree','tree','st','theme'
+  'donate','support','recap','last','complete','finish','feed','endings','restart','legacy','whoami','me','skilltree','tree','st','theme','fontsize','font'
 ];
 // v0.36: tiny Levenshtein for fuzzy "did you mean" suggestions. Caps the
 // matrix at ~30×30 since verbs are short — perfectly fine for runtime use.
@@ -9587,6 +9764,9 @@ if (player.quests.intro && player.quests.intro.state === 'active' && !player.que
 if (player.activated) { try { recordRecentChar(); } catch {} }
 
 setBootStatus('Connecting to relays…');
+// v0.49: seed time-of-day tint at boot so the player sees the right hue
+// from line 1, not after the first turn.
+try { applyTimeOfDayTint(dayPart().period); } catch {}
 describeRoom();
 refreshSidebar();
 subscribe();
