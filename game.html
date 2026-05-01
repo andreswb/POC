@@ -9325,11 +9325,22 @@ function removeAt(loc) {
   else delete player.equipment[loc.key];
 }
 
+// Story-aware: only allow sharpen if the source item exists in this story
+// AND, if a transform is involved, the target item also exists. Prevents
+// the rusty_dagger → sharpened_dagger bug in Hollow Forest where the target
+// item is undefined and the engine would silently lose the source.
+function isSharpenable(id) {
+  const opt = SHARPEN_OPTIONS[id];
+  if (!opt) return false;
+  if (!STORY.items[id]) return false;
+  if (opt.transform && !STORY.items[opt.transform]) return false;
+  return true;
+}
 function sharpen(arg) {
   if (combatBlock('sharpen')) return;
   const smith = findBlacksmithHere();
   if (!smith) { write('No blacksmith here. Try the village.', 'error'); return; }
-  const found = locateWieldableOrInv(arg, id => !!SHARPEN_OPTIONS[id]);
+  const found = locateWieldableOrInv(arg, id => isSharpenable(id));
   if (!found) { write(arg ? `Nothing matching "${arg}" can be sharpened.` : `Nothing here can be sharpened.`, 'error'); return; }
   const opt = SHARPEN_OPTIONS[found.itemId];
   if (player.gold < opt.cost) { write(`Sharpening costs ${opt.cost} gold. You have ${player.gold}.`, 'error'); return; }
@@ -9350,11 +9361,18 @@ function sharpen(arg) {
   }
 }
 
+function isRepairable(id) {
+  const rec = REPAIR_RECIPES[id];
+  if (!rec) return false;
+  if (!STORY.items[id]) return false;
+  if (rec.becomes && !STORY.items[rec.becomes]) return false;
+  return true;
+}
 function repair(arg) {
   if (combatBlock('repair')) return;
   const smith = findBlacksmithHere();
   if (!smith) { write('No blacksmith here. Try the village.', 'error'); return; }
-  const found = locateWieldableOrInv(arg, id => !!REPAIR_RECIPES[id]);
+  const found = locateWieldableOrInv(arg, id => isRepairable(id));
   if (!found) { write(`Nothing here can be repaired.`, 'error'); return; }
   const rec = REPAIR_RECIPES[found.itemId];
   if (player.gold < rec.cost_gold) { write(`Repair costs ${rec.cost_gold} gold. You have ${player.gold}.`, 'error'); return; }
