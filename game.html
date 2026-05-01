@@ -11133,65 +11133,110 @@ function showMap() {
     if (!['overhead','surface','underground'].includes(L) && byLayer[L].length) orderedLayers.push(L);
   }
 
-  // 2) For each layer, BFS positions starting from any room in that layer.
-  //    Prefer the player's own location as the seed for their layer.
+  // 2) For each layer, BFS positions. Lay out the player's current layer
+  //    first (so the player ends up centered at 0,0 from their own POV).
+  //    Then for each subsequent layer, anchor disconnected components to
+  //    the X-position of the room they connect to in already-laid layers
+  //    via vertical exits (up/down). This handles cases like Saltbound's
+  //    underground where shipwreck_interior and sea_caves+deep_grotto are
+  //    two separate components that should each sit beneath the surface
+  //    room they're reached from, instead of one being orphan-stacked
+  //    arbitrarily to the right.
+  const dirOffset = {
+    north:[0,-1], south:[0,1], east:[1,0], west:[-1,0],
+    up:[0,-3], down:[0,3], in:[0,2], out:[0,-2]
+  };
+  const playerLayer = layerOf(player.location);
+  const layerSequence = [];
+  if (orderedLayers.includes(playerLayer)) layerSequence.push(playerLayer);
+  for (const L of orderedLayers) if (L !== playerLayer) layerSequence.push(L);
   const layoutByLayer = new Map();
-  for (const L of orderedLayers) {
+  for (const L of layerSequence) {
     const ids = byLayer[L];
     const positions = new Map();
-    const seed = ids.includes(player.location) ? player.location : ids[0];
-    positions.set(seed, [0, 0]);
-    const queue = [seed];
     const inLayer = new Set(ids);
-    // Same-layer connections. N/S/E/W are 1-cell deltas. up/down/in/out
-    // map to vertical offsets with extra spacing — `in` is conceptually
-    // "going inside" so it forms a sub-stack BELOW the source room (offset
-    // [0,2]) rather than competing for the same row. Vertical-only offsets
-    // for up/down/in/out also keep east-west room chains tidy.
-    const dirOffset = {
-      north:[0,-1], south:[0,1], east:[1,0], west:[-1,0],
-      up:[0,-3], down:[0,3], in:[0,2], out:[0,-2]
-    };
-    // Track occupied cells to detect collisions: BFS by itself can land two
-    // rooms on the same grid cell when they're reachable from different
-    // sub-trees (e.g. hilltop_ruins via red_canyon.up and frozen_lake via
-    // frozen_north → east both want [1,-2]).
     const occupied = new Set();
-    occupied.add(`${0},${0}`);
-    while (queue.length) {
-      const cur = queue.shift();
+    // Find anchored seeds: rooms in this layer that connect (via up/down)
+    // to a room in an already-laid-out layer. Use the connected room's
+    // X as the anchor. Each layer can have multiple anchors → multiple
+    // disconnected components each get the right X.
+    const anchors = [];  // [{room, x}]
+    const seenAnchorRooms = new Set();
+    for (const id of ids) {
+      if (seenAnchorRooms.has(id)) continue;
+      for (const [dir, rawTarget] of Object.entries(rooms[id].exits || {})) {
+        if (!['up', 'down'].includes(dir)) continue;
+        const r = resolveExit(rawTarget); if (!r) continue;
+        const target = r.target;
+        if (inLayer.has(target)) continue;
+        // Check every previously-laid layer for the target's X
+        for (const [otherL, otherPos] of layoutByLayer) {
+          if (otherL === L) continue;
+          if (otherPos.has(target)) {
+            const [ox] = otherPos.get(target);
+            anchors.push({ room: id, x: ox });
+            seenAnchorRooms.add(id);
+            break;
+          }
+        }
+        if (seenAnchorRooms.has(id)) break;
+      }
+    }
+    // Primary seed: player.location if in this layer; otherwise the first
+    // anchor; otherwise the first room.
+    let primarySeed = null;
+    if (ids.includes(player.location)) primarySeed = player.location;
+    if (!primarySeed && anchors.length > 0) primarySeed = anchors[0].room;
+    if (!primarySeed) primarySeed = ids[0];
+    // Place primary seed at (0, 0) of this layer's coord space
+    positions.set(primarySeed, [0, 0]);
+    occupied.add('0,0');
+    const seedQueue = [primarySeed];
+    // Place additional anchors at their own X (Y=0 unless taken)
+    for (const { room, x } of anchors) {
+      if (positions.has(room)) continue;
+      let ax = x, ay = 0;
+      while (occupied.has(`${ax},${ay}`) && ay < 50) ay++;
+      positions.set(room, [ax, ay]);
+      occupied.add(`${ax},${ay}`);
+      seedQueue.push(room);
+    }
+    // BFS from all seeds in turn, with collision-avoidance push-along-direction
+    while (seedQueue.length) {
+      const cur = seedQueue.shift();
       const [cx, cy] = positions.get(cur);
       for (const [dir, rawTarget] of Object.entries(rooms[cur].exits || {})) {
         const r = resolveExit(rawTarget); if (!r) continue;
         const target = r.target;
-        if (!inLayer.has(target)) continue;       // inter-layer = handled as marker, not 2D edge
+        if (!inLayer.has(target)) continue;       // inter-layer = handled as marker
         if (positions.has(target)) continue;
         const off = dirOffset[dir]; if (!off) continue;
         let nx = cx + off[0], ny = cy + off[1];
-        // Collision-avoid: push further along the same direction until a
-        // free cell is found. This keeps the spatial intuition (east is east)
-        // while preventing two rooms from stacking on top of each other.
         let guard = 0;
         const stepX = off[0] === 0 ? 0 : Math.sign(off[0]);
         const stepY = off[1] === 0 ? 0 : Math.sign(off[1]);
         while (occupied.has(`${nx},${ny}`) && guard < 20) {
-          nx += stepX || 1;  // if both are zero (shouldn't happen) drift east
+          nx += stepX || 1;
           ny += stepY;
           guard++;
         }
         positions.set(target, [nx, ny]);
         occupied.add(`${nx},${ny}`);
-        queue.push(target);
+        seedQueue.push(target);
       }
     }
-    // Catch any rooms in the layer not reached by BFS (graph islands), stack them
+    // Final catch-all: orphan rooms with no anchor and unreachable from the
+    // primary seed. Stack them to the right.
     let stackY = 0;
     for (const id of ids) {
       if (!positions.has(id)) {
-        // find a free x to the right of any existing
         let maxX = 0;
         for (const [x, _y] of positions.values()) maxX = Math.max(maxX, x);
-        positions.set(id, [maxX + 2, stackY++]);
+        const px = maxX + 2;
+        let py = stackY++;
+        while (occupied.has(`${px},${py}`)) py++;
+        positions.set(id, [px, py]);
+        occupied.add(`${px},${py}`);
       }
     }
     layoutByLayer.set(L, positions);
