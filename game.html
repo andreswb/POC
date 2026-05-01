@@ -4752,7 +4752,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.31';
+const ENGINE_VERSION_LABEL = 'v0.32';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -4976,6 +4976,62 @@ function validateStoryShape(s) {
   return null;
 }
 
+// 6.0: per-story player counts for the picker. Same Nostr query as the
+// landing strip, but grouped by story-tag so each picker row can show
+// "47 in this world" subtitles. Cached in memory for the session; called
+// once when the picker opens. 4-second timeout to keep the picker snappy.
+const _storyCountsCache = { ts: 0, counts: null };
+async function fetchStoryPlayerCounts() {
+  const PICKER_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band'];
+  const KIND_ACTION_PICKER = 30420;
+  const QUERY_TIMEOUT_PICKER = 4000;
+  if (_storyCountsCache.counts && Date.now() - _storyCountsCache.ts < 5 * 60 * 1000) {
+    return _storyCountsCache.counts;
+  }
+  const since = Math.floor((Date.now() - 30 * 86400000) / 1000);
+  const perStory = new Map();  // story_id -> Set<pubkey>
+  function tally(ev) {
+    const tTag = (ev.tags || []).find(x => x[0] === 't');
+    if (!tTag || !tTag[1]) return;
+    const m = String(tTag[1]).match(/^story:(.+)$/);
+    if (!m) return;
+    const storyId = m[1];
+    if (!perStory.has(storyId)) perStory.set(storyId, new Set());
+    perStory.get(storyId).add(ev.pubkey);
+  }
+  await Promise.all(PICKER_RELAYS.map(url => new Promise(resolve => {
+    let resolved = false;
+    const finish = () => { if (!resolved) { resolved = true; resolve(); } };
+    let ws;
+    try { ws = new WebSocket(url); } catch { return finish(); }
+    const timer = setTimeout(() => { try { ws.close(); } catch {} finish(); }, QUERY_TIMEOUT_PICKER - 200);
+    const sub = 'pc' + Math.random().toString(36).slice(2, 8);
+    ws.onopen = () => {
+      try {
+        ws.send(JSON.stringify(['REQ', sub, { kinds: [KIND_ACTION_PICKER], since, limit: 5000 }]));
+      } catch {}
+    };
+    ws.onmessage = (msg) => {
+      try {
+        const d = JSON.parse(msg.data);
+        if (d[0] === 'EVENT' && d[2]?.kind === KIND_ACTION_PICKER) tally(d[2]);
+        else if (d[0] === 'EOSE') {
+          try { ws.close(); } catch {}
+          clearTimeout(timer);
+          finish();
+        }
+      } catch {}
+    };
+    ws.onerror = () => { clearTimeout(timer); try { ws.close(); } catch {} finish(); };
+    ws.onclose = () => { clearTimeout(timer); finish(); };
+  })));
+  const counts = {};
+  for (const [storyId, set] of perStory) counts[storyId] = set.size;
+  _storyCountsCache.ts = Date.now();
+  _storyCountsCache.counts = counts;
+  return counts;
+}
+
 function showStoryPicker(currentId = null) {
   return new Promise(resolve => {
     // Build overlay
@@ -4999,6 +5055,20 @@ function showStoryPicker(currentId = null) {
     }
 
     const listEl = panel.querySelector('#story-list');
+    // 6.0: kick off a Nostr query for per-story player counts. We render
+    // immediately with placeholders, then update when the counts return.
+    let _liveCounts = null;
+    fetchStoryPlayerCounts().then(c => {
+      _liveCounts = c;
+      // Re-render to attach count subtitles to existing rows
+      for (const row of listEl.querySelectorAll('[data-story-count-id]')) {
+        const id = row.getAttribute('data-story-count-id');
+        const n = (_liveCounts && _liveCounts[id]) || 0;
+        if (n >= 5) {
+          row.textContent = `${n} traveler${n === 1 ? '' : 's'} in this world (last 30d)`;
+        }
+      }
+    }).catch(() => { /* silent — picker is still usable without counts */ });
     function renderList() {
       listEl.innerHTML = '';
       const allOpts = listAllStoryOptions();
@@ -5014,7 +5084,15 @@ function showStoryPicker(currentId = null) {
         const sub = document.createElement('span');
         sub.style.cssText = 'font-size:12px;color:#9c9388;';
         sub.textContent = `${Object.keys(opt.story.rooms || {}).length} rooms · ${Object.keys(opt.story.entities || {}).length} entities · author: ${opt.story.meta?.author || '—'}`;
-        row.append(titleSpan, sub);
+        // Live player count subtitle (rendered when counts arrive)
+        const live = document.createElement('span');
+        live.style.cssText = 'font-size:11px;color:#6f8a5a;font-style:italic;';
+        live.setAttribute('data-story-count-id', opt.id);
+        if (_liveCounts && _liveCounts[opt.id] >= 5) {
+          const n = _liveCounts[opt.id];
+          live.textContent = `${n} traveler${n === 1 ? '' : 's'} in this world (last 30d)`;
+        }
+        row.append(titleSpan, sub, live);
         if (opt.source === 'custom') {
           const del = document.createElement('span');
           del.textContent = 'remove';
@@ -7578,16 +7656,37 @@ function tickRot() {
   for (const [item, batches] of Object.entries(player.freshness)) {
     const decay = STORY.items[item]?.decay_turns;
     if (!decay) continue;
+    // 6.0 fix: reconcile freshness against actual inventory before processing
+    // rot. Some paths historically decremented player.materials without
+    // calling consumeFreshness (e.g., drop on stackable items). That left
+    // stale freshness batches that would later trigger phantom "X meat
+    // rotted" notifications even when the player's inventory was empty.
+    // Trim oldest batches first until total freshness == actual count.
+    const have = (player.materials[item] || 0) + player.inventory.filter(i => i === item).length;
+    let totalFresh = batches.reduce((s, b) => s + (b.qty || 0), 0);
+    if (totalFresh > have) {
+      let excess = totalFresh - have;
+      while (excess > 0 && batches.length > 0) {
+        const b = batches[0];
+        if (b.qty <= excess) { excess -= b.qty; batches.shift(); }
+        else { b.qty -= excess; excess = 0; }
+      }
+    }
+    // Now process actual rot — only on what truly remains
     let rotted = 0;
     while (batches.length > 0 && (player.turn - batches[0].turn) >= decay) {
       rotted += batches[0].qty;
       batches.shift();
     }
     if (rotted > 0) {
-      const have = player.materials[item] || 0;
-      const newQty = Math.max(0, have - rotted);
-      if (newQty === 0) delete player.materials[item];
-      else player.materials[item] = newQty;
+      const newHave = Math.max(0, have - rotted);
+      // Only touch materials if the item is stored as material; otherwise the
+      // inventory loss is theoretical (player held a non-stackable food and
+      // it spoiled — not currently modeled).
+      if (player.materials[item] != null) {
+        if (newHave === 0) delete player.materials[item];
+        else player.materials[item] = newHave;
+      }
       const it = STORY.items[item];
       const display = it?.display || item;
       write(`[${rotted} ${display} rotted away. Cure or smoke before they spoil.]`, 'error');
@@ -7994,6 +8093,7 @@ function drop(arg) {
     const matKey = findMaterialKey(arg);
     if (matKey) {
       player.materials[matKey]--;
+      consumeFreshness(matKey, 1);  // 6.0: keep freshness in sync to prevent phantom rot
       (player.rooms[player.location].items ||= []).push(matKey);
       write(`You drop ${itemDisplay(matKey, true)}.`);
       publishAction('drop', { item: matKey, location: player.location });
@@ -8907,19 +9007,38 @@ function retreat() {
 }
 
 function eat(arg) {
-  if (!arg) { write('Eat what? Try "eat <food>" — see "inv" for what you carry.', 'error'); return; }
+  if (!arg || !String(arg).trim()) { write('Eat what? Try "eat <food>" or "eat <qty> <food>" — see "inv" for what you carry.', 'error'); return; }
+  // 6.0: parse leading integer as qty. "eat 3 meat" eats up to three of that
+  // food, summing the heal (capped at max life).
+  const parts = String(arg).trim().split(/\s+/);
+  let qty = 1, query = parts.join(' ');
+  if (parts.length >= 2 && /^\d+$/.test(parts[0])) {
+    const n = parseInt(parts[0], 10);
+    if (n < 1) { write('Quantity must be at least 1.', 'error'); return; }
+    qty = n;
+    query = parts.slice(1).join(' ');
+  }
   let itemId = null;
-  const idx = findItemIn(player.inventory, arg);
+  const idx = findItemIn(player.inventory, query);
   if (idx !== -1) itemId = player.inventory[idx];
-  else { const matKey = findMaterialKey(arg); if (matKey) itemId = matKey; }
-  if (!itemId) { write(`You don't have "${arg}".`, 'error'); return; }
+  else { const matKey = findMaterialKey(query); if (matKey) itemId = matKey; }
+  if (!itemId) { write(`You don't have "${query}".`, 'error'); return; }
   const it = STORY.items[itemId];
   if (it.consumable_action !== 'eat' && !it.tags?.includes('food')) { write(`You can't eat ${it.display}.`, 'error'); return; }
-  removeFromInventoryOrMaterials(itemId, 1);
-  const restore = it.effects?.restore_life ?? 0;
-  player.life = Math.min(computeMaxLife(), player.life + restore);
-  write(`You eat ${itemDisplay(itemId, true)}. (+${restore} life)`, 'success');
-  publishAction('eat', { item: itemId, restore });
+  // Cap qty to what the player actually has
+  const have = it.stackable ? (player.materials[itemId] || 0) : player.inventory.filter(i => i === itemId).length;
+  if (have < 1) { write(`You don't have ${itemDisplay(itemId)}.`, 'error'); return; }
+  const eatQty = Math.min(qty, have);
+  // Consume qty in one pass so consumeFreshness pulls the oldest batches first
+  removeFromInventoryOrMaterials(itemId, eatQty);
+  const perItemRestore = it.effects?.restore_life ?? 0;
+  const totalRestore = perItemRestore * eatQty;
+  const before = player.life;
+  player.life = Math.min(computeMaxLife(), player.life + totalRestore);
+  const actualRestore = Math.round(player.life - before);
+  if (eatQty === 1) write(`You eat ${itemDisplay(itemId, true)}. (+${actualRestore} life)`, 'success');
+  else write(`You eat ${eatQty}× ${itemDisplay(itemId)}. (+${actualRestore} life${eatQty < qty ? `, only ${eatQty} on hand` : ''})`, 'success');
+  publishAction('eat', { item: itemId, qty: eatQty, restore: actualRestore });
 }
 
 function drink(arg) {
@@ -9467,6 +9586,70 @@ function matchesNpcCondition(c) {
   if (c.type === 'renown_gte') return (player.renown || 0) >= (c.qty || 0);
   if (c.type === 'renown_lt')  return (player.renown || 0) <  (c.qty || 0);
   return true;
+}
+
+// 6.0 schema v0.25: `read` verb for lore items + magic books.
+//
+// Items can opt into deeper interaction via three new optional fields:
+//   - read_text: longer text shown on `read <item>` (overrides description)
+//   - on_read: array of effects fired ONCE per character (gated by a flag
+//     `read:<itemId>`). Same effect schema as dialog tree effects (narrate,
+//     set_flag, give_item, grant_skill, revoke_skill, spark/gold_award).
+//     Useful for magic books that grant a skill, scrolls that reveal flags,
+//     letters that complete an objective, etc.
+//   - consumed_on_read: if true, the item is destroyed after the read fires.
+//
+// If neither read_text nor description is present, the item simply isn't
+// readable and the engine reports that.
+function readItem(arg) {
+  if (combatBlock('read')) return;
+  if (!arg || !String(arg).trim()) {
+    write('Read what? Usage: read <item>', 'error');
+    return;
+  }
+  // Find the item: inventory first, then current room
+  let itemId = null, fromLoc = null;
+  const ii = findItemIn(player.inventory, arg);
+  if (ii !== -1) { itemId = player.inventory[ii]; fromLoc = 'inv'; }
+  else {
+    const room = player.rooms[player.location];
+    const ri = findItemIn(room.items || [], arg);
+    if (ri !== -1) { itemId = (room.items || [])[ri]; fromLoc = 'room'; }
+  }
+  if (!itemId) { write(`There's no "${arg}" here you can read.`, 'error'); return; }
+  const it = STORY.items[itemId];
+  if (!it) { write(`You can't read that.`, 'error'); return; }
+  const text = (it.read_text != null ? t(it.read_text) : null) || (it.description != null ? t(it.description) : null);
+  const hasEffects = Array.isArray(it.on_read) && it.on_read.length > 0;
+  if (!text && !hasEffects) { write(`There's nothing written on ${itemDisplay(itemId, true)}.`, 'system'); return; }
+  // Display the text (split by newlines so multi-line lore reads cleanly)
+  if (text) {
+    write(`You read ${itemDisplay(itemId, true)}:`, 'system');
+    for (const line of String(text).split('\n')) {
+      write(`  ${line}`, '');
+    }
+  }
+  // Trigger on_read effects, gated to once per character via a flag
+  if (hasEffects) {
+    const flag = `read:${itemId}`;
+    if (!player.flags.has(flag)) {
+      runEventEffects({ effects: it.on_read });
+      player.flags.add(flag);
+    }
+  }
+  // Optionally consume the item after reading
+  if (it.consumed_on_read) {
+    if (fromLoc === 'inv') {
+      const i = player.inventory.indexOf(itemId);
+      if (i !== -1) player.inventory.splice(i, 1);
+    } else {
+      const room = player.rooms[player.location];
+      const i = (room.items || []).indexOf(itemId);
+      if (i !== -1) room.items.splice(i, 1);
+    }
+    write(`The ${t(it.display)} crumbles to dust as you finish reading.`, 'system');
+  }
+  publishAction('read', { item: itemId });
 }
 
 function lightFire() {
@@ -11163,34 +11346,51 @@ function tutorialCommand(arg) {
 }
 
 function help() {
+  // 6.0: filter story-specific lines based on what the loaded STORY uses.
+  // Some commands (transform/revert, sharpen/repair, taming) only matter
+  // in stories that wire them up. Showing all of them in stories where they
+  // can't be used is confusing.
+  const skills = STORY.skills || {};
+  const items = STORY.items || {};
+  const npcs = STORY.npcs || {};
+  const hasTransform = !!(skills.lycanthropy || skills.vampirism);
+  const hasSmithing = Object.values(npcs).some(n => Array.isArray(n.behaviors) && n.behaviors.includes('offers_smithing'));
+  const hasTaming = !!skills.taming || Object.values(skills).some(s => Array.isArray(s.tags) && s.tags.includes('taming'));
+  const hasWorldEvents = !!(STORY.world_events && Object.keys(STORY.world_events).length > 0);
+  const hasMarketplace = Object.values(npcs).some(n => n.is_marketplace === true);
+  const hasBestiary = !!(STORY.entities && Object.keys(STORY.entities).length > 0);
+  const hasAmmo = Object.values(items).some(it => it?.effects?.requires_ammo);
   const lines = [
     T('Movement:        n/s/e/w · u/d · in · out · go <dir> · look · map'),
     T('Items:           take <x> · drop <x> · bury <x|qty x> · inv · status'),
-    T('World:           talk <npc> · answer <text>'),
+    T('World:           talk <npc> · answer <text> · read <item>  (lore, letters, books)'),
     T('Skills:          skills · learn <skill>'),
     T('Gathering:       chop / forage / gather (needs skill)'),
     T('Crafting:        recipes · craft <recipe> · craft <qty> <recipe>  (batch; each craft awards sparks)'),
-    T('Survival:        eat <x> · drink · light fire · hunt · attack · flee · rest · sleep'),
+    T('Survival:        eat <x> · eat <qty> <x> · drink · light fire · hunt · attack · flee · rest · sleep'),
     T('                 parry  (defensive stance — next blow has +60% dodge)'),
     T('                 charge  (Hunting only, +50% damage on next attack but enemy hits 1.5×; once per fight)'),
     T('                 retreat  (try to escape without parting damage; 70% base, +20% with Hunting)'),
-    T('                 transform [wolf|bat]  (if cursed) · revert  (change back)'),
+    ...(hasTransform ? [T('                 transform [wolf|bat]  (if cursed) · revert  (change back)')] : []),
+    ...(hasAmmo ? [T('                 (some ranged weapons consume ammo per shot — see item descriptions)')] : []),
     T('                 assist [<name>]  (join another player\'s fight in the same room)'),
     T('Equipment:       wear / wield <x> · unwear <slot> · equipment / eq'),
-    T('Smithing:        sharpen <x> · repair <x>  (at the village blacksmith)'),
-    T('Companion:       tame · feed · companion / pet · dismiss'),
+    ...(hasSmithing ? [T('Smithing:        sharpen <x> · repair <x>  (at the village blacksmith)')] : []),
+    ...(hasTaming ? [T('Companion:       tame · feed · companion / pet · dismiss')] : []),
     T('Progress:        quests / q · stats · achievements'),
     T('                 accept <id> · turn in <id>'),
     T('                 (daily quests auto-rotate at dawn — turn in before dawn or they expire)'),
     T('Storage:         place chest · chest · store [<n>] <x> · retrieve [<n>] <x>  (also "store all" / "retrieve all")'),
-    T('Bestiary:        bestiary  (list creatures the story defines, with kill counts)'),
-    T('World news:      news  (active world events + their progress)'),
-    T('Bounties:        bounties · bounty post <entity> <gold> · bounty claim <id> · bounty cancel <id>'),
-    T('Market:          sell <item>          (direct sale, instant gold)'),
-    T('                 sell <qty> <item>    (batch sell at base value)'),
-    T('                 sell <item> <price>  (list on player marketplace)'),
-    T('                 sell <qty> <item> <price>  (list batch)'),
-    T('                 buy <#> · market · listings'),
+    ...(hasBestiary ? [T('Bestiary:        bestiary  (list creatures the story defines, with kill counts)')] : []),
+    ...(hasWorldEvents ? [T('World news:      news  (active world events + their progress)')] : []),
+    ...(hasBestiary ? [T('Bounties:        bounties · bounty post <entity> <gold> · bounty claim <id> · bounty cancel <id>')] : []),
+    ...(hasMarketplace ? [
+      T('Market:          sell <item>          (direct sale, instant gold)'),
+      T('                 sell <qty> <item>    (batch sell at base value)'),
+      T('                 sell <item> <price>  (list on player marketplace)'),
+      T('                 sell <qty> <item> <price>  (list batch)'),
+      T('                 buy <#> · market · listings'),
+    ] : []),
     T('Drops:           corpses · loot <#>'),
     T('Network:         whisper <text>  (broadcast to your room)'),
     T('                 dm <name|npub> <text>  · messages / inbox'),
@@ -11306,6 +11506,7 @@ function handleCommand(input) {
     case 'sharpen':              sharpen(arg); break;
     case 'repair':               repair(arg); break;
     case 'bug': case 'report':   showBugReporter(); consumesTurn = false; break;
+    case 'read':                 readItem(arg); break;
     case 'reload': case 'update':
       if (arg === 'story' || arg === '' || arg === undefined) { reloadStory(); consumesTurn = false; }
       else write(`Reload what? Try "reload story".`, 'error');
@@ -11428,6 +11629,17 @@ write('');
 // latest version. Bundled stories skipped (no remote URL to compare against).
 setTimeout(() => { try { checkForStoryUpdate({ silentIfSame: true }); } catch {} }, 8000);
 setInterval(() => { try { checkForStoryUpdate({ silentIfSame: true }); } catch {} }, 10 * 60 * 1000);
+// Also: check the moment the tab regains focus, but throttled so a player
+// idly toggling tabs doesn't hammer the relay/CDN. 60-second floor between
+// visibility-triggered checks.
+let __lastVisCheck = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  const now = Date.now();
+  if (now - __lastVisCheck < 60_000) return;
+  __lastVisCheck = now;
+  try { checkForStoryUpdate({ silentIfSame: true }); } catch {}
+});
 
 if (isNewCharacter) {
   // Stamp creation time so the inactive-character cleanup (5.4) can decide
