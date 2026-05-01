@@ -5,7 +5,7 @@
     "title": "The Hollow Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.2.2",
+    "version": "1.3.0",
     "created_at": "2026-04-30T00:00:00Z",
     "language": "en",
     "languages": [
@@ -88,6 +88,34 @@
         ],
         "tags": [
           "cursed"
+        ]
+      },
+      "fallen_knight": {
+        "display": "Fallen Knight",
+        "summary": "You came here three years ago in chainmail and a chapel-sworn duty. The duty is gone; the mail is rusted; the heaviness in your shoulders is yours. You hit hard and tire fast.",
+        "attributes": {
+          "str": 14,
+          "agi": 8,
+          "int": 9
+        },
+        "attack_bonus": 3,
+        "starting_inventory_extra": ["bone_amulet"],
+        "tags": [
+          "mortal", "warrior"
+        ]
+      },
+      "village_child": {
+        "display": "Village Child",
+        "summary": "You grew up in the village before it hollowed out. You know which doors lock from the inside, which paths the wolves don't take, and which adults won't meet your eyes. You are small, fast, and hard to surprise.",
+        "attributes": {
+          "str": 7,
+          "agi": 13,
+          "int": 11
+        },
+        "evasion_bonus": 0.1,
+        "starting_inventory_extra": ["holy_water"],
+        "tags": [
+          "mortal"
         ]
       }
     },
@@ -359,7 +387,7 @@
           "message": "The pack-path bends sideways every time you look at it. As a man you can't go in."
         }
       },
-      "items": [],
+      "items": ["hunter_journal"],
       "npcs": [],
       "riddle": null,
       "tags": [
@@ -460,7 +488,7 @@
       "exits": {
         "down": "black_lake"
       },
-      "items": [],
+      "items": ["count_grimoire"],
       "npcs": [
         "the_count"
       ],
@@ -538,7 +566,7 @@
       "exits": {
         "up": "chapel"
       },
-      "items": [],
+      "items": ["priest_gospel"],
       "npcs": [],
       "riddle": null,
       "tags": [
@@ -1245,6 +1273,58 @@
       "category": "resource",
       "stackable": true,
       "image": "🫗"
+    },
+    "count_grimoire": {
+      "display": "the Count's grimoire",
+      "article": "a",
+      "description": "A black-bound book on the Count's high shelf. The pages whisper when opened. Reading it does not feel like learning.",
+      "read_text": "I, the unnamed Count, having lived now seven generations of the village below, set down what I have learned of the long dark.\n\nThe gift is not given. It is taken — by the giver. The wine in the chalice is yours; the chalice is mine. The night becomes patient with you. The sun becomes unkind. The mortal water burns. You will lose your appetite for what you ate; you will gain another.\n\nMy first three centuries I argued with what I had become. The fourth I made peace. The fifth I made a tower. The sixth I made the lake.\n\nIf the page becomes warm in your hand, you have already chosen. The change is in you. There is no closing of a door that has been opened by reading.\n\n— Auer",
+      "on_read": [
+        {"type": "grant_skill", "skill": "vampirism"},
+        {"type": "set_flag", "flag": "took_the_gift"},
+        {"type": "set_flag", "flag": "read_grimoire"},
+        {"type": "narrate", "text": ">>> The page warms in your hand. The cold tastes of wine. You will not need to eat the way you did. You have not closed the door.", "cls": "spark"}
+      ],
+      "value": 0,
+      "weight": 0.4,
+      "tags": ["lore", "cursed", "sacred", "unique"],
+      "category": "good",
+      "stackable": false,
+      "image": "📕"
+    },
+    "priest_gospel": {
+      "display": "the priest's gospel",
+      "article": "a",
+      "description": "A small, worn book the priest keeps under the altar. Page after page in his careful hand.",
+      "read_text": "On the cure-of-curses.\n\nThe wolf is not your enemy. The wolf is in you, and the wolf is hungry, and the wolf is — yourself, in part. The cure is not killing the wolf. The cure is feeding the man.\n\nWolfsbane on the tongue, moonsilver on the heart, holy water in the belly. Drink the three together and the wolf turns its face. The man comes back. He does not come back whole; he comes back with the wolf still listening, but listening is not eating.\n\nOn the Count.\n\nHe is courteous. He is also patient, in the way the lake is patient. Do not climb to him until you are sure of your answer. He will not refuse a guest, but he is not in the business of returning guests.\n\nOn the village.\n\nWe are forty now. We were a hundred. The trench at the back of the graveyard is dug for two more. I do not know which two. I pray each evening I am not one of them, and each morning I confess the prayer.\n\n— Fr. M.",
+      "on_read": [
+        {"type": "set_flag", "flag": "read_gospel"},
+        {"type": "spark_award", "qty": 12},
+        {"type": "narrate", "text": ">>> The priest's hand is steady on every page. Even where it shouldn't be.", "cls": "spark"}
+      ],
+      "value": 0,
+      "weight": 0.3,
+      "tags": ["lore", "sacred"],
+      "category": "good",
+      "stackable": false,
+      "image": "📘"
+    },
+    "hunter_journal": {
+      "display": "the hunter's journal",
+      "article": "a",
+      "description": "A field-journal in a tracker's compact hand. Pelts measured, dates marked, observations cold.",
+      "read_text": "12 February. Three pelts this week, two of average size, one large. The large one had no eyes that worked. The pack does not turn on a blind alpha; the pack does not have an alpha worth turning on.\n\n28 February. The wolf I tracked along the lake-shore was not a wolf when I caught it. It tried to speak. I did not let it.\n\n11 March. The hollow at the heart of the wood — I have heard of it from the priest. I do not believe in such things. I believe in tracks. I will go look for tracks.\n\n22 March. There are tracks. A circle of trees, all leaning. A stone in the centre, scored by something with a paw the size of a serving plate. The alpha is real. She is older than the village. She is — I admit it — older than my charts.\n\n14 April. I will not hunt her. I will sell pelts to those who do, and I will tell them what I have seen, and I will keep my own gun pointed elsewhere.\n\n— K.",
+      "on_read": [
+        {"type": "set_flag", "flag": "read_hunter_journal"},
+        {"type": "spark_award", "qty": 10},
+        {"type": "narrate", "text": ">>> The hunter writes the way she walks: quiet, patient, no extra step.", "cls": "spark"}
+      ],
+      "value": 0,
+      "weight": 0.2,
+      "tags": ["lore"],
+      "category": "good",
+      "stackable": false,
+      "image": "📗"
     }
   },
   "skills": {
@@ -2200,6 +2280,59 @@
         "Stay in by dark, traveller. The lake's bell rings for nobody now.",
         "I carry the crypt's key, when I remember it. Some days I do."
       ],
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "Eh? Oh — yes. The round, yes. Walk with me a bit. The lantern light helps both of us."
+          ],
+          "choices": [
+            {"label": "Tell me about your rounds.", "goto": "rounds"},
+            {"label": "Tell me about the lost Hilde.", "goto": "lost_hilde"},
+            {"label": "Tell me about the Count.", "goto": "watchman_count"},
+            {"label": "Anything I should know?", "goto": "wisdom"},
+            {"label": "Goodbye.", "end": true}
+          ]
+        },
+        "rounds": {
+          "lines": [
+            "Square at first light, then the smithy at noon, then the graveyard until ten, then the chapel until dawn.",
+            "I keep the same paces. The wolves know the paces. They wait for the gaps. The gaps are mine."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "lost_hilde": {
+          "lines": [
+            "Aye. Hilde, of the south house. Walked into the trench last winter. Did not walk back.",
+            "I saw her three nights running. The fourth, no. The young one in the chapel — Lise — she took it hard. She took it harder than her mother did. I should have walked her round. I did not."
+          ],
+          "effects": [
+            {"type": "set_flag", "flag": "watchman_told_hilde"}
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "watchman_count": {
+          "lines": [
+            "Don't climb. That's the only thing I tell every traveller. Don't climb.",
+            "I have walked past that lake-tower for forty years. I have seen the window light and the window dark and the window where there was no window before. Don't climb."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "wisdom": {
+          "lines": [
+            "If a wolf speaks to you, walk away. If it speaks again, run.",
+            "If a man at the lake-tower offers you wine, drink water. If he offers you water, drink nothing."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        }
+      },
       "behaviors": [
         "buys_items",
         "tells_rumors"
@@ -2483,6 +2616,57 @@
         "Walk careful by the lake at night. The tower hears.",
         "Standing rewards: thirty gold for any pelt you bring me, more for the alpha. If you want to make it official — type 'bounty post werewolf 30' — and the village will know."
       ],
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "Sit, then. Pelt rack's full this week — three buys you fair coin if you've brought any.",
+            "What do you want to know?"
+          ],
+          "choices": [
+            {"label": "Tell me about the alpha.", "goto": "alpha_lore"},
+            {"label": "How do I track a wolf?", "goto": "tracking"},
+            {"label": "What do you sell?", "goto": "stock_lore"},
+            {"label": "Anything about the lake?", "goto": "lake_warning"},
+            {"label": "Goodbye.", "end": true}
+          ]
+        },
+        "alpha_lore": {
+          "lines": [
+            "She is real. White-eyed. Older than this village by a long count. The pack does not turn on her; she has no teeth left to bite a wolf with, but they wouldn't anyway.",
+            "I saw her, once, from a distance I trust. She is the thing the forest hollowed itself for. End her and the curse-line in this wood breaks. Break it, and the village starts to be a village again."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "tracking": {
+          "lines": [
+            "You don't track a wolf. You track where the wolf has been, and you arrive after. That's most of the work.",
+            "Look for breath-fog at chest height in the cold. Look for paw prints that go but don't come back. Trust the silence — wolves move where the birds don't sing."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "stock_lore": {
+          "lines": [
+            "Silver oil. Torches. A spare striker if you ask. I do not sell silver dagger; the smith does that, when the smith feels like it.",
+            "I'll buy any pelt you bring back. Cursed or otherwise. Don't ask what I do with them."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "lake_warning": {
+          "lines": [
+            "Listen. There is a thing at the bottom of the lake. There is also a thing at the top of the tower. They are not the same thing, despite what the villagers will tell you.",
+            "If you climb to the tower, do not look in the wine. If you walk the lake, do not look in the water. That is most of what I have to say about either."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        }
+      },
       "behaviors": [
         "buys_items",
         "tells_rumors"

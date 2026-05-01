@@ -5,7 +5,7 @@
     "title": "Saltbound",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.0.5",
+    "version": "1.1.0",
     "created_at": "2026-05-01T00:00:00Z",
     "language": "en",
     "languages": ["en"],
@@ -518,7 +518,7 @@
       "exits": {
         "up": "sea_caves"
       },
-      "items": ["mysterious_idol"],
+      "items": ["mysterious_idol", "ancient_grimoire"],
       "npcs": [],
       "riddle": null,
       "tags": ["underground", "water", "sacred"],
@@ -955,12 +955,36 @@
       "display": "weathered letter",
       "article": "a",
       "description": "Sealed in a tin, never sent. 'To Mary, of Falmouth — if this finds you, I did not. The island held me longer than I held myself.' Signed with a single initial: J.",
+      "read_text": "To Mary, of Falmouth, post-paid Sydney —\n\nIf this finds you, then I did not. I will keep this short, in case the cabin fills.\n\nThe ship struck reef in the small hours of a moonless night. The Helena split in two before the long-boat could be lowered. I came through the surf onto a beach that should not be here. The chart is wrong. The chart is wrong about most things.\n\nI lived. For a year I built. For a second year I waited. The third I stopped waiting. The fourth, I think, was when I started speaking to the ghost of the woman who had built the camp before mine — she had been there fifty years, by then. We were good company. I am sorry for the company I am about to be.\n\nThe island held me longer than I held myself. Marry again. Tell our son I tried.\n\n— J.",
+      "on_read": [
+        {"type": "set_flag", "flag": "read_jeremiah_letter"},
+        {"type": "spark_award", "qty": 6},
+        {"type": "narrate", "text": ">>> The ghost at the camp watches you read his letter. He nods, very slightly. He has been waiting forty years for someone to read it.", "cls": "spark"}
+      ],
       "value": 0,
       "weight": 0.1,
       "tags": ["lore"],
       "category": "good",
       "stackable": false,
       "image": "✉"
+    },
+    "ancient_grimoire": {
+      "display": "ancient grimoire",
+      "article": "an",
+      "description": "A black-bound book on a stone shelf in the deep grotto. The script on the cover is older than any language you know.",
+      "read_text": "The first lines are not lines. They are circles, and the circles teach themselves to your eye as you look.\n\nThe people who carved this place did not write the way you write. They drew, and the drawings became words while you watched them. By the third page you are reading a language you did not know an hour ago.\n\nThe island, the book says, is the lid of a vessel. The vessel holds something the people had no name for, and they did not need a name for it because they knew its shape. They built the ruins to keep the lid on. They left when they were sure the lid would hold without them.\n\nThe last page is blank. There is room for one more reader after you. There has been, for as long as the book has existed, room for exactly one more reader.\n\nYou close the book. The grotto is colder. You understand the island in a way the elder's spirit said you would.",
+      "on_read": [
+        {"type": "grant_skill", "skill": "ancient_lore"},
+        {"type": "set_flag", "flag": "elder_taught"},
+        {"type": "set_flag", "flag": "read_ancient_grimoire"},
+        {"type": "narrate", "text": ">>> The carvings on the grotto walls steady. You read them as if they had always been your own tongue. The island is no longer a place. It is a room you have walked into.", "cls": "spark"}
+      ],
+      "value": 0,
+      "weight": 0.5,
+      "tags": ["lore", "sacred", "unique"],
+      "category": "good",
+      "stackable": false,
+      "image": "📕"
     },
     "signal_kit": {
       "display": "signal-fire kit",
@@ -1469,7 +1493,47 @@
       "is_marketplace": false,
       "initial_stock": [],
       "teaches": ["herbalism"],
-      "hours": {"open": 0, "close": 24}
+      "hours": {"open": 0, "close": 24},
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "Ah — a living one. It has been a while. Sit; the shade is real even if I am not."
+          ],
+          "choices": [
+            {"label": "Tell me about the plants.", "goto": "plants_lore"},
+            {"label": "How did you die?", "goto": "death_botanist"},
+            {"label": "What is in the lava field?", "goto": "sixth_plant"},
+            {"label": "Goodbye.", "end": true}
+          ]
+        },
+        "plants_lore": {
+          "lines": [
+            "Wolfsbane — bitter, narrow leaf, violet flower in spring. Crushed: closes a wound. Steeped: settles a fever. Distilled with moonsilver and holy water: the cure for the cursed, in stories that end well.",
+            "Moonsilver herb — pale leaf, only in shade, only on stone. Settles the stomach. The seventh plant I never found is, I believe, its night-blooming sister."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "death_botanist": {
+          "lines": [
+            "Fever. The third week alone. I had drunk all my fresh water by the second and refused to walk to the falls in the rain. Pride and exhaustion in equal measure.",
+            "The fever did not last long. The waiting after was longer. I do not recommend it."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "sixth_plant": {
+          "lines": [
+            "On the lava field, where the heat shimmer is heaviest, a small grey-leafed cluster grows in basalt cracks. I named it heat-thistle, in my notebook. The notebook is gone now.",
+            "If you find it: do not pick by hand. The leaves leave a burn that lasts a week. Use a folded rag."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        }
+      }
     },
     "navigators_ghost": {
       "display": "the navigator's ghost",
@@ -1484,7 +1548,48 @@
       "behaviors": ["tells_rumors"],
       "is_marketplace": false,
       "initial_stock": [],
-      "hours": {"open": 0, "close": 24}
+      "hours": {"open": 0, "close": 24},
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "Ah. You climbed too. Not for the same reason, I hope.",
+            "The wind is steady up here. The horizon is a flat line. Most things you wonder about, you can see from this stone."
+          ],
+          "choices": [
+            {"label": "Tell me about the chart.", "goto": "chart_lore"},
+            {"label": "Tell me about the deep grotto.", "goto": "deep_lore"},
+            {"label": "Why did you climb up here?", "goto": "death_nav"},
+            {"label": "Goodbye.", "end": true}
+          ]
+        },
+        "chart_lore": {
+          "lines": [
+            "We carried two charts. One the captain trusted. One I trusted. They disagreed at exactly the point where we struck reef.",
+            "The other chart — older, copied from a Polynesian original two centuries back — showed this island. Showed it in three pieces, like a scattered thing, with an X in the centre. I tore the chart into thirds in my last fever. I would not do it again."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "deep_lore": {
+          "lines": [
+            "Below the sea-caves there is a grotto. Below the grotto there is a — chamber. The X marks the chamber.",
+            "The thing in there is not a god. It is older than gods. It holds the island the way a hand holds a shell. The elder's spirit will tell you to bring back what is there. Listen to her, but do not stay long."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "death_nav": {
+          "lines": [
+            "I waited two years. Every dawn I climbed and watched. The third year I stopped climbing, and the fourth I walked up here once more and did not walk back down.",
+            "Looking at the sea is gentler than looking at the trees. The trees forget you. The sea pretends to remember."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        }
+      }
     },
     "elders_spirit": {
       "display": "the elder's spirit",

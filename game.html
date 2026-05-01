@@ -6196,11 +6196,21 @@ function resolveStoryProse() {
 const combatSessions = new Map();
 // session shape: { entity_id, room_id, hp, max_hp, opener_pubkey, opener_name, participants: Set<pk>, started_at, ended }
 
-// Auto-accept quests at start
+// Auto-accept quests at start. New auto-accept quests inherit the player's
+// already-explored room set so a `visited` objective for a room the player
+// has already been to satisfies immediately — no need to revisit. Without
+// this, a player loading a save from before a quest existed would have to
+// physically re-walk to every required room before the engine credits it.
+// Also defensively patches existing quest entries that lack the visited[]
+// field (older save formats) so move() can safely call .includes() on them.
 for (const [qid, q] of Object.entries(STORY.quests || {})) {
   if (q.auto_accept && !player.quests[qid]) {
-    player.quests[qid] = { state: 'active', kills: {}, visited: [] };
+    player.quests[qid] = { state: 'active', kills: {}, visited: [...(player.visited || [])] };
   }
+}
+for (const ps of Object.values(player.quests || {})) {
+  if (!Array.isArray(ps.visited)) ps.visited = [];
+  if (!ps.kills || typeof ps.kills !== 'object') ps.kills = {};
 }
 
 // ============================================================
@@ -8082,9 +8092,12 @@ function move(dir) {
   const from = player.location; player.location = target;
   const newRoom = !player.visited.has(target);
   player.visited.add(target);
-  // Track per-quest visited rooms
+  // Track per-quest visited rooms (defensive: older save formats lacked
+  // visited[], which would have thrown on .includes()).
   for (const ps of Object.values(player.quests)) {
-    if (ps.state === 'active' && !ps.visited.includes(target)) ps.visited.push(target);
+    if (ps.state !== 'active') continue;
+    if (!Array.isArray(ps.visited)) ps.visited = [];
+    if (!ps.visited.includes(target)) ps.visited.push(target);
   }
   publishAction('move', { from, to: target });
   if (newRoom) write(`(new place — added to your map)`, 'system');
