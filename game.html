@@ -47,6 +47,13 @@
   .line.fire     { color: var(--fire); }
   .line.combat   { color: var(--red); font-weight: 600; }
 
+  /* v0.36: low-life sidebar pulse. Used by refreshSidebar() when life ratio
+     drops below 25%. Soft pulse so the change is noticed but not distracting. */
+  @keyframes tf-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.5; }
+  }
+
   /* ---------------- DEATH DRAMA (5.4) ---------------- */
   #death-veil {
     position: fixed; inset: 0; pointer-events: none; z-index: 100;
@@ -4752,7 +4759,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.35';
+const ENGINE_VERSION_LABEL = 'v0.36';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -5573,6 +5580,10 @@ const player = {
   world_events_progress: {},   // 5.12: { event_id: { active_day, kills:{}, items_seen:[], visited:[], completed:bool, expired:bool, completion_day } }
   world_events_seen: new Set() // 5.12: event ids first-announced to this character
 };
+// v0.36: terminal-DOM index where the last `hunt` opened a fight. `recap`
+// slices the terminal output from this point and filters for combat/spark
+// lines so players can review what just happened. Memory-only.
+let lastFightStartIdx = null;
 
 // ---- i18n helpers (5.3) ---------------------------------------------------
 // Prose fields in stories may be a plain string (legacy) or an object keyed
@@ -6750,7 +6761,27 @@ function refreshSidebar() {
   const cap = computeMaxCapacity();
   const wt  = Math.round(computeWeight() * 10) / 10;
   const maxLife = computeMaxLife();
-  document.getElementById('life').textContent = `${Math.max(0, Math.floor(player.life))}/${maxLife}`;
+  const lifeEl = document.getElementById('life');
+  lifeEl.textContent = `${Math.max(0, Math.floor(player.life))}/${maxLife}`;
+  // v0.36: low-life warning. Below 25% → red + slow pulse; below 50% → amber.
+  // Visible-from-the-corner-of-your-eye cue without disrupting the prose.
+  const lifeRatio = Math.max(0, player.life) / Math.max(1, maxLife);
+  if (lifeRatio < 0.25) {
+    lifeEl.style.color = 'var(--red)';
+    lifeEl.style.fontWeight = '700';
+    lifeEl.style.animation = 'tf-pulse 1.4s ease-in-out infinite';
+    lifeEl.title = 'Low life — eat, drink, rest, or sleep somewhere safe.';
+  } else if (lifeRatio < 0.5) {
+    lifeEl.style.color = 'var(--accent)';
+    lifeEl.style.fontWeight = '600';
+    lifeEl.style.animation = '';
+    lifeEl.title = 'Half life — top up before your next fight.';
+  } else {
+    lifeEl.style.color = '';
+    lifeEl.style.fontWeight = '';
+    lifeEl.style.animation = '';
+    lifeEl.title = '';
+  }
   document.getElementById('gold').textContent = player.gold;
   document.getElementById('sparks').textContent = player.sparks;
   document.getElementById('load').textContent = `${wt}/${cap}`;
@@ -7865,6 +7896,8 @@ function tickTurn() {
     if (Math.random() < w.encounter_chance * nightBoost * fogBoost) {
       const ent = STORY.entities[w.entity];
       player.combat_target = { id: w.entity, ...structuredClone(ent) };
+      // v0.36: random encounter also marks the fight-start index for `recap`.
+      lastFightStartIdx = out.children.length;
       write('');
       write(`A ${ent.display} appears, ears back, lips curling.`, 'combat');
       write('Type "attack" to fight, "flee" to escape (you take a parting bite).', 'combat');
@@ -8711,11 +8744,42 @@ function answer(text) {
 }
 
 // --- combat & survival ---
+// v0.36: replay the most recent fight's narration. Slices out.children from
+// lastFightStartIdx, filters for combat-class lines (attack hits, dodges,
+// crits, kills, flee, parry, charge messages), and prints a summary. Useful
+// on mobile where scrollback is hard, or after a long break.
+function showRecap() {
+  if (lastFightStartIdx == null) {
+    write('No recent fight to recap.', 'system');
+    return;
+  }
+  const lines = [];
+  const end = out.children.length;
+  for (let i = lastFightStartIdx; i < end; i++) {
+    const node = out.children[i];
+    if (!node) continue;
+    const cls = node.className || '';
+    // Pick lines that meaningfully belong to the fight: combat / spark / error / success.
+    // Skip echo (player typed input) so the recap is just the engine's narration.
+    if (/\bcombat\b|\bspark\b|\bsuccess\b|\berror\b/.test(cls) && !/\becho\b/.test(cls)) {
+      lines.push({ text: node.textContent || '', cls: cls.replace(/^line\s+/, '').trim() });
+    }
+  }
+  if (lines.length === 0) {
+    write('Last fight had no narration captured. (Maybe you just opened it?)', 'system');
+    return;
+  }
+  writeBlock('=== Last fight recap ===', () => {
+    for (const l of lines) write(l.text, l.cls);
+  }, '── end of recap ──');
+}
 function hunt() {
   if (!player.skills.has('hunting')) { write('You need the Hunting skill to hunt.', 'error'); return; }
   if (inCombat()) { write('You are already in a fight.', 'error'); return; }
   const room = player.rooms[player.location];
   if (!room.spawn_table?.length) { write('There is nothing to hunt here.', 'error'); return; }
+  // v0.36: mark the terminal index so `recap` can slice from here.
+  lastFightStartIdx = out.children.length;
   const pick = pickWeighted(room.spawn_table);
   const ent = STORY.entities[pick.entity];
   player.combat_target = { id: pick.entity, ...structuredClone(ent) };
@@ -9277,7 +9341,12 @@ function showQuests() {
       const prog = questProgress(qid);
       for (const p of prog) {
         const mark = p.done ? '✓' : '·';
-        write(`    [${mark}] ${p.label}: ${Math.min(p.cur, p.target)}/${p.target}`);
+        // v0.36: unicode progress bar — eight cells of relative completion.
+        // Reads at-a-glance whether a quest is "almost done" or "barely started".
+        const cur = Math.min(p.cur, p.target);
+        const filled = Math.min(8, Math.round((cur / Math.max(1, p.target)) * 8));
+        const bar = '▓'.repeat(filled) + '░'.repeat(8 - filled);
+        write(`    [${mark}] ${p.label}  ${bar} ${cur}/${p.target}`);
       }
       if (questComplete(qid) && q.giver) {
         write(`    → Ready! Find ${STORY.npcs[q.giver]?.display || q.giver} and "turn in ${qid}".`, 'success');
@@ -11702,6 +11771,26 @@ function tutorialCommand(arg) {
     write('Tutorial hints re-enabled. Try a few commands to see them again.', 'success');
     return;
   }
+  // v0.36: replay specific topics. "tutorial topics" lists; "tutorial topic
+  // <name>" prints that hint regardless of seen-state. Useful for veterans
+  // who want to re-read a specific cue without re-enabling all hints.
+  const parts = arg.split(/\s+/);
+  if (parts[0] === 'topics') {
+    write('Tutorial topics:', 'system');
+    for (const k of Object.keys(TUTORIAL_HINTS)) write(`  ${k}`, 'system');
+    write('Type "tutorial topic <name>" to re-read one.', 'system');
+    return;
+  }
+  if (parts[0] === 'topic' && parts[1]) {
+    const lines = TUTORIAL_HINTS[parts[1]];
+    if (!lines) {
+      write(`No tutorial topic "${parts[1]}". Type "tutorial topics" to list available ones.`, 'error');
+      return;
+    }
+    write('');
+    for (const l of lines) write(l, 'system');
+    return;
+  }
   // Default: print the full beginner's guide
   write('=== TUTORIAL: BEGINNER\'S GUIDE ===', 'title');
   write('You are a traveler in a persistent shared world. Other players may share rooms with you.', 'system');
@@ -11766,6 +11855,7 @@ function help() {
     T('Gathering:       chop / forage / gather (needs skill)'),
     T('Crafting:        recipes · craft <recipe> · craft <qty> <recipe>  (batch; each craft awards sparks)'),
     T('Survival:        eat <x> · eat <qty> <x> · drink · light fire · hunt · attack · flee · rest · sleep'),
+    T('                 recap / last  (replay narration from your most recent fight)'),
     T('                 parry  (defensive stance — next blow has +60% dodge)'),
     T('                 charge  (Hunting only, +50% damage on next attack but enemy hits 1.5×; once per fight)'),
     T('                 retreat  (try to escape without parting damage; 70% base, +20% with Hunting)'),
@@ -11805,7 +11895,7 @@ function help() {
     T('Relays:          relay list · relay add <wss://...> · relay remove <url> · relay reset'),
     T('Offline:         (no command — events queue automatically when offline, sync on reconnect)'),
     T('Language:        lang  (show)  ·  lang <code>  (switch, e.g. "lang de")'),
-    T('Tutorial:        tutorial  (beginner\'s guide)  ·  tutorial off  (silence hints)'),
+    T('Tutorial:        tutorial  (beginner\'s guide)  ·  tutorial topics / topic <name>  (replay one)  ·  tutorial off  (silence hints)'),
     T('Feedback:        bug / report  (open a bug-report dialog)'),
     T('Updates:         reload story  (fetch the latest version of the active story without losing progress)'),
     T('Misc:            clear · help')
@@ -11980,7 +12070,13 @@ function handleCommand(input) {
     case 'gifts': case 'offers': showGifts(); consumesTurn = false; break;
     case 'heal':                 healCommand(arg); break;
     case 'who':                  who(); consumesTurn = false; break;
-    case 'map': case 'm':        writeBlock('=== Map ===', () => showMap(), '── end of map ──'); consumesTurn = false; break;
+    case 'map': case 'm':        writeBlock('=== Map ===', () => {
+      showMap();
+      // v0.36: legend so first-time viewers know what each marker means.
+      write('');
+      write('Legend:  *=you · 📦=chest · ⚠=wolves · 🔥=fire · ↑↓=stairs (up/down) · ┊=in/out · ╎=through wall', 'echo');
+    }, '── end of map ──'); consumesTurn = false; break;
+    case 'recap': case 'last':   showRecap(); consumesTurn = false; break;
     case 'help': case '?':       help(); consumesTurn = false; break;
     case 'tutorial': case 'guide': tutorialCommand(argRaw); consumesTurn = false; break;
     case 'clear':                out.innerHTML = ''; consumesTurn = false; break;
@@ -11994,10 +12090,19 @@ function handleCommand(input) {
           write(`${sk.display} is a skill. Use "learn ${cmd}" (${sk.spark_cost} sparks).`, 'system');
         }
       } else {
-        if (!player.tutorial_done)
+        // v0.36: fuzzy "did you mean" — Levenshtein vs the verb pool, surface
+        // up to three closest matches within edit-distance 2. Catches the
+        // typical typo cases (atak / take2 / drpop / etc.) that previously
+        // just said "unknown command".
+        const suggestions = fuzzyCommandSuggestions(cmd);
+        if (!player.tutorial_done) {
           write(`Unknown command: "${cmd}". Type "help" for the full list, or "tutorial" for a beginner's guide.`, 'error');
-        else
+        } else {
           write(`Unknown command: "${cmd}". Type "help".`, 'error');
+        }
+        if (suggestions.length) {
+          write(`Did you mean: ${suggestions.join(', ')}?`, 'system');
+        }
       }
       consumesTurn = false;
   }
@@ -12020,6 +12125,15 @@ function closeDrawer() { drawer.classList.remove('open'); backdrop.classList.rem
 document.getElementById('drawer-toggle').addEventListener('click', openDrawer);
 document.getElementById('drawer-close').addEventListener('click', closeDrawer);
 backdrop.addEventListener('click', closeDrawer);
+// v0.36: ESC closes the mobile drawer (keyboard-friendly, also works on
+// tablet+keyboard combos). Only acts when drawer is actually open so it
+// doesn't interfere with other Escape handlers (overlays, modals).
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && drawer.classList.contains('open')) {
+    e.preventDefault();
+    closeDrawer();
+  }
+});
 
 // ============================================================
 //  BOOTSTRAP
@@ -12064,8 +12178,43 @@ const STATIC_VERBS = [
   'who','give','gifts','offers','claim','decline','heal','soul','import','rename','characters',
   'switch','stories','relay','lang','tutorial','bug','report','reload','clear','help','map',
   'go','n','s','e','w','u','d','in','out','north','south','east','west','up','down',
-  'donate','support'
+  'donate','support','recap','last'
 ];
+// v0.36: tiny Levenshtein for fuzzy "did you mean" suggestions. Caps the
+// matrix at ~30×30 since verbs are short — perfectly fine for runtime use.
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+  const m = a.length, n = b.length;
+  if (m > 30 || n > 30) return Math.max(m, n); // bail on absurdly long
+  let prev = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur.push(Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost));
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+function fuzzyCommandSuggestions(typed) {
+  if (!typed) return [];
+  const lc = typed.toLowerCase();
+  // Score every verb by edit distance; return the closest ≤2 distance, top 3.
+  const scored = STATIC_VERBS.map(v => ({ v, d: levenshtein(lc, v) }));
+  scored.sort((a, b) => a.d - b.d || a.v.length - b.v.length);
+  const out = [];
+  for (const s of scored) {
+    if (s.d > 2) break;
+    if (s.v === lc) continue;
+    out.push(s.v);
+    if (out.length >= 3) break;
+  }
+  return out;
+}
 function completionCandidates(prefix, tokenIdx) {
   const cands = new Set();
   const lc = prefix.toLowerCase();
