@@ -4746,6 +4746,13 @@ const STORY_WHISPERING_FOREST = {
 const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace story IDs the player has paid for (honor system v1)
+// 6.0 report-a-bug: set this to your inbox to enable the "Send via email" button
+// in the /bug modal. Leave empty ('') to use copy-to-clipboard only.
+// Beware exposing a personal email — use a dedicated inbox or alias.
+// Currently routed to a shared cross-game inbox; subject is prefixed with
+// [TaleForge ...] so the author can filter from other apps' reports.
+const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
+const ENGINE_VERSION_LABEL = 'v0.31';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -5038,6 +5045,87 @@ function showStoryPicker(currentId = null) {
     // were removed in favor of curated-only sources (built-in + marketplace).
     const msgEl = panel.querySelector('#picker-msg');
   });
+}
+
+// 6.0 report-a-bug: opens a small modal capturing description + auto-collected
+// debug info (engine version, story, room, character, platform). Submits via
+// mailto: if BUG_REPORT_EMAIL is configured; always offers copy-to-clipboard.
+// Player input runs through the engine's normal verb path; modal blocks turns.
+function showBugReporter() {
+  const debug = {
+    engine: ENGINE_VERSION_LABEL,
+    story_id: (typeof STORY !== 'undefined' && STORY?.meta?.id) || '?',
+    story_version: (typeof STORY !== 'undefined' && STORY?.meta?.version) || '?',
+    room: (typeof player !== 'undefined' && player?.location) || '?',
+    character: (typeof player !== 'undefined' && player?.name) || '?',
+    pubkey_short: (typeof pk !== 'undefined' && pk) ? (pk.slice(0, 12) + '…' + pk.slice(-6)) : '?',
+    platform: (navigator.userAgent || '').slice(0, 140),
+    locale: navigator.language || '?',
+    time: new Date().toISOString()
+  };
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:22px;';
+  panel.innerHTML = `
+    <div style="font-size:18px;font-weight:bold;margin-bottom:6px;">Report a bug</div>
+    <div style="color:#9c9388;font-size:13px;margin-bottom:14px;">Describe what happened, what you expected, and what you saw instead. We'll attach version + room info automatically.</div>
+    <textarea id="bug-desc" rows="6" placeholder="What went wrong? What were you doing?" style="width:100%;background:#0c0e10;border:1px solid #3a352e;color:#e8e6e3;border-radius:4px;padding:10px;font:inherit;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
+    <div style="margin-top:12px;font-size:11px;color:#7a7367;text-transform:uppercase;letter-spacing:0.04em;">attached debug info</div>
+    <pre id="bug-debug" style="margin:6px 0 0;background:#0c0e10;border:1px solid #2a2724;border-radius:4px;padding:10px;font-size:11px;color:#9c9388;white-space:pre-wrap;word-break:break-all;max-height:160px;overflow:auto;"></pre>
+    <div id="bug-msg" style="margin-top:10px;font-size:12px;min-height:14px;color:#6dc28d;"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;flex-wrap:wrap;">
+      <button id="bug-cancel" style="padding:8px 14px;background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;cursor:pointer;font:inherit;">Cancel</button>
+      <button id="bug-copy" style="padding:8px 14px;background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;cursor:pointer;font:inherit;">Copy report</button>
+      <button id="bug-send" style="padding:8px 14px;background:#c79b3a;border:none;color:#1a1408;border-radius:4px;cursor:pointer;font-weight:600;font:inherit;"></button>
+    </div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  panel.querySelector('#bug-debug').textContent = JSON.stringify(debug, null, 2);
+
+  const sendBtn = panel.querySelector('#bug-send');
+  if (BUG_REPORT_EMAIL) {
+    sendBtn.textContent = 'Send via email';
+  } else {
+    sendBtn.textContent = 'No email configured';
+    sendBtn.disabled = true;
+    sendBtn.style.opacity = '0.4';
+    sendBtn.style.cursor = 'default';
+  }
+
+  function buildBody(desc) {
+    return `${desc.trim() || '(no description)'}\n\n---\nDebug info:\n${JSON.stringify(debug, null, 2)}`;
+  }
+  function close() { overlay.remove(); }
+
+  panel.querySelector('#bug-cancel').onclick = close;
+  panel.querySelector('#bug-copy').onclick = async () => {
+    const desc = panel.querySelector('#bug-desc').value;
+    const body = buildBody(desc);
+    try {
+      await navigator.clipboard.writeText(body);
+      panel.querySelector('#bug-msg').textContent = 'Copied to clipboard. Paste it wherever you contact the author.';
+    } catch {
+      panel.querySelector('#bug-msg').style.color = '#c66';
+      panel.querySelector('#bug-msg').textContent = 'Clipboard blocked by browser — select the text below and copy manually.';
+    }
+  };
+  if (BUG_REPORT_EMAIL) {
+    sendBtn.onclick = () => {
+      const desc = panel.querySelector('#bug-desc').value;
+      if (!desc.trim()) { panel.querySelector('#bug-msg').style.color = '#c66'; panel.querySelector('#bug-msg').textContent = 'Add a short description first.'; return; }
+      const subj = '[TaleForge bug] ' + desc.slice(0, 60).replace(/[\r\n]+/g, ' ');
+      const body = buildBody(desc);
+      const url = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+      window.location.href = url;
+      panel.querySelector('#bug-msg').textContent = 'Email composer opened. Send it from your mail app.';
+    };
+  }
+
+  // Esc to close
+  overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  setTimeout(() => panel.querySelector('#bug-desc').focus(), 50);
 }
 
 async function resolveActiveStory() {
@@ -10990,6 +11078,7 @@ function help() {
     T('Offline:         (no command — events queue automatically when offline, sync on reconnect)'),
     T('Language:        lang  (show)  ·  lang <code>  (switch, e.g. "lang de")'),
     T('Tutorial:        tutorial  (beginner\'s guide)  ·  tutorial off  (silence hints)'),
+    T('Feedback:        bug / report  (open a bug-report dialog)'),
     T('Misc:            clear · help')
   ];
   for (const l of lines) write(l, 'system');
@@ -11082,6 +11171,7 @@ function handleCommand(input) {
     case 'equipment': case 'eq': showEquipment(); consumesTurn = false; break;
     case 'sharpen':              sharpen(arg); break;
     case 'repair':               repair(arg); break;
+    case 'bug': case 'report':   showBugReporter(); consumesTurn = false; break;
     case 'tame':                 tameAttempt(); break;
     case 'feed':                 feedCompanion(); break;
     case 'companion': case 'pet':showCompanion(); consumesTurn = false; break;
@@ -11191,7 +11281,7 @@ cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
 });
 
-write(`=== ${t(STORY.meta.title)} — Nostr PoC v0.30 ===`, 'title');
+write(`=== Taleforge — ${t(STORY.meta.title)} — ${ENGINE_VERSION_LABEL} ===`, 'title');
 write(`awb_🇨🇭 · 2026`, 'system');
 write('');
 
