@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Nostr Text Adventure — v0.4</title>
+<title>Taleforge</title>
 <style>
   :root {
     color-scheme: dark;
@@ -232,7 +232,7 @@ import {
 } from 'https://esm.sh/nostr-tools@2.7.2';
 
 // ============================================================
-//  STORY (inlined v0.4 — Whispering Forest, the bundled default)
+//  STORY (inlined — Whispering Forest, the bundled default)
 // ============================================================
 const STORY_WHISPERING_FOREST = {
   "schema_version": "0.10",
@@ -11837,6 +11837,10 @@ cmdInput.addEventListener('keydown', e => {
 });
 
 write(`=== Taleforge — ${t(STORY.meta.title)} — ${ENGINE_VERSION_LABEL} ===`, 'title');
+// Keep the browser-tab label in sync with the in-game banner (was hardcoded
+// to "Nostr Text Adventure — v0.4" in the static <title>, which never moved
+// across the rebrand or engine bumps).
+try { document.title = `Taleforge — ${t(STORY.meta.title)} — ${ENGINE_VERSION_LABEL}`; } catch {}
 write(`awb_<svg viewBox="0 0 32 32" width="11" height="11" style="vertical-align:-1px;display:inline-block;border-radius:1px;"><rect width="32" height="32" fill="#d8232a"/><rect x="13" y="6" width="6" height="20" fill="#fff"/><rect x="6" y="13" width="20" height="6" fill="#fff"/></svg> · 2026`, 'system');
 write('');
 
