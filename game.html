@@ -261,7 +261,7 @@
       <button id="drawer-toggle" aria-label="Open panel">☰</button>
     </div>
     <div id="output"><div id="boot-loading" style="color:var(--muted);padding:14px;font-size:13px;">
-      <span style="display:inline-block;animation:tf-pulse 1.4s ease-in-out infinite;">Loading worlds…</span>
+      <span id="boot-loading-text" style="display:inline-block;animation:tf-pulse 1.4s ease-in-out infinite;">Loading worlds…</span>
     </div></div>
     <div id="prompt-row">
       <span class="prompt">&gt;</span>
@@ -296,7 +296,7 @@
       <div class="kv"><span class="k">🕒 <span data-i18n="time">time</span></span><span class="v" id="time">Day 1, morning</span></div>
       <div class="kv"><span class="k" data-i18n="weather">weather</span><span class="v" id="weather">clear</span></div>
     </section>
-    <section>
+    <section id="equipmentSection">
       <h3 data-i18n="Equipment">Equipment</h3>
       <div class="mat-list" id="equipment"></div>
     </section>
@@ -312,11 +312,11 @@
       <h3 data-i18n="Companion">Companion</h3>
       <div class="mat-list" id="companionPanel"></div>
     </section>
-    <section>
+    <section id="materialsSection">
       <h3 data-i18n="Materials">Materials</h3>
       <div class="mat-list" id="materials"></div>
     </section>
-    <section>
+    <section id="skillsKnownSection">
       <h3 data-i18n="Skills known">Skills known</h3>
       <div class="skill-list" id="skillsKnown"></div>
     </section>
@@ -4860,7 +4860,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.44';
+const ENGINE_VERSION_LABEL = 'v0.46';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -5213,8 +5213,12 @@ function showStoryPicker(currentId = null) {
     const panel = document.createElement('div');
     panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:24px;';
     panel.innerHTML = `
-      <div style="font-size:20px;font-weight:bold;margin-bottom:6px;">Pick a story</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div style="font-size:20px;font-weight:bold;">Pick a story</div>
+        <button id="picker-random" title="Pick a random non-trial, non-age-gated story." style="background:#23201c;border:1px solid #3a352e;color:#f0b54a;border-radius:4px;padding:4px 10px;cursor:pointer;font:inherit;font-size:13px;">⚄ Surprise me</button>
+      </div>
       <div style="color:#9c9388;font-size:13px;margin-bottom:16px;">Each story is its own world with its own character. You can switch any time with the <code>switch story</code> command.</div>
+      <div id="picker-continue" style="margin-bottom:14px;"></div>
       <div id="story-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;"></div>
       <div id="picker-msg" style="margin-top:10px;color:#f0b54a;font-size:13px;min-height:16px;"></div>
     `;
@@ -5226,6 +5230,51 @@ function showStoryPicker(currentId = null) {
       overlay.remove();
       resolve(id);
     }
+
+    // v0.45: surprise-me random pick. Excludes the currently-playing story
+    // (so you can't pick the same one) and skips age-gated stories the
+    // player hasn't already acknowledged (the gate would block immediately
+    // afterwards anyway). If no eligible candidate exists, surface a hint.
+    const randBtn = panel.querySelector('#picker-random');
+    if (randBtn) {
+      randBtn.addEventListener('click', () => {
+        const all = listAllStoryOptions().filter(o => {
+          if (o.id === currentId) return false;
+          // Trial-only / paid-and-not-paid stories filter out — surprise-me
+          // should only land on stories the player can actually enter.
+          const m = o.story?.meta || {};
+          if (m.minimum_age > 0 && !hasAgeAck(o.story)) return false;
+          return true;
+        });
+        if (all.length === 0) {
+          const msg = panel.querySelector('#picker-msg');
+          if (msg) msg.textContent = 'No eligible stories to surprise you with right now.';
+          return;
+        }
+        const choice = all[Math.floor(Math.random() * all.length)];
+        pick(choice.id);
+      });
+    }
+
+    // v0.46: continue-where-you-left-off shortcut. If a recent active
+    // story+nsec exists in localStorage, show a prominent "▶ Continue" tile
+    // at the top so returning players don't have to scan the picker every
+    // time. Reads the same ACTIVE_STORY_KEY that resolveActiveStory checks.
+    try {
+      const continueWrap = panel.querySelector('#picker-continue');
+      const lastId = localStorage.getItem(ACTIVE_STORY_KEY);
+      if (continueWrap && lastId && lastId !== currentId) {
+        const lastStory = loadStoryById(lastId);
+        if (lastStory) {
+          const lastTitle = (typeof lastStory.meta?.title === 'string') ? lastStory.meta.title : (lastStory.meta?.title?.en || lastId);
+          const cBtn = document.createElement('button');
+          cBtn.style.cssText = 'width:100%;text-align:left;padding:12px 14px;background:#2a3528;border:2px solid #f0b54a;color:#e8e6e3;border-radius:4px;cursor:pointer;font:inherit;display:flex;align-items:center;gap:10px;';
+          cBtn.innerHTML = `<span style="font-size:20px;color:#f0b54a;">▶</span><span><strong style="color:#f0b54a;">Continue</strong> <em style="color:#bcb4a8;">${escapeHtml(lastTitle)}</em><br><span style="font-size:11px;color:#9c9388;">last active story on this browser</span></span>`;
+          cBtn.addEventListener('click', () => pick(lastId));
+          continueWrap.appendChild(cBtn);
+        }
+      }
+    } catch {}
 
     const listEl = panel.querySelector('#story-list');
     // 6.0: kick off a Nostr query for per-story player counts. We render
@@ -5253,7 +5302,15 @@ function showStoryPicker(currentId = null) {
         row.style.cssText = 'text-align:left;padding:12px 14px;background:' + (opt.id === currentId ? '#2a3528' : '#23201c') + ';border:1px solid ' + (opt.id === currentId ? '#4a6a3a' : '#3a352e') + ';color:#e8e6e3;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;gap:2px;font:inherit;';
         const titleSpan = document.createElement('span');
         titleSpan.style.cssText = 'font-weight:bold;';
-        titleSpan.textContent = opt.label + (opt.id === currentId ? '  ✓ (currently playing)' : '');
+        // v0.45: endings-reached badge. If any character on this browser
+        // has finished this story, show a ★N count next to the title so
+        // returning players see at a glance what they've completed.
+        const globalEndings = (typeof loadGlobalEndings === 'function') ? loadGlobalEndings() : {};
+        const reachedCount = (globalEndings[opt.id] || []).length;
+        const badgeStr = reachedCount > 0 ? `  ★${reachedCount}` : '';
+        titleSpan.innerHTML = escapeHtml(opt.label)
+          + (reachedCount > 0 ? ' <span style="color:#f0b54a;font-weight:600;" title="' + escapeHtml(`Endings reached on this browser: ${(globalEndings[opt.id] || []).join(', ')}`) + '">' + badgeStr + '</span>' : '')
+          + (opt.id === currentId ? '  <span style="color:#6dc28d;">✓ (currently playing)</span>' : '');
         const sub = document.createElement('span');
         sub.style.cssText = 'font-size:12px;color:#9c9388;';
         sub.textContent = `${Object.keys(opt.story.rooms || {}).length} rooms · ${Object.keys(opt.story.entities || {}).length} entities · author: ${opt.story.meta?.author || '—'}`;
@@ -5598,10 +5655,23 @@ function showAgeGateModal(story) {
   });
 }
 
+// v0.45: small helper that updates the boot-loading placeholder text so
+// the player can see what's actually happening on slow connections /
+// cold loads. Silent if the placeholder has already been removed (first
+// real terminal write tears it down via write()).
+function setBootStatus(msg) {
+  try {
+    const el = document.getElementById('boot-loading-text');
+    if (el) el.textContent = msg;
+  } catch {}
+}
+
 async function resolveActiveStory() {
   // 5.9: fetch any sibling stories listed in EXTRA_STORY_URLS so the picker
   // can show them as built-ins. Silent on failure (file://, 404, CORS).
+  setBootStatus('Fetching story manifest…');
   await loadExtraStoriesIntoBuiltin();
+  setBootStatus('Resolving active story…');
   // Try the saved active id first
   let id = null;
   try { id = localStorage.getItem(ACTIVE_STORY_KEY); } catch {}
@@ -7235,16 +7305,22 @@ function refreshSidebar() {
       ? `Streak: ${player.login_streak} day${player.login_streak === 1 ? '' : 's'} · ${player.total_logins} total logins`
       : '';
   }
-  // Equipment
+  // Equipment — v0.45: hide the whole section when empty so the sidebar
+  // doesn't waste real estate on a "(nothing worn)" placeholder.
   const eqEl = document.getElementById('equipment');
+  const eqSec = document.getElementById('equipmentSection');
   if (eqEl) {
     eqEl.innerHTML = '';
     const slots = Object.entries(player.equipment);
-    if (slots.length === 0) eqEl.innerHTML = `<div class="empty">${T('nothing worn')}</div>`;
-    else for (const [slot, item] of slots) {
-      const row = document.createElement('div'); row.className = 'eq-row';
-      row.innerHTML = `<span style="color:var(--muted);">${T(slot)}:</span> <span>${itemDisplay(item)}</span>`;
-      eqEl.appendChild(row);
+    if (slots.length === 0) {
+      if (eqSec) eqSec.style.display = 'none';
+    } else {
+      if (eqSec) eqSec.style.display = '';
+      for (const [slot, item] of slots) {
+        const row = document.createElement('div'); row.className = 'eq-row';
+        row.innerHTML = `<span style="color:var(--muted);">${T(slot)}:</span> <span>${itemDisplay(item)}</span>`;
+        eqEl.appendChild(row);
+      }
     }
   }
 
@@ -7279,6 +7355,11 @@ function refreshSidebar() {
       if (!best) best = active[0];
       trackerSec.style.display = '';
       trackerEl.innerHTML = '';
+      // v0.45: click-to-open. Tapping the tracker runs `quests` so the
+      // full description + objectives surface in the terminal.
+      trackerSec.style.cursor = 'pointer';
+      trackerSec.title = 'Click to open the full quests view.';
+      trackerSec.onclick = () => { try { showQuests(); } catch {} };
       const title = document.createElement('div');
       title.className = 'row';
       const tag = best.q.recurrence === 'daily' ? ' [daily]' : '';
@@ -8615,6 +8696,26 @@ function restartCommand() {
 // completion_message carries a `>>> ENDING: TAG <<<` line. Records the
 // (story, tag) pair on the character, awards legacy carry-over, locks
 // further play behind the overlay until the player chooses restart-or-pick.
+// v0.45: cross-character endings ledger. The per-character endings_reached
+// is what powers `endings` and the legacy carry-over, but it only knows
+// about the active character. The picker needs to know "has anyone on this
+// browser reached endings in this story" to surface a star badge — that's
+// what GLOBAL_ENDINGS_KEY tracks. Map of storyId → array of tags.
+const GLOBAL_ENDINGS_KEY = 'taleforge:endings_global';
+function loadGlobalEndings() {
+  try { return JSON.parse(localStorage.getItem(GLOBAL_ENDINGS_KEY) || '{}') || {}; }
+  catch { return {}; }
+}
+function recordGlobalEnding(storyId, tag) {
+  if (!storyId || !tag) return;
+  try {
+    const all = loadGlobalEndings();
+    if (!all[storyId]) all[storyId] = [];
+    if (!all[storyId].includes(tag)) all[storyId].push(tag);
+    localStorage.setItem(GLOBAL_ENDINGS_KEY, JSON.stringify(all));
+  } catch {}
+}
+
 function triggerStoryEnding(tag) {
   const storyId = STORY?.meta?.id || 'unknown';
   const storyTitle = (typeof STORY?.meta?.title === 'string') ? STORY.meta.title : (STORY?.meta?.title?.en || storyId);
@@ -8622,6 +8723,9 @@ function triggerStoryEnding(tag) {
   if (!player.endings_reached) player.endings_reached = new Set();
   const firstTime = !player.endings_reached.has(key);
   player.endings_reached.add(key);
+  // v0.45: also write to the cross-character global ledger so the picker
+  // can show a "you've reached endings here" badge.
+  recordGlobalEnding(storyId, tag);
   // Convert a fraction of the run's earned wealth into legacy currency. The
   // player keeps a slice as starting padding for the next run (the "why
   // bother starting over" answer). 10% gold and 5% sparks of the lifetime
@@ -12499,26 +12603,35 @@ function relayCommand(argRaw) {
   write(`Unknown relay subcommand "${sub}". Try: relay list / add / remove / reset.`, 'error');
 }
 
-function switchStoryCommand() {
-  showStoryPicker(STORY.meta.id).then(async id => {
-    if (id && id !== STORY.meta.id) {
-      const target = loadStoryById(id);
-      // v0.44: enforce age gate on mid-session switch too. Player declines → stay put.
-      if (target && !hasAgeAck(target)) {
-        const ok = await showAgeGateModal(target);
-        if (!ok) {
-          write('Continuing in "' + STORY.meta.title + '".', 'system');
-          return;
-        }
-      }
-      // Save state of current story before swap
-      try { saveLocal(); } catch {}
-      write('Switching to "' + (target?.meta?.title || id) + '"... (reloading)', 'system');
-      setTimeout(() => location.reload(), 400);
-    } else {
+async function switchStoryCommand() {
+  // v0.45: loop on the picker so a declined age-gate brings the player
+  // back to the picker (where they can pick a different story) instead of
+  // dumping them back into the story they were already on. Loops until
+  // the player either confirms a switch, declines AND closes the picker
+  // without choosing, or picks the same story they were already on.
+  while (true) {
+    const id = await showStoryPicker(STORY.meta.id);
+    if (!id || id === STORY.meta.id) {
       write('Continuing in "' + STORY.meta.title + '".', 'system');
+      return;
     }
-  });
+    const target = loadStoryById(id);
+    // Enforce age gate on mid-session switch. Decline → re-show picker so
+    // the player has a real exit (the bug-reported behaviour was returning
+    // them to the previous story, with no way back to picker).
+    if (target && !hasAgeAck(target)) {
+      const ok = await showAgeGateModal(target);
+      if (!ok) {
+        // Picker will re-open at the top of the loop.
+        continue;
+      }
+    }
+    // Save state of current story before swap
+    try { saveLocal(); } catch {}
+    write('Switching to "' + (target?.meta?.title || id) + '"... (reloading)', 'system');
+    setTimeout(() => location.reload(), 400);
+    return;
+  }
 }
 function listStoriesCommand() {
   write('-- Stories in your library --', 'system');
@@ -12980,8 +13093,17 @@ function tutorialCommand(arg) {
   // who want to re-read a specific cue without re-enabling all hints.
   const parts = arg.split(/\s+/);
   if (parts[0] === 'topics') {
-    write('Tutorial topics:', 'system');
-    for (const k of Object.keys(TUTORIAL_HINTS)) write(`  ${k}`, 'system');
+    // v0.46: progress header so the player knows how many hints are still
+    // unseen at their current activity level. Useful for "have I seen this
+    // already?" decisions.
+    const all = Object.keys(TUTORIAL_HINTS);
+    const seen = (player.tutorial_seen && typeof player.tutorial_seen.size === 'number') ? player.tutorial_seen.size : 0;
+    const total = all.length;
+    write(`Tutorial topics — ${seen}/${total} seen${player.tutorial_done ? ' · auto-hints disabled' : ''}:`, 'system');
+    for (const k of all) {
+      const tick = (player.tutorial_seen && player.tutorial_seen.has(k)) ? '✓' : ' ';
+      write(`  [${tick}] ${k}`, 'system');
+    }
     write('Type "tutorial topic <name>" to re-read one.', 'system');
     return;
   }
@@ -13643,6 +13765,64 @@ try {
     write('[restored from local storage]', 'system');
   }
 } catch {}
+
+// v0.46: "what's new" hint when the engine has bumped between sessions.
+// We stash the last-seen ENGINE_VERSION_LABEL in localStorage; if the
+// running engine differs, narrate a tip pointing at the changelog. Stamp
+// the new version regardless so this only fires once per upgrade.
+try {
+  const ENGINE_LAST_SEEN_KEY = 'taleforge:engine_last_seen';
+  const lastSeen = localStorage.getItem(ENGINE_LAST_SEEN_KEY);
+  if (lastSeen && lastSeen !== ENGINE_VERSION_LABEL) {
+    write('');
+    write(`>>> Engine upgraded: ${lastSeen} → ${ENGINE_VERSION_LABEL}.`, 'spark');
+    write(`    See https://github.com/awb-ch/taleforge for the changelog, or the in-game banner above for the running version.`, 'system');
+    showToast(`Welcome to ${ENGINE_VERSION_LABEL}.`, 'engine', { tag: 'engine upgrade', subtitle: `From ${lastSeen}.` });
+  }
+  localStorage.setItem(ENGINE_LAST_SEEN_KEY, ENGINE_VERSION_LABEL);
+} catch {}
+
+// v0.45 + v0.46: state-aware welcome line. Returning players get a recap so
+// the run feels continuous; first-time players get the tutorial nudge.
+// v0.46 also detects "rusty" returning players (>30d since last login) and
+// surfaces a gentler "you've been away" message with an explicit tutorial
+// pointer so they don't have to remember every command.
+try {
+  const ach = (player.achievements && typeof player.achievements.size === 'number') ? player.achievements.size : 0;
+  const endings = (player.endings_reached && typeof player.endings_reached.size === 'number') ? player.endings_reached.size : 0;
+  const legacyG = player.legacy_gold || 0;
+  const legacyS = player.legacy_sparks || 0;
+  const lastDate = player.last_login_date;
+  const daysAway = lastDate ? daysBetweenISO(lastDate, todayISO()) : 0;
+  const isRusty = !isNewCharacter && daysAway >= 30;
+  const isVeteran = !isNewCharacter && (ach >= 5 || endings >= 1 || (player.login_streak || 0) >= 14);
+  if (isRusty) {
+    // Returning after a long absence — soft cue + explicit tutorial pointer.
+    write('');
+    write(`>>> You've been away ${daysAway} days. Welcome back.`, 'spark');
+    if (ach > 0 || endings > 0) {
+      const bits = [];
+      if (endings > 0) bits.push(`${endings} ending${endings === 1 ? '' : 's'}`);
+      if (ach > 0) bits.push(`${ach} achievement${ach === 1 ? '' : 's'}`);
+      write(`    Your record stands: ${bits.join(' · ')}.`, 'system');
+    }
+    write(`    Type "tutorial" for a refresher on commands, or "whoami" to see where you left off.`, 'system');
+  } else if (isVeteran && (ach > 0 || endings > 0 || legacyG > 0 || legacyS > 0)) {
+    // Veteran: cleaner one-liner record, no tutorial pointer.
+    const bits = [];
+    if (endings > 0) bits.push(`${endings} ending${endings === 1 ? '' : 's'} reached`);
+    if (ach > 0) bits.push(`${ach} achievement${ach === 1 ? '' : 's'}`);
+    if (legacyG > 0 || legacyS > 0) bits.push(`legacy ${legacyG}g/${legacyS}s carried over`);
+    write(`Your record: ${bits.join(' · ')}.`, 'spark');
+  } else if (!isNewCharacter && (ach > 0 || endings > 0 || legacyG > 0 || legacyS > 0)) {
+    // Casual returning player with a small record.
+    const bits = [];
+    if (endings > 0) bits.push(`${endings} ending${endings === 1 ? '' : 's'} reached`);
+    if (ach > 0) bits.push(`${ach} achievement${ach === 1 ? '' : 's'}`);
+    if (legacyG > 0 || legacyS > 0) bits.push(`legacy ${legacyG}g/${legacyS}s carried over`);
+    write(`Your record: ${bits.join(' · ')}.`, 'spark');
+  }
+} catch {}
 // i18n: resolve all prose to current language (browser default if first launch, or saved)
 resolveStoryProse();
 applyDomI18n();
@@ -13726,9 +13906,68 @@ if (player.quests.intro && player.quests.intro.state === 'active' && !player.que
 // 5.4: returning activated players bump the recent-character timestamp
 if (player.activated) { try { recordRecentChar(); } catch {} }
 
+setBootStatus('Connecting to relays…');
 describeRoom();
 refreshSidebar();
 subscribe();
+
+// v0.45: drag-and-drop nsec import. Drop a text file containing a single
+// nsec1... string anywhere on the page and the engine imports it (with a
+// confirm prompt) and reloads. Mirrors the builder's drag-drop story
+// import. Useful on mobile / desktop where copy-paste of long nsec strings
+// is awkward — players who saved their soul to a text file can just drag.
+(function setupNsecDropImport() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(20,20,30,0.85);color:var(--accent);display:none;align-items:center;justify-content:center;z-index:9999;font-size:18px;font-weight:600;border:3px dashed var(--accent);pointer-events:none;text-align:center;padding:20px;';
+  overlay.textContent = '📂 Drop a text file containing your nsec to import';
+  document.body.appendChild(overlay);
+  let dragDepth = 0;
+  function isFileDrag(e) {
+    return e.dataTransfer && [...(e.dataTransfer.types || [])].some(t => t === 'Files' || t === 'application/x-moz-file');
+  }
+  document.addEventListener('dragenter', e => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragDepth++;
+    overlay.style.display = 'flex';
+  });
+  document.addEventListener('dragleave', e => {
+    if (!isFileDrag(e)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) overlay.style.display = 'none';
+  });
+  document.addEventListener('dragover', e => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  document.addEventListener('drop', async e => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    overlay.style.display = 'none';
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (file.size > 10000) {
+      write('That file is too large to be an nsec — drop a small text file.', 'error');
+      return;
+    }
+    try {
+      const text = (await file.text()).trim();
+      // Extract the first nsec1... token. Allows files with surrounding text.
+      const match = text.match(/nsec1[a-z0-9]{50,80}/i);
+      if (!match) {
+        write('No nsec1... string found in that file.', 'error');
+        return;
+      }
+      const ok = confirm(`Import this character?\n\nFound nsec: ${match[0].slice(0, 16)}…${match[0].slice(-8)}\n\nThis replaces your current character on this browser. Save your current "soul" first if you want to come back.`);
+      if (!ok) return;
+      importSoul(match[0]);
+    } catch (err) {
+      write('Could not read that file: ' + err.message, 'error');
+    }
+  });
+})();
 publishAction('look', { location: player.location });
 
 // 5.4: in-session inactive cleanup — if the player opened the tab and never
