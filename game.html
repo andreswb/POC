@@ -4779,7 +4779,7 @@ function isStoryPaid(id) {
 // Both paths fail silently on file:// / 404 / CORS, so dev-mode local-file
 // usage still works.
 const MANIFEST_URL = './manifest.json';
-const EXTRA_STORY_URLS = ['./hollow-forest.json'];
+const EXTRA_STORY_URLS = ['./hollow-forest.json', './saltbound.json'];
 
 const BUILTIN_STORIES = {
   'whispering-forest-v1': STORY_WHISPERING_FOREST
@@ -10257,28 +10257,29 @@ async function sell(args) {
   const buyer = merchantId || directNpc;
   if (!buyer) { write('There is no one here to sell to.', 'error'); return; }
   if (!npcOpen(buyer)) { write(describeNpcStatus(buyer), 'error'); return; }
-  // Parse: "sell <item> [price]" OR "sell <qty> <item> [price]"
+  // Parse: "sell <item words...> [price]" OR "sell <qty> <item words...> [price]"
+  // 6.0 fix: previously the parser took ONE token as the item name and choked
+  // on multi-word names like "rusty dagger" (treated 'dagger' as the price and
+  // errored "Price must be a positive integer"). Now: detect a trailing
+  // integer as price, a leading integer as qty, and join everything in between
+  // as the item query so display-name lookups via findItemIn work.
   const parts = args.trim().split(/\s+/);
   if (!parts[0]) { write('Sell what? Usage: sell <item> [price]  or  sell <qty> <item> [price]', 'error'); return; }
-  let qty = 1, ofs = 0;
-  // If first token is a positive integer, treat as qty
+  let qty = 1, ofs = 0, end = parts.length;
+  // Leading integer = qty
   if (/^\d+$/.test(parts[0])) {
     qty = parseInt(parts[0], 10);
     if (qty < 1) { write('Quantity must be at least 1.', 'error'); return; }
     ofs = 1;
   }
-  const itemQuery = parts[ofs];
-  if (!itemQuery) { write('Sell what?', 'error'); return; }
-  const priceRaw = parts[ofs + 1];
+  // Trailing integer = price (only if there's at least one item-word before it)
   let price = null;
-  if (priceRaw !== undefined && priceRaw !== '') {
-    const parsed = Number(priceRaw);
-    if (!Number.isFinite(parsed) || parsed < 1 || !Number.isInteger(parsed)) {
-      write('Price must be a positive integer (≥ 1). Try: sell raw_meat 5', 'error');
-      return;
-    }
-    price = parsed;
+  if (end - 1 > ofs && /^\d+$/.test(parts[end - 1])) {
+    const parsed = parseInt(parts[end - 1], 10);
+    if (parsed >= 1) { price = parsed; end = end - 1; }
   }
+  const itemQuery = parts.slice(ofs, end).join(' ');
+  if (!itemQuery) { write('Sell what?', 'error'); return; }
   // Resolve which item id (and confirm we have enough)
   const idx = findItemIn(player.inventory, itemQuery);
   let itemId, kind;

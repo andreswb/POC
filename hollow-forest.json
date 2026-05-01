@@ -5,7 +5,7 @@
     "title": "The Hollow Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.2.0",
+    "version": "1.2.1",
     "created_at": "2026-04-30T00:00:00Z",
     "language": "en",
     "languages": [
@@ -187,8 +187,7 @@
         "down": {
           "target": "crypt",
           "requires_item": "silver_key",
-          "consume_item": "silver_key",
-          "message": "The crypt grate is sealed by a tarnished silver lock. You'd need a silver key — and the lock takes the key."
+          "message": "The crypt grate is sealed by a tarnished silver lock. You'd need a silver key."
         }
       },
       "items": [],
@@ -1203,6 +1202,43 @@
       "effects": {"restore_life": 50},
       "consumable_action": "drink",
       "image": "🍯"
+    },
+    "woundwort_brew": {
+      "display": "woundwort brew",
+      "article": "a flask of",
+      "description": "Crushed wolfsbane in warm water. Bitter. Clears a head, closes a small wound.",
+      "value": 8,
+      "weight": 0.2,
+      "tags": ["consumable", "alchemy"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 14},
+      "consumable_action": "drink",
+      "image": "🥄"
+    },
+    "moonsilver_tonic": {
+      "display": "moonsilver tonic",
+      "article": "a phial of",
+      "description": "Pale, faintly luminous. The taste of cold morning. Settles the stomach, steadies the hand.",
+      "value": 18,
+      "weight": 0.15,
+      "tags": ["consumable", "alchemy"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 28},
+      "consumable_action": "drink",
+      "image": "🧪"
+    },
+    "wolfsbane_oil": {
+      "display": "wolfsbane oil",
+      "article": "a vial of",
+      "description": "Bitter, sharp-smelling oil. Coat a blade with it; cursed things flinch from the cut.",
+      "value": 22,
+      "weight": 0.1,
+      "tags": ["alchemy", "weapon"],
+      "category": "resource",
+      "stackable": true,
+      "image": "🫗"
     }
   },
   "skills": {
@@ -1223,7 +1259,7 @@
     },
     "alchemy": {
       "display": "Alchemy",
-      "description": "Distill silver oil; brew the blessing if you have what is needed.",
+      "description": "Distill, brew, and bottle. Wolfsbane brews close cuts; moonsilver settles nerves. Combine with holy water for the strongest restoratives, or with silver dust for the smith's silvering oil. The cure for the curse — the silver blessing — lives at the top of this skill.",
       "tier": 2,
       "spark_cost": 25,
       "prereqs": [
@@ -1232,6 +1268,10 @@
       "unlocks": {
         "verbs": [],
         "recipes": [
+          "brew_woundwort",
+          "brew_moonsilver_tonic",
+          "bottle_wolfsbane_oil",
+          "brew_restorative",
           "distill_silver_oil",
           "brew_blessing"
         ],
@@ -1493,6 +1533,49 @@
       "requires_fire": true,
       "duration_seconds": 0,
       "sparks_reward": 10
+    },
+    "brew_woundwort": {
+      "display": "Woundwort brew",
+      "description": "Crush wolfsbane into warm water. Bitter, but it closes a small wound.",
+      "skill": "alchemy",
+      "inputs": [
+        {"item": "wolfsbane", "qty": 2}
+      ],
+      "outputs": [
+        {"item": "woundwort_brew", "qty": 1}
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 3
+    },
+    "brew_moonsilver_tonic": {
+      "display": "Moonsilver tonic",
+      "description": "Distill moonsilver in holy water. Steady, restorative.",
+      "skill": "alchemy",
+      "inputs": [
+        {"item": "moonsilver_herb", "qty": 2},
+        {"item": "holy_water", "qty": 1}
+      ],
+      "outputs": [
+        {"item": "moonsilver_tonic", "qty": 1}
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 5
+    },
+    "bottle_wolfsbane_oil": {
+      "display": "Wolfsbane oil",
+      "description": "Press wolfsbane into oil. Coat a blade with it; cursed things flinch from the cut.",
+      "skill": "alchemy",
+      "inputs": [
+        {"item": "wolfsbane", "qty": 3}
+      ],
+      "outputs": [
+        {"item": "wolfsbane_oil", "qty": 1}
+      ],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 4
     }
   },
   "entities": {

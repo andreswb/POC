@@ -1,0 +1,1591 @@
+{
+  "schema_version": "0.20",
+  "meta": {
+    "id": "saltbound-v1",
+    "title": "Saltbound",
+    "author": "awb_🇨🇭",
+    "author_pubkey": null,
+    "version": "1.0.0",
+    "created_at": "2026-05-01T00:00:00Z",
+    "language": "en",
+    "languages": ["en"],
+    "tone": "Honest survival prose. Salt, heat, patience. The island is harsh but not cruel. There are answers if you walk far enough. No magic that announces itself; only weather, hunger, water, work, and a few old things that the jungle has not finished hiding.",
+    "creative_license": "moderate",
+    "starting_location": "shipwreck_beach",
+    "starting_inventory": ["torn_journal"],
+    "starting_materials": {
+      "fresh_water": 1
+    },
+    "starting_gold": 0,
+    "starting_sparks": 20,
+    "starting_skills": ["firemaking", "foraging", "fishing", "hunting"],
+    "starting_life": 100,
+    "life_max": 100,
+    "life_decay_per_turn": 0.4,
+    "carry_capacity": 35,
+    "sparks_per_craft": 3,
+    "turns_per_day": 96,
+    "weather_pool": ["clear", "clear", "rain", "hot", "hot", "storm"],
+    "license": {
+      "type": "cc-by-sa",
+      "free": true
+    },
+    "character_profiles": {
+      "castaway": {
+        "display": "Castaway (ordinary)",
+        "summary": "You woke on the beach. Salt in your hair, no boots, no name worth keeping. Survival is a job; you'll learn it like any other.",
+        "attributes": {"str": 10, "agi": 10, "int": 10},
+        "tags": ["mortal"]
+      },
+      "sailor": {
+        "display": "Sailor",
+        "summary": "Your hands know rope, your stomach knows weather. Land is the strange place; the sea is your room.",
+        "attributes": {"str": 12, "agi": 10, "int": 8},
+        "attack_bonus": 1,
+        "tags": ["mortal"]
+      },
+      "scholar": {
+        "display": "Scholar",
+        "summary": "You were on the ship to study coastal birds. The birds are still here. The ship is not. You take notes anyway.",
+        "attributes": {"str": 8, "agi": 10, "int": 12},
+        "starting_skills_extra": ["herbalism"],
+        "tags": ["mortal"]
+      }
+    },
+    "world_event_pool": ["tropical_storm"]
+  },
+  "rooms": {
+    "shipwreck_beach": {
+      "name": "The Shipwreck Beach",
+      "summary": "A long beach of pale sand. Behind you, the wreck of your ship, broken on the reef. Gulls call. The interior of the wreck still has the sea inside it. North, the jungle. East, palms. West, driftwood. The interior of the wreck is below.",
+      "example_descriptions": [
+        "Salt smell. The sand is hot. A cracked oar lies half-buried.",
+        "A pelican lands ten feet away, considers you, and walks off."
+      ],
+      "tone_hints": ["bright", "hot", "lonely", "patient"],
+      "exits": {
+        "east": "palm_grove",
+        "west": "driftwood_cove",
+        "north": "jungle_path",
+        "down": "shipwreck_interior"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "beach"],
+      "resources": [
+        {"id": "stone_chip", "skill": "stone_knapping", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 120},
+        {"id": "driftwood", "skill": "foraging", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 180}
+      ],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🏖"
+    },
+    "palm_grove": {
+      "name": "The Palm Grove",
+      "summary": "A stand of coconut palms behind the dunes. Coconuts lie where they fell; one or two hang within reach. The shade is welcome. East, the ground gives way to tidal pools. North, a fruit grove.",
+      "example_descriptions": [
+        "Wind moves the fronds in slow, dry rattles. A crab clicks across the sand.",
+        "A coconut at your feet — heavy, hairy, half-buried."
+      ],
+      "tone_hints": ["dry", "shaded", "patient"],
+      "exits": {
+        "west": "shipwreck_beach",
+        "east": "tidal_pools",
+        "north": "mango_grove"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "forest"],
+      "resources": [
+        {"id": "coconut", "skill": "foraging", "verb": "forage", "yield_qty": 1, "regenerates": true, "regen_seconds": 200}
+      ],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🌴"
+    },
+    "tidal_pools": {
+      "name": "The Tidal Pools",
+      "summary": "A flat shelf of black rock, pocked with pools the sea fills and empties. Crabs work the edges. At low tide a hole in the rock shows steps going down to a sea-cave. The path back is west.",
+      "example_descriptions": [
+        "A pool of small fish, bright as glass. A sea-star colour of dried blood.",
+        "The sea hisses through a crack twice your height. Below: dark water, cooler than the day."
+      ],
+      "tone_hints": ["wet", "salt", "patient"],
+      "exits": {
+        "west": "palm_grove",
+        "down": "sea_caves"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "water"],
+      "resources": [
+        {"id": "raw_fish", "skill": "fishing", "verb": "fish", "yield_qty": 1, "regenerates": true, "regen_seconds": 90}
+      ],
+      "hazards": {},
+      "spawn_table": [
+        {"entity": "giant_crab", "weight": 5}
+      ],
+      "drink_source": null,
+      "image": "🌊"
+    },
+    "driftwood_cove": {
+      "name": "The Driftwood Cove",
+      "summary": "A small bay where the current piles wood from a thousand wrecks. Most is rotten; some is good. North, a stand of bamboo grows out of the cliff foot. East, the long beach.",
+      "example_descriptions": [
+        "An oar, a barrel-stave, a hatch-cover. The sea is patient.",
+        "A frigatebird hangs unmoving in the wind, then is gone."
+      ],
+      "tone_hints": ["wet", "patient", "cluttered"],
+      "exits": {
+        "east": "shipwreck_beach",
+        "north": "bamboo_thicket"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "beach"],
+      "resources": [
+        {"id": "driftwood", "skill": "foraging", "verb": "gather", "yield_qty": 2, "regenerates": true, "regen_seconds": 120},
+        {"id": "sail_cloth", "skill": "foraging", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 600}
+      ],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🪵"
+    },
+    "bamboo_thicket": {
+      "name": "The Bamboo Thicket",
+      "summary": "A wall of green canes taller than a man, growing thick out of the cliff base. Some shoots are young and tender, some old and hollow. South, the cove. East, the inland path.",
+      "example_descriptions": [
+        "The wind moves the canes and they knock against each other, slow, like a chime.",
+        "A cane snaps cleanly across when you press it just so."
+      ],
+      "tone_hints": ["green", "tall", "patient"],
+      "exits": {
+        "south": "driftwood_cove",
+        "east": "jungle_path"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "forest"],
+      "resources": [
+        {"id": "bamboo", "skill": "foraging", "verb": "gather", "yield_qty": 2, "regenerates": true, "regen_seconds": 100}
+      ],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🎋"
+    },
+    "mango_grove": {
+      "name": "The Mango Grove",
+      "summary": "A clearing of broad-leafed trees heavy with green-and-orange fruit. Wasps. Below, the palm grove and the beach. North, a rougher monkey wood. West, the inland path.",
+      "example_descriptions": [
+        "Fruit drops with a soft thud, every minute or so. The smell is hot and sweet.",
+        "The botanist has set up a small camp here — pressed leaves, ink-stained paper, a hammock between two trees."
+      ],
+      "tone_hints": ["sweet", "warm", "alive"],
+      "exits": {
+        "south": "palm_grove",
+        "north": "monkey_hollow",
+        "west": "jungle_path"
+      },
+      "items": [],
+      "npcs": ["the_botanist"],
+      "riddle": null,
+      "tags": ["outdoor", "forest"],
+      "resources": [
+        {"id": "mango", "skill": "foraging", "verb": "forage", "yield_qty": 1, "regenerates": true, "regen_seconds": 150},
+        {"id": "herb", "skill": "foraging", "verb": "forage", "yield_qty": 1, "regenerates": true, "regen_seconds": 200}
+      ],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🥭"
+    },
+    "jungle_path": {
+      "name": "The Jungle Path",
+      "summary": "A trampled path through dense undergrowth, kept open by something — a previous castaway or an animal that has lived here a long time. South, the beach. North, the sound of falling water.",
+      "example_descriptions": [
+        "Wet leaves, wet earth, a smell of green rot. Birds you cannot name.",
+        "A mark on a tree at chest height — three slashes, old, paled. The kind a person leaves to find their way back."
+      ],
+      "tone_hints": ["green", "humid", "patient"],
+      "exits": {
+        "south": "shipwreck_beach",
+        "north": "stream_falls",
+        "east": "mango_grove",
+        "west": "bamboo_thicket"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "forest"],
+      "resources": [
+        {"id": "wood", "skill": "foraging", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 120},
+        {"id": "herb", "skill": "foraging", "verb": "forage", "yield_qty": 1, "regenerates": true, "regen_seconds": 220}
+      ],
+      "hazards": {
+        "wolves": {"encounter_chance": 0.15, "entity": "island_panther"}
+      },
+      "spawn_table": [
+        {"entity": "wild_boar", "weight": 3}
+      ],
+      "drink_source": null,
+      "image": "🌴"
+    },
+    "monkey_hollow": {
+      "name": "The Monkey Hollow",
+      "summary": "A bowl of trees full of small, fast, loud monkeys. They throw what they have. Above, the path climbs to higher ground. South, the mango grove.",
+      "example_descriptions": [
+        "Screams. Wet pulp lands on your shoulder. The troop is watching.",
+        "A monkey holds something bright — silver — and is gone before you can see properly."
+      ],
+      "tone_hints": ["loud", "fast", "watching"],
+      "exits": {
+        "south": "mango_grove",
+        "west": "stream_falls"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "forest"],
+      "resources": [],
+      "hazards": {
+        "wolves": {"encounter_chance": 0.4, "entity": "island_monkey"}
+      },
+      "spawn_table": [
+        {"entity": "island_monkey", "weight": 6}
+      ],
+      "drink_source": null,
+      "image": "🐒"
+    },
+    "stream_falls": {
+      "name": "The Stream Falls",
+      "summary": "A clear waterfall, ankle-deep at its pool, cold even in the sun. Fresh water — the most welcome thing on the island. South, the path. East, the monkey wood. North, the climb to higher ground.",
+      "example_descriptions": [
+        "The pool is so clear you see every smooth stone. You drink before thinking.",
+        "A small bird tilts its head at you. It is not afraid; nothing has been here long enough to fear."
+      ],
+      "tone_hints": ["cold", "clean", "patient"],
+      "exits": {
+        "south": "jungle_path",
+        "east": "monkey_hollow",
+        "north": "hilltop_view"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "water"],
+      "resources": [
+        {"id": "herb", "skill": "foraging", "verb": "forage", "yield_qty": 1, "regenerates": true, "regen_seconds": 200}
+      ],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": {"restore_life": 8, "cooldown_seconds": 60},
+      "image": "🌊"
+    },
+    "hilltop_view": {
+      "name": "The Hilltop View",
+      "summary": "A grass-and-rock crest with a view of the whole island and the long curve of sea beyond. The wind is steady here. East, ancient stone. West, an old camp. North, the volcano. South, back down to the falls.",
+      "example_descriptions": [
+        "The sea looks as if you could walk across it. You cannot.",
+        "The navigator sits cross-legged on the highest stone, watching the horizon, scratching marks on a piece of slate."
+      ],
+      "tone_hints": ["high", "windy", "vast", "patient"],
+      "exits": {
+        "south": "stream_falls",
+        "east": "ancient_ruins",
+        "west": "abandoned_camp",
+        "north": "lava_field"
+      },
+      "items": [],
+      "npcs": ["the_navigator"],
+      "riddle": "navigator_riddle",
+      "tags": ["outdoor", "high"],
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "⛰"
+    },
+    "ancient_ruins": {
+      "name": "The Ancient Ruins",
+      "summary": "Grey stone older than the island's memory. Steps lead nowhere; a doorway opens onto a wall. In the centre, a carved tablet whose script no living tongue reads. The elder is here when she chooses. East, an old wooden tower.",
+      "example_descriptions": [
+        "Lichen-soft, wind-soft. The carvings are still sharp where the stone was cut against the grain.",
+        "The elder sits with her back to the tablet, weaving something from grasses, and does not turn."
+      ],
+      "tone_hints": ["old", "patient", "watchful", "sacred"],
+      "exits": {
+        "west": "hilltop_view",
+        "east": "lookout_tower"
+      },
+      "items": [],
+      "npcs": ["the_native_elder"],
+      "riddle": "ancient_tablet_riddle",
+      "tags": ["outdoor", "sacred"],
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [
+        {"entity": "ancient_guardian", "weight": 4}
+      ],
+      "drink_source": null,
+      "image": "🗿"
+    },
+    "abandoned_camp": {
+      "name": "The Abandoned Camp",
+      "summary": "A small clearing, a low lean-to, a fire-circle long cold. Tools rest on a stone. Someone lived here a long time and left without packing. East, the hilltop.",
+      "example_descriptions": [
+        "A fishing rod, a knife with a worn wooden handle, a pot. A parrot in a wicker cage that has long since been opened.",
+        "The old castaway tends the fire-circle, looks up, nods. The parrot squawks once and watches you with both eyes."
+      ],
+      "tone_hints": ["lived-in", "patient", "warm"],
+      "exits": {
+        "east": "hilltop_view"
+      },
+      "items": [],
+      "npcs": ["the_old_castaway", "the_parrot"],
+      "riddle": "parrot_riddle",
+      "tags": ["outdoor", "shelter"],
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🏕"
+    },
+    "lookout_tower": {
+      "name": "The Lookout Tower",
+      "summary": "An old wooden tower built by hands you didn't see. The base is dry rot; the climb is sound enough. Above, a platform with a brazier — cold for years. West, the ruins.",
+      "example_descriptions": [
+        "Smells of pitch and old smoke. A bundle of signal rags on a hook, the rags stiff with salt.",
+        "From here you could see a ship a long way out. From here a ship could see you."
+      ],
+      "tone_hints": ["wood", "patient", "watchful"],
+      "exits": {
+        "west": "ancient_ruins",
+        "up": "tower_top"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "shelter"],
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🪜"
+    },
+    "tower_top": {
+      "name": "The Tower Top",
+      "summary": "A small platform of dry boards. A brazier in the centre, banked with seasalt-encrusted kindling. From up here, you can see the whole horizon. A signal lit here would be seen from very far.",
+      "example_descriptions": [
+        "Wind. Just wind. The horizon is a flat line painted with light.",
+        "The brazier holds a heap of dry kindling — old, but the salt has kept it. With the right tinder, it would catch."
+      ],
+      "tone_hints": ["high", "windy", "open"],
+      "exits": {
+        "down": "lookout_tower"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "high"],
+      "layer": "overhead",
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🔥"
+    },
+    "lava_field": {
+      "name": "The Lava Field",
+      "summary": "Black glass underfoot, sharp-edged. The air shimmers. A path of hardened crust threads up toward the volcano's summit. South, the hilltop.",
+      "example_descriptions": [
+        "Heat in waves. Something hard cracks under your boot — volcanic glass, dark as a knife-blade.",
+        "A stream of red still moves, slow as honey, somewhere off to the side."
+      ],
+      "tone_hints": ["hot", "sharp", "patient"],
+      "exits": {
+        "south": "hilltop_view",
+        "north": "summit"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "volcanic"],
+      "resources": [
+        {"id": "volcanic_glass", "skill": "stone_knapping", "verb": "mine", "yield_qty": 1, "regenerates": true, "regen_seconds": 240}
+      ],
+      "hazards": {
+        "wolves": {"encounter_chance": 0.15, "entity": "island_panther"}
+      },
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🌋"
+    },
+    "summit": {
+      "name": "The Volcano's Summit",
+      "summary": "The crater's lip. Inside, the slow, distant glow of red. The wind here is hot one moment and cold the next. From here, every part of the island is small.",
+      "example_descriptions": [
+        "The view is enormous. You feel small the way the sea makes you small.",
+        "A hot updraft carries an old smell — sulphur, and beneath it, something herbal, sweet."
+      ],
+      "tone_hints": ["enormous", "hot", "windy"],
+      "exits": {
+        "south": "lava_field"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["outdoor", "high", "volcanic"],
+      "layer": "overhead",
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "🗻"
+    },
+    "shipwreck_interior": {
+      "name": "The Shipwreck Interior",
+      "summary": "Inside the broken hull, the sea has come and gone many times. A galley, a cabin, a cargo hold half full of water. Useful things still float, if you don't mind getting cold.",
+      "example_descriptions": [
+        "The cargo hold smells of salt and old tar. A floating barrel knocks against your hip.",
+        "The captain's cabin is open. His chart-table holds a logbook still legible at the surface, a brass compass, a flare-pistol in a damp leather case."
+      ],
+      "tone_hints": ["wet", "salt", "old"],
+      "exits": {
+        "up": "shipwreck_beach"
+      },
+      "items": ["captains_log", "compass", "flare_gun", "machete"],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["underground", "water"],
+      "layer": "underground",
+      "resources": [
+        {"id": "sail_cloth", "skill": "foraging", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 600},
+        {"id": "wood", "skill": "foraging", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 200}
+      ],
+      "hazards": {},
+      "spawn_table": [],
+      "drink_source": null,
+      "image": "⚓"
+    },
+    "sea_caves": {
+      "name": "The Sea Caves",
+      "summary": "Below the tidal shelf, water-carved tunnels go deeper than the light. Strange creatures live here. The tide is the only thing that decides whether you can leave. Up, the rock-pools. Down, deeper.",
+      "example_descriptions": [
+        "Echo of dripping water. Your torch is a very small thing.",
+        "Something coils in the dark and is gone. You did not see how big it was. It saw you."
+      ],
+      "tone_hints": ["wet", "dark", "watching", "old"],
+      "exits": {
+        "up": "tidal_pools",
+        "down": "deep_grotto"
+      },
+      "items": [],
+      "npcs": [],
+      "riddle": "kraken_riddle",
+      "tags": ["underground", "water"],
+      "layer": "underground",
+      "resources": [
+        {"id": "stone_chip", "skill": "stone_knapping", "verb": "gather", "yield_qty": 1, "regenerates": true, "regen_seconds": 200}
+      ],
+      "hazards": {
+        "wolves": {"encounter_chance": 0.25, "entity": "sea_serpent"}
+      },
+      "spawn_table": [
+        {"entity": "sea_serpent", "weight": 5}
+      ],
+      "drink_source": null,
+      "image": "🕳"
+    },
+    "deep_grotto": {
+      "name": "The Deep Grotto",
+      "summary": "Deeper than the sea-caves. Cold here, even on a hot day. A hollow of black water and luminous mosses. Something old lives here, and remembers the island before there was an island.",
+      "example_descriptions": [
+        "Pale light from no source you can name. The pool reflects nothing.",
+        "A coil — slow, vast — turns once in the dark, and is still."
+      ],
+      "tone_hints": ["cold", "wrong", "patient", "ancient"],
+      "exits": {
+        "up": "sea_caves"
+      },
+      "items": ["mysterious_idol"],
+      "npcs": [],
+      "riddle": null,
+      "tags": ["underground", "water", "sacred"],
+      "layer": "underground",
+      "resources": [],
+      "hazards": {},
+      "spawn_table": [
+        {"entity": "sea_serpent", "weight": 3}
+      ],
+      "drink_source": null,
+      "image": "💎"
+    }
+  },
+  "items": {
+    "torn_journal": {
+      "display": "torn journal",
+      "article": "a",
+      "description": "Your old field-journal, salt-warped and missing pages. Some entries survive. They will tell you what to do, if you ask.",
+      "value": 0,
+      "weight": 0.2,
+      "tags": ["lore"],
+      "category": "good",
+      "stackable": false,
+      "image": "📓"
+    },
+    "coconut": {
+      "display": "coconut",
+      "article": "a",
+      "description": "A heavy, hairy nut. Crack it for water and meat — once. The shell is useful too.",
+      "value": 2,
+      "weight": 0.6,
+      "tags": ["food", "raw"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 6},
+      "consumable_action": "eat",
+      "image": "🥥"
+    },
+    "mango": {
+      "display": "mango",
+      "article": "a",
+      "description": "Sweet, fibrous, ripe to the moment. Eat it now or it ripens past you.",
+      "value": 3,
+      "weight": 0.2,
+      "tags": ["food"],
+      "category": "consumable",
+      "stackable": true,
+      "decay_turns": 60,
+      "effects": {"restore_life": 5},
+      "consumable_action": "eat",
+      "image": "🥭"
+    },
+    "raw_fish": {
+      "display": "raw fish",
+      "article": "a",
+      "description": "Silver-bellied, bright-eyed. Better cooked.",
+      "value": 2,
+      "weight": 0.4,
+      "tags": ["food", "raw"],
+      "category": "resource",
+      "stackable": true,
+      "decay_turns": 50,
+      "effects": {"restore_life": 3},
+      "consumable_action": "eat",
+      "image": "🐟"
+    },
+    "cooked_fish": {
+      "display": "cooked fish",
+      "article": "a",
+      "description": "Roasted over a fire. Better than raw, both for taste and for not being sick.",
+      "value": 6,
+      "weight": 0.4,
+      "tags": ["food"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 12},
+      "consumable_action": "eat",
+      "image": "🍣"
+    },
+    "raw_crab": {
+      "display": "raw crab meat",
+      "article": "some",
+      "description": "Pink, sweet, watery. Eat it cooked. Always cooked.",
+      "value": 3,
+      "weight": 0.3,
+      "tags": ["food", "raw"],
+      "category": "resource",
+      "stackable": true,
+      "decay_turns": 40,
+      "effects": {"restore_life": 2},
+      "consumable_action": "eat",
+      "image": "🦀"
+    },
+    "cooked_crab": {
+      "display": "cooked crab",
+      "article": "some",
+      "description": "Roasted in the shell. The best food this island has yet given you.",
+      "value": 9,
+      "weight": 0.3,
+      "tags": ["food"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 16},
+      "consumable_action": "eat",
+      "image": "🍤"
+    },
+    "raw_meat": {
+      "display": "raw boar meat",
+      "article": "some",
+      "description": "Heavy, dark, gamey. The fire will fix it.",
+      "value": 3,
+      "weight": 0.5,
+      "tags": ["food", "raw"],
+      "category": "resource",
+      "stackable": true,
+      "decay_turns": 50,
+      "effects": {"restore_life": 4},
+      "consumable_action": "eat",
+      "image": "🥩"
+    },
+    "cooked_meat": {
+      "display": "cooked boar meat",
+      "article": "some",
+      "description": "Slow-roasted. The smell brought every monkey within a quarter-mile.",
+      "value": 10,
+      "weight": 0.5,
+      "tags": ["food"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 18},
+      "consumable_action": "eat",
+      "image": "🍖"
+    },
+    "fresh_water": {
+      "display": "fresh water",
+      "article": "a flask of",
+      "description": "Cold, clean. Worth more than gold here.",
+      "value": 4,
+      "weight": 0.3,
+      "tags": ["consumable"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 8},
+      "consumable_action": "drink",
+      "image": "💧"
+    },
+    "coconut_shell": {
+      "display": "coconut-shell flask",
+      "article": "a",
+      "description": "Half a coconut, hollowed and stoppered with bark. Carries water; gives you no excuse to be thirsty.",
+      "value": 8,
+      "weight": 0.2,
+      "tags": ["container"],
+      "category": "good",
+      "stackable": false,
+      "image": "🥥"
+    },
+    "driftwood": {
+      "display": "driftwood",
+      "article": "a piece of",
+      "description": "Sea-cured, salt-dried. Burns hot once you start it.",
+      "value": 1,
+      "weight": 0.4,
+      "tags": ["wood"],
+      "category": "resource",
+      "stackable": true,
+      "image": "🪵"
+    },
+    "bamboo": {
+      "display": "bamboo cane",
+      "article": "a",
+      "description": "Long, hollow, light. The island's gift to anyone who needs to build.",
+      "value": 2,
+      "weight": 0.4,
+      "tags": ["wood"],
+      "category": "resource",
+      "stackable": true,
+      "image": "🎍"
+    },
+    "wood": {
+      "display": "wood",
+      "article": "some",
+      "description": "Plain branch wood, dry enough to whittle.",
+      "value": 1,
+      "weight": 0.5,
+      "tags": ["wood"],
+      "category": "resource",
+      "stackable": true,
+      "image": "🪵"
+    },
+    "stone_chip": {
+      "display": "stone chip",
+      "article": "a",
+      "description": "A sharp flake. Useful for a thousand things.",
+      "value": 1,
+      "weight": 0.2,
+      "tags": ["resource", "stone"],
+      "category": "resource",
+      "stackable": true,
+      "image": "🪨"
+    },
+    "crab_shell": {
+      "display": "crab shell",
+      "article": "a",
+      "description": "Thick, plated, hard as iron. Stack three for armour.",
+      "value": 4,
+      "weight": 0.4,
+      "tags": ["resource"],
+      "category": "resource",
+      "stackable": true,
+      "image": "🦀"
+    },
+    "sail_cloth": {
+      "display": "sail cloth",
+      "article": "a panel of",
+      "description": "Heavy canvas, salt-stiff but sound. Useful if you want to leave.",
+      "value": 12,
+      "weight": 1.0,
+      "tags": ["fabric"],
+      "category": "resource",
+      "stackable": true,
+      "image": "⛵"
+    },
+    "volcanic_glass": {
+      "display": "volcanic glass",
+      "article": "a shard of",
+      "description": "Black as truth, edged like a razor. The island's hardest gift.",
+      "value": 6,
+      "weight": 0.2,
+      "tags": ["resource", "stone"],
+      "category": "resource",
+      "stackable": true,
+      "image": "⬛"
+    },
+    "herb": {
+      "display": "island herb",
+      "article": "a sprig of",
+      "description": "Bitter, pungent, full of small surprises. The botanist will pay.",
+      "value": 3,
+      "weight": 0.1,
+      "tags": ["herb", "alchemy"],
+      "category": "resource",
+      "stackable": true,
+      "image": "🌿"
+    },
+    "antiseptic_paste": {
+      "display": "antiseptic paste",
+      "article": "a tin of",
+      "description": "Crushed herbs and rendered fat. Smells terrible. Heals well.",
+      "value": 18,
+      "weight": 0.2,
+      "tags": ["consumable", "alchemy"],
+      "category": "consumable",
+      "stackable": true,
+      "effects": {"restore_life": 35},
+      "consumable_action": "drink",
+      "image": "🧴"
+    },
+    "machete": {
+      "display": "rusted machete",
+      "article": "a",
+      "description": "Pulled from the ship. Edge will do a few jobs before it bends.",
+      "value": 6,
+      "weight": 0.8,
+      "tags": ["weapon"],
+      "category": "good",
+      "stackable": false,
+      "slot": "hand",
+      "effects": {"attack_bonus": 3, "damage_type": "slash"},
+      "image": "🔪"
+    },
+    "bamboo_spear": {
+      "display": "bamboo spear",
+      "article": "a",
+      "description": "A cane fitted with a knapped point. Surprising reach. The boars dislike it.",
+      "value": 10,
+      "weight": 0.6,
+      "tags": ["weapon"],
+      "category": "good",
+      "stackable": false,
+      "slot": "hand",
+      "effects": {"attack_bonus": 4, "damage_type": "pierce"},
+      "image": "🪡"
+    },
+    "obsidian_dagger": {
+      "display": "obsidian dagger",
+      "article": "an",
+      "description": "A blade of volcanic glass, bound with sinew. Sharper than steel; more fragile.",
+      "value": 30,
+      "weight": 0.3,
+      "tags": ["weapon"],
+      "category": "good",
+      "stackable": false,
+      "slot": "hand",
+      "effects": {"attack_bonus": 6, "damage_type": "pierce"},
+      "image": "🗡"
+    },
+    "crab_shell_armor": {
+      "display": "crab-shell vest",
+      "article": "a",
+      "description": "Plates of crab-shell laced with rope. Light, surprisingly tough.",
+      "value": 22,
+      "weight": 1.5,
+      "tags": ["armor"],
+      "category": "good",
+      "stackable": false,
+      "slot": "torso",
+      "effects": {"defense_bonus": 3},
+      "image": "🛡"
+    },
+    "captains_log": {
+      "display": "captain's log",
+      "article": "a",
+      "description": "Salt-bloated. Last legible entry: 'we were not blown here. The island wanted us. — Captain Auer'",
+      "value": 0,
+      "weight": 0.3,
+      "tags": ["lore"],
+      "category": "good",
+      "stackable": false,
+      "image": "📔"
+    },
+    "compass": {
+      "display": "brass compass",
+      "article": "a",
+      "description": "Heavy, sea-tarnished. The needle still points true. The navigator wants this.",
+      "value": 18,
+      "weight": 0.2,
+      "tags": ["tool"],
+      "category": "good",
+      "stackable": false,
+      "image": "🧭"
+    },
+    "flare_gun": {
+      "display": "flare gun",
+      "article": "a",
+      "description": "Damp, but not ruined. One shot of red light, very high. A ship would see it. It will be a long time before another shot is possible.",
+      "value": 30,
+      "weight": 0.5,
+      "tags": ["tool", "weapon"],
+      "category": "good",
+      "stackable": false,
+      "image": "🔫"
+    },
+    "ancient_tablet": {
+      "display": "ancient tablet",
+      "article": "an",
+      "description": "Stone, hand-sized, cool to the touch. The carvings shift when you don't watch them. The elder will recognise it.",
+      "value": 0,
+      "weight": 0.4,
+      "tags": ["lore", "sacred"],
+      "category": "good",
+      "stackable": false,
+      "image": "🪨"
+    },
+    "map_fragment": {
+      "display": "map fragment",
+      "article": "a",
+      "description": "A torn corner of an old chart. Something was marked on the original — a pencilled X you cannot see whole.",
+      "value": 6,
+      "weight": 0.05,
+      "tags": ["lore"],
+      "category": "resource",
+      "stackable": true,
+      "image": "🗺"
+    },
+    "mysterious_idol": {
+      "display": "mysterious idol",
+      "article": "a",
+      "description": "A small carved figure of dark stone, shape unfamiliar. Cold even in your hand. Older than the ruins.",
+      "value": 0,
+      "weight": 0.5,
+      "tags": ["lore", "sacred", "unique"],
+      "category": "good",
+      "stackable": false,
+      "image": "🗿"
+    },
+    "raft": {
+      "display": "lashed raft",
+      "article": "a",
+      "description": "Bamboo and driftwood, lashed with rope, a sail-cloth panel rigged on a spar. It will float. Far enough to be picked up, you hope.",
+      "value": 60,
+      "weight": 8.0,
+      "tags": ["unique"],
+      "category": "good",
+      "stackable": false,
+      "image": "🛶"
+    }
+  },
+  "skills": {
+    "foraging": {
+      "display": "Foraging",
+      "description": "Gather plants, fruit, herbs, and small things from the underbrush.",
+      "tier": 1,
+      "spark_cost": 0,
+      "prereqs": [],
+      "unlocks": {"verbs": ["forage", "gather"], "recipes": [], "interactions": []}
+    },
+    "fishing": {
+      "display": "Fishing",
+      "description": "Cast a line at tide-pools, streams, and the open sea.",
+      "tier": 1,
+      "spark_cost": 0,
+      "prereqs": [],
+      "unlocks": {"verbs": ["fish"], "recipes": [], "interactions": []}
+    },
+    "hunting": {
+      "display": "Hunting",
+      "description": "Track and engage hostile things. The island has more than its share.",
+      "tier": 1,
+      "spark_cost": 15,
+      "prereqs": [],
+      "unlocks": {"verbs": ["hunt"], "recipes": [], "interactions": []}
+    },
+    "firemaking": {
+      "display": "Firemaking",
+      "description": "Coax a flame from kindling. Needed for cooking, brewing, and most cold nights.",
+      "tier": 1,
+      "spark_cost": 0,
+      "prereqs": [],
+      "unlocks": {"verbs": ["light"], "recipes": [], "interactions": []}
+    },
+    "stone_knapping": {
+      "display": "Stone-knapping",
+      "description": "Shape stone and glass into edges and tools.",
+      "tier": 1,
+      "spark_cost": 12,
+      "prereqs": [],
+      "unlocks": {"verbs": ["mine", "gather"], "recipes": ["knap_obsidian_dagger"], "interactions": []}
+    },
+    "carpentry": {
+      "display": "Carpentry",
+      "description": "Lash wood and bamboo into useful shapes — flasks, spears, armour, and the one thing that gets you off this island.",
+      "tier": 2,
+      "spark_cost": 25,
+      "prereqs": ["foraging"],
+      "unlocks": {
+        "verbs": [],
+        "recipes": ["coconut_flask", "bamboo_spear", "crab_armor", "build_raft"],
+        "interactions": []
+      }
+    },
+    "herbalism": {
+      "display": "Herbalism",
+      "description": "The botanist's craft — turn herbs into medicine.",
+      "tier": 2,
+      "spark_cost": 25,
+      "prereqs": ["foraging"],
+      "unlocks": {"verbs": [], "recipes": ["antiseptic"], "interactions": []}
+    },
+    "ancient_lore": {
+      "display": "Ancient Lore",
+      "description": "What the island remembers. Granted by the elder when she chooses, not bought.",
+      "tier": 3,
+      "spark_cost": 0,
+      "prereqs": [],
+      "acquisition": "trigger",
+      "unlocks": {"verbs": [], "recipes": [], "interactions": []},
+      "tags": ["sacred", "lore"]
+    }
+  },
+  "recipes": {
+    "cook_fish": {
+      "display": "Cooked fish",
+      "description": "Roast a fish over a fire.",
+      "skill": "firemaking",
+      "inputs": [{"item": "raw_fish", "qty": 1}],
+      "outputs": [{"item": "cooked_fish", "qty": 1}],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 1
+    },
+    "cook_crab": {
+      "display": "Cooked crab",
+      "description": "Roast crab meat in the shell.",
+      "skill": "firemaking",
+      "inputs": [{"item": "raw_crab", "qty": 1}],
+      "outputs": [{"item": "cooked_crab", "qty": 1}],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 1
+    },
+    "cook_meat": {
+      "display": "Cooked boar meat",
+      "description": "Slow-roast boar meat over the fire.",
+      "skill": "firemaking",
+      "inputs": [{"item": "raw_meat", "qty": 1}],
+      "outputs": [{"item": "cooked_meat", "qty": 1}],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 1
+    },
+    "coconut_flask": {
+      "display": "Coconut-shell flask",
+      "description": "Hollow a coconut into a watertight flask.",
+      "skill": "carpentry",
+      "inputs": [{"item": "coconut", "qty": 1}],
+      "outputs": [{"item": "coconut_shell", "qty": 1}],
+      "requires_fire": false,
+      "duration_seconds": 0,
+      "sparks_reward": 3
+    },
+    "bamboo_spear": {
+      "display": "Bamboo spear",
+      "description": "Lash a knapped point to a length of bamboo.",
+      "skill": "carpentry",
+      "inputs": [
+        {"item": "bamboo", "qty": 1},
+        {"item": "stone_chip", "qty": 1}
+      ],
+      "outputs": [{"item": "bamboo_spear", "qty": 1}],
+      "requires_fire": false,
+      "duration_seconds": 0,
+      "sparks_reward": 4
+    },
+    "crab_armor": {
+      "display": "Crab-shell vest",
+      "description": "Lace crab-shell plates into a wearable vest.",
+      "skill": "carpentry",
+      "inputs": [{"item": "crab_shell", "qty": 3}],
+      "outputs": [{"item": "crab_shell_armor", "qty": 1}],
+      "requires_fire": false,
+      "duration_seconds": 0,
+      "sparks_reward": 6
+    },
+    "knap_obsidian_dagger": {
+      "display": "Obsidian dagger",
+      "description": "Knap volcanic glass into a wicked edge, bind with sinew.",
+      "skill": "stone_knapping",
+      "inputs": [
+        {"item": "volcanic_glass", "qty": 2},
+        {"item": "wood", "qty": 1}
+      ],
+      "outputs": [{"item": "obsidian_dagger", "qty": 1}],
+      "requires_fire": false,
+      "duration_seconds": 0,
+      "sparks_reward": 6
+    },
+    "antiseptic": {
+      "display": "Antiseptic paste",
+      "description": "Crush herbs into a strong paste — for any cut the island gives.",
+      "skill": "herbalism",
+      "inputs": [{"item": "herb", "qty": 3}],
+      "outputs": [{"item": "antiseptic_paste", "qty": 1}],
+      "requires_fire": true,
+      "duration_seconds": 0,
+      "sparks_reward": 5
+    },
+    "build_raft": {
+      "display": "Lashed raft",
+      "description": "The thing that gets you off this island. Bamboo, driftwood, sailcloth, rope. Built only once.",
+      "skill": "carpentry",
+      "inputs": [
+        {"item": "bamboo", "qty": 8},
+        {"item": "driftwood", "qty": 4},
+        {"item": "sail_cloth", "qty": 2}
+      ],
+      "outputs": [{"item": "raft", "qty": 1}],
+      "requires_fire": false,
+      "duration_seconds": 0,
+      "sparks_reward": 25
+    }
+  },
+  "entities": {
+    "wild_boar": {
+      "display": "wild boar",
+      "summary": "Hairy, bristled, surprisingly fast. Tusks. Annoyed by everything.",
+      "tone_hints": ["fast", "angry", "loud"],
+      "hp": 22,
+      "attack_damage_range": [3, 7],
+      "evasion": 0.05,
+      "hostile": true,
+      "base_drops": [{"item": "raw_meat", "qty": 1}],
+      "skinning_drops": [],
+      "rare_drops": [{"item": "raw_meat", "qty": 1, "chance": 0.4}],
+      "weaknesses": ["pierce"],
+      "resistances": [],
+      "tags": ["beast"]
+    },
+    "island_monkey": {
+      "display": "island monkey",
+      "summary": "Small, fast, organised. Throws what comes to hand. Steals what doesn't.",
+      "tone_hints": ["fast", "loud", "watching"],
+      "hp": 8,
+      "attack_damage_range": [1, 3],
+      "evasion": 0.3,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [
+        {"item": "map_fragment", "qty": 1, "chance": 0.15},
+        {"item": "stone_chip", "qty": 1, "chance": 0.4}
+      ],
+      "weaknesses": ["slash"],
+      "resistances": [],
+      "tags": ["small", "fast"]
+    },
+    "giant_crab": {
+      "display": "giant crab",
+      "summary": "Tide-pool brute, the size of a dog. Pincers harder than they look.",
+      "tone_hints": ["slow", "patient", "armoured"],
+      "hp": 18,
+      "attack_damage_range": [3, 6],
+      "evasion": 0.0,
+      "hostile": true,
+      "base_drops": [
+        {"item": "raw_crab", "qty": 2},
+        {"item": "crab_shell", "qty": 1}
+      ],
+      "skinning_drops": [],
+      "rare_drops": [{"item": "crab_shell", "qty": 1, "chance": 0.3}],
+      "weaknesses": ["blunt"],
+      "resistances": ["slash"],
+      "tags": ["beast", "armoured"]
+    },
+    "island_panther": {
+      "display": "island panther",
+      "summary": "Lean, dark, silent. Older than the wreck. The boars get the worst of it; sometimes you do.",
+      "tone_hints": ["fast", "patient", "wrong"],
+      "hp": 30,
+      "attack_damage_range": [5, 10],
+      "evasion": 0.2,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [{"item": "herb", "qty": 1, "chance": 0.2}],
+      "weaknesses": ["pierce"],
+      "resistances": [],
+      "tags": ["predator", "large"]
+    },
+    "sea_serpent": {
+      "display": "sea serpent",
+      "summary": "Coil and shadow in the dark water. A long thing. The cave is its home; you are not welcome here.",
+      "tone_hints": ["wet", "fast", "ancient"],
+      "hp": 45,
+      "attack_damage_range": [6, 12],
+      "evasion": 0.15,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [
+        {"item": "map_fragment", "qty": 1, "chance": 0.5},
+        {"item": "volcanic_glass", "qty": 1, "chance": 0.2}
+      ],
+      "weaknesses": ["slash"],
+      "resistances": ["blunt"],
+      "tags": ["beast", "large", "unique"]
+    },
+    "ancient_guardian": {
+      "display": "the ancient guardian",
+      "summary": "A figure of moss and stone, built around a man-shape that no longer remembers being a man. It does not move until you touch the tablet.",
+      "tone_hints": ["ancient", "patient", "enormous"],
+      "hp": 50,
+      "attack_damage_range": [7, 13],
+      "evasion": 0.05,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [
+        {"item": "ancient_tablet", "qty": 1, "chance": 1.0},
+        {"item": "volcanic_glass", "qty": 2, "chance": 0.5}
+      ],
+      "weaknesses": ["blunt"],
+      "resistances": ["slash", "pierce"],
+      "tags": ["construct", "sacred", "unique"]
+    },
+    "fruit_bat": {
+      "display": "fruit bat",
+      "summary": "Larger than the bats you remember. Not aggressive — but in numbers, anything bites.",
+      "tone_hints": ["fast", "many", "patient"],
+      "hp": 5,
+      "attack_damage_range": [1, 2],
+      "evasion": 0.4,
+      "hostile": true,
+      "base_drops": [],
+      "skinning_drops": [],
+      "rare_drops": [{"item": "mango", "qty": 1, "chance": 0.3}],
+      "weaknesses": ["slash"],
+      "resistances": [],
+      "tags": ["small", "fast", "swarm"]
+    },
+    "island_pelican": {
+      "display": "island pelican",
+      "summary": "A big, patient bird. Not friendly, but not your enemy unless you make it so.",
+      "tone_hints": ["slow", "watchful"],
+      "hp": 6,
+      "attack_damage_range": [1, 2],
+      "evasion": 0.2,
+      "hostile": false,
+      "base_drops": [{"item": "raw_fish", "qty": 1}],
+      "skinning_drops": [],
+      "rare_drops": [],
+      "weaknesses": [],
+      "resistances": [],
+      "tags": ["bird"]
+    }
+  },
+  "riddles": {
+    "navigator_riddle": {
+      "location": "hilltop_view",
+      "prompt": "I cross without crossing, return without returning, and I bring news without speaking. I never sleep but the moon rests on me. What am I?",
+      "answers": ["wave", "the wave", "tide", "the tide", "ocean", "the ocean", "sea"],
+      "reward_sparks": 35,
+      "on_solve_message": "The navigator nods, pleased. 'Right. The sea remembers what nobody writes down.' She hands you a map fragment from her satchel.",
+      "reward_items": [{"item": "map_fragment", "qty": 1}],
+      "repeatable": false
+    },
+    "ancient_tablet_riddle": {
+      "location": "ancient_ruins",
+      "prompt": "I outlast the wave but not the stone, am forgotten by all but the wind, and I weigh nothing yet pull armies. What am I?",
+      "answers": ["name", "a name", "memory", "song", "a song"],
+      "reward_sparks": 50,
+      "on_solve_message": "The carvings shift, briefly settle, and steady. The elder turns and looks at you for the first time. 'You read closer than most. Take this — you have earned a piece of it.'",
+      "reward_items": [{"item": "map_fragment", "qty": 1}],
+      "repeatable": false
+    },
+    "parrot_riddle": {
+      "location": "abandoned_camp",
+      "prompt": "The parrot squawks: I am hot when wet, cold when dry; I wash, but cannot wash myself. What am I?",
+      "answers": ["sand", "the sand", "beach"],
+      "reward_sparks": 25,
+      "on_solve_message": "The parrot bobs on its perch, satisfied. 'Pretty! Pretty! Pretty!' The old castaway laughs. 'He liked you. He doesn't, mostly.'",
+      "reward_items": [],
+      "repeatable": false
+    },
+    "kraken_riddle": {
+      "location": "sea_caves",
+      "prompt": "Eight arms have I, no shoulders bear them. I write in the dark, but read by none. I drown but cannot drown. What am I?",
+      "answers": ["octopus", "kraken", "squid", "an octopus", "a kraken"],
+      "reward_sparks": 40,
+      "on_solve_message": "Something deep down shifts, then quiets. A pale thing rises briefly, leaves a stone-shard at the water's edge, and is gone.",
+      "reward_items": [{"item": "volcanic_glass", "qty": 1}],
+      "repeatable": false
+    }
+  },
+  "npcs": {
+    "the_old_castaway": {
+      "display": "the old castaway",
+      "location": "abandoned_camp",
+      "summary": "A weathered man with a long beard, deep tan, and the patience of someone who has stopped trying to leave. He has been here longer than this island has had a name.",
+      "tone_hints": ["weathered", "patient", "kind", "tired"],
+      "dialogue_seeds": [
+        "Sit, if you want. The fire is small but it knows its work.",
+        "I came in '89. Or thereabouts. The years don't keep separate any more.",
+        "Two ways off this island. The signal at the tower — slow, depends on a ship passing. Or the raft. Build it well; the sea is unforgiving."
+      ],
+      "behaviors": ["buys_items", "tells_rumors", "teaches_skill"],
+      "buys_tags": ["fur", "fabric", "wood", "lore"],
+      "is_marketplace": true,
+      "initial_stock": [
+        {"item": "fresh_water", "qty": 4, "price_gold": 6},
+        {"item": "cooked_fish", "qty": 3, "price_gold": 8},
+        {"item": "antiseptic_paste", "qty": 2, "price_gold": 25}
+      ],
+      "teaches": ["carpentry"],
+      "hours": {"open": 6, "close": 22},
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "Welcome, friend. Salt-stiff, sun-burnt, the usual. Sit and tell me what you need."
+          ],
+          "choices": [
+            {"label": "How do I get off this island?", "goto": "leaving"},
+            {"label": "Tell me about the island.", "goto": "island_lore"},
+            {"label": "Tell me about the ruins.", "goto": "ruins_lore"},
+            {"label": "Goodbye.", "end": true}
+          ]
+        },
+        "leaving": {
+          "lines": [
+            "Two ways. The signal-fire on the tower — bring me dry tinder, sail-cloth, and an oil-soaked rag, and I'll teach you to build a fire that holds. A ship will see it within two weeks. Maybe.",
+            "Or you build a raft. Bamboo from the thicket, driftwood from the cove, sail-cloth from the wreck. Lash with rope. The sea is a hard road but it is yours."
+          ],
+          "choices": [
+            {"label": "What about the ruins?", "goto": "ruins_lore"},
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "island_lore": {
+          "lines": [
+            "The island is older than what the captain wrote in his log. The ruins were here long before any ship reached this water.",
+            "There is something in the deep grotto under the sea-caves. Don't go there alone. Don't go there at all, if you can help it."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "ruins_lore": {
+          "lines": [
+            "The elder lives there now. She was here when I came. She'll be here when I go.",
+            "She doesn't speak much. But she remembers. If she speaks to you, listen — there are not many who hear what she says."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        }
+      }
+    },
+    "the_botanist": {
+      "display": "the botanist",
+      "location": "mango_grove",
+      "summary": "A wiry, sun-burnt woman, ink on her fingers. She came on an earlier ship to study the coastal birds. Now she studies whatever doesn't kill her.",
+      "tone_hints": ["focused", "wry", "kind"],
+      "dialogue_seeds": [
+        "Bring me herbs and I'll teach you what they do. Bring me three and I'll pay you in something more useful than gold here.",
+        "There are seven medicinal plants on this island. I have catalogued five. The sixth is in the lava field. The seventh — I haven't found yet."
+      ],
+      "behaviors": ["buys_items", "tells_rumors", "teaches_skill"],
+      "buys_tags": ["herb", "alchemy"],
+      "is_marketplace": true,
+      "initial_stock": [
+        {"item": "antiseptic_paste", "qty": 3, "price_gold": 22},
+        {"item": "herb", "qty": 8, "price_gold": 4}
+      ],
+      "teaches": ["herbalism"],
+      "hours": {"open": 6, "close": 20}
+    },
+    "the_navigator": {
+      "display": "the navigator",
+      "location": "hilltop_view",
+      "summary": "A tall, thin woman with the steady eyes of someone who has read sky and sea for thirty years. She watches the horizon. She is waiting for one specific thing.",
+      "tone_hints": ["steady", "patient", "watchful"],
+      "dialogue_seeds": [
+        "Bring me the brass compass from the wreck. It's no use to drowned men.",
+        "I am waiting for a ship I have a feeling about. It will come, or it won't.",
+        "The map you piece together — three fragments — shows where the deep grotto is. Bring it back."
+      ],
+      "behaviors": ["buys_items", "tells_rumors"],
+      "buys_tags": ["tool", "lore"],
+      "is_marketplace": true,
+      "initial_stock": [
+        {"item": "fresh_water", "qty": 4, "price_gold": 6}
+      ],
+      "hours": {"open": 6, "close": 24}
+    },
+    "the_native_elder": {
+      "display": "the elder",
+      "location": "ancient_ruins",
+      "summary": "An old woman in undyed cloth, weaving grass into a basket without looking at her hands. She is older than the camp. She may be older than the ruins.",
+      "tone_hints": ["ancient", "patient", "watchful"],
+      "dialogue_seeds": [
+        "...",
+        "The island remembers, but only in pieces. Bring the pieces."
+      ],
+      "behaviors": ["tells_rumors"],
+      "is_marketplace": false,
+      "initial_stock": [],
+      "hours": {"open": 0, "close": 24},
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "You come back. Most do not. Sit, then. Tell me what you have learned."
+          ],
+          "choices": [
+            {"label": "Teach me the lore.", "goto": "teach_lore", "requires_item": "ancient_tablet"},
+            {"label": "What do the ruins say?", "goto": "ruins_speak"},
+            {"label": "Goodbye.", "end": true}
+          ]
+        },
+        "ruins_speak": {
+          "lines": [
+            "They say: the island held people once. They left, or were taken. A few of us remained, the way moss remains when the tree has fallen.",
+            "They say: the deep grotto was a temple before it was a grotto. What you find there will be older than the temple."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "teach_lore": {
+          "lines": [
+            "You have brought the tablet. You have read the carvings. You are ready.",
+            "I give you what I have. Hold it carefully — it does not leave you, but it changes what you see."
+          ],
+          "effects": [
+            {"type": "grant_skill", "skill": "ancient_lore"},
+            {"type": "set_flag", "flag": "elder_taught"},
+            {"type": "narrate", "text": ">>> The carvings on the walls steady, and you read them as if they had always been your own tongue. The island is no longer a place. It is a room you have walked into.", "cls": "spark"}
+          ],
+          "choices": [
+            {"label": "Thank you, elder.", "end": true}
+          ]
+        }
+      }
+    },
+    "the_parrot": {
+      "display": "the parrot",
+      "location": "abandoned_camp",
+      "summary": "A green-and-yellow parrot, older than seems possible. It sits on a perch and watches with both eyes.",
+      "tone_hints": ["loud", "watchful", "small"],
+      "dialogue_seeds": [
+        "Pretty! Pretty!",
+        "Two ways off! Two ways!",
+        "Beware the deep!",
+        "Bring the tablet! Bring the tablet!",
+        "The hunter pays! The hunter pays!"
+      ],
+      "behaviors": ["tells_rumors"],
+      "is_marketplace": false,
+      "initial_stock": [],
+      "hours": {"open": 0, "close": 24}
+    }
+  },
+  "quests": {
+    "intro_castaway": {
+      "title": "Saltbound",
+      "description": "You woke on the beach. Before night: drink fresh water and light a fire. Before dawn: find someone who knows this island.",
+      "giver": null,
+      "auto_accept": true,
+      "objectives": [
+        {"type": "visited", "room": "stream_falls"},
+        {"type": "visited", "room": "abandoned_camp"}
+      ],
+      "rewards": {"gold": 10, "sparks": 10, "items": []},
+      "completion_message": "You know where the water is. You know the old castaway. You can begin to choose your way out."
+    },
+    "the_signal": {
+      "title": "The Signal Fire",
+      "description": "The old castaway speaks of a tower at the eastern edge of the ruins. A signal lit there can be seen from very far. Climb the tower. Light the brazier. A ship may come.",
+      "giver": "the_old_castaway",
+      "auto_accept": false,
+      "requires": ["intro_castaway"],
+      "objectives": [
+        {"type": "visited", "room": "tower_top"},
+        {"type": "have_item", "item": "sail_cloth", "qty": 1, "consume": false},
+        {"type": "have_item", "item": "driftwood", "qty": 3, "consume": false}
+      ],
+      "rewards": {"gold": 30, "sparks": 30, "items": []},
+      "completion_message": "Climb the tower with these in hand and `light fire` to send the signal. A ship will see it. Eventually."
+    },
+    "the_raft": {
+      "title": "The Raft",
+      "description": "If you can build a raft of bamboo, driftwood, and sailcloth, you can sail. The old castaway has a recipe and a piece of advice: build it well.",
+      "giver": "the_old_castaway",
+      "auto_accept": false,
+      "requires": ["intro_castaway"],
+      "objectives": [
+        {"type": "have_item", "item": "raft", "qty": 1, "consume": false}
+      ],
+      "rewards": {"gold": 60, "sparks": 60, "items": []},
+      "completion_message": "The raft is finished. Drag it to the beach and `use raft` when you are ready to leave."
+    },
+    "the_naturalist": {
+      "title": "The Naturalist",
+      "description": "The botanist needs ten herb samples for her catalogue. Bring them all at once.",
+      "giver": "the_botanist",
+      "auto_accept": false,
+      "requires": ["intro_castaway"],
+      "objectives": [
+        {"type": "have_item", "item": "herb", "qty": 10}
+      ],
+      "rewards": {"gold": 30, "sparks": 20, "items": [{"item": "antiseptic_paste", "qty": 2}]},
+      "completion_message": "She accepts them with quick, careful hands, and starts pressing them between sheets before you've left."
+    },
+    "the_compass": {
+      "title": "The Brass Compass",
+      "description": "The navigator wants the brass compass from the wreck.",
+      "giver": "the_navigator",
+      "auto_accept": false,
+      "requires": ["intro_castaway"],
+      "objectives": [
+        {"type": "have_item", "item": "compass", "qty": 1}
+      ],
+      "rewards": {"gold": 20, "sparks": 15, "items": [{"item": "fresh_water", "qty": 4}]},
+      "completion_message": "She turns the compass in her hand and finally smiles. 'Now we can read the sea.'"
+    },
+    "boar_hunt": {
+      "title": "Boar Hunt",
+      "description": "The old castaway will pay for boar meat. Bring three.",
+      "giver": "the_old_castaway",
+      "auto_accept": false,
+      "requires": ["intro_castaway"],
+      "objectives": [
+        {"type": "have_item", "item": "raw_meat", "qty": 3}
+      ],
+      "rewards": {"gold": 24, "sparks": 12, "items": []},
+      "completion_message": "He nods, weighs them, and tucks them into a covered crate. 'Bring more next time.'"
+    },
+    "the_three_fragments": {
+      "title": "The Three Fragments",
+      "description": "Three pieces of an old chart. The navigator says: assemble the three and the elder will read what they say.",
+      "giver": "the_navigator",
+      "auto_accept": false,
+      "requires": ["intro_castaway"],
+      "objectives": [
+        {"type": "have_item", "item": "map_fragment", "qty": 3}
+      ],
+      "rewards": {"gold": 30, "sparks": 25, "items": []},
+      "completion_message": "She lays the three fragments on the slate. They fit. The mark — an X — is at the deep grotto."
+    },
+    "the_tablet": {
+      "title": "The Ancient Tablet",
+      "description": "The elder's tablet rests in the ancient ruins. The guardian guards it. Bring it back to her.",
+      "giver": "the_native_elder",
+      "auto_accept": false,
+      "requires": ["intro_castaway"],
+      "objectives": [
+        {"type": "have_item", "item": "ancient_tablet", "qty": 1, "consume": false}
+      ],
+      "rewards": {"gold": 60, "sparks": 40, "items": []},
+      "completion_message": "She receives the tablet, places it in front of her, and gestures you to sit. (Talk to her with `talk elder` and pick the 'Teach me the lore' branch.)"
+    },
+    "the_deep_grotto": {
+      "title": "The Deep Grotto",
+      "description": "The fragments and the tablet point to the deep grotto, below the sea-caves. Something old waits there. Find it. Bring back what is there.",
+      "giver": "the_native_elder",
+      "auto_accept": false,
+      "requires": ["the_three_fragments", "the_tablet"],
+      "objectives": [
+        {"type": "have_item", "item": "mysterious_idol", "qty": 1}
+      ],
+      "rewards": {"gold": 120, "sparks": 80, "items": [{"item": "obsidian_dagger", "qty": 1}]},
+      "completion_message": "She receives the idol with both hands and bows her head. 'The temple has its centre back. The island is whole, for now.'"
+    },
+    "leaving_or_staying": {
+      "title": "Leaving or Staying",
+      "description": "Three ways to end your time on this island. The signal-fire (rescue). The raft (sail). The lore (stay). Choose.",
+      "giver": null,
+      "auto_accept": true,
+      "objectives": [
+        {"type": "have_item", "item": "raft", "qty": 1, "consume": false}
+      ],
+      "rewards": {"gold": 100, "sparks": 100, "items": []},
+      "completion_message": "You stand at the edge of the beach with the raft at your side. The horizon is open. (Or take the lore. Or light the signal. Each is its own ending.)"
+    }
+  },
+  "events": {
+    "welcome_open": {
+      "trigger": "on_room_enter",
+      "trigger_params": {"room": "shipwreck_beach"},
+      "once": true,
+      "effects": [
+        {"type": "narrate", "text": ">>> The wreck is broken behind you. The sea took most of it; the reef took the rest. You are alone, and the island has not noticed you yet.", "cls": "system"}
+      ]
+    },
+    "first_water": {
+      "trigger": "on_room_enter",
+      "trigger_params": {"room": "stream_falls"},
+      "once": true,
+      "effects": [
+        {"type": "narrate", "text": "[Cold, clean water. Worth more than anything you brought from the ship.]", "cls": "system"}
+      ]
+    },
+    "first_summit": {
+      "trigger": "on_room_enter",
+      "trigger_params": {"room": "summit"},
+      "once": true,
+      "effects": [
+        {"type": "narrate", "text": ">>> The whole island below you, no bigger than a coin. No other land in any direction. You feel small and very awake.", "cls": "spark"}
+      ]
+    }
+  },
+  "signature": null,
+  "world_events": {
+    "tropical_storm": {
+      "title": "Tropical Storm",
+      "description": "Wind, rain, white-out. Outdoor rooms are harder; the lookout tower is dangerous to climb. Wait it out, or work fast.",
+      "recurrence": {"every_days": 5},
+      "trigger_day_offset": 2,
+      "duration_days": 1,
+      "objective": {
+        "type": "kill",
+        "entity": "wild_boar",
+        "qty": 2
+      },
+      "rewards": {"gold": 30, "sparks": 15, "renown": 3},
+      "narration": {
+        "on_start": "[The wind picks up. The palms bend. Black clouds pile to windward. A tropical storm is coming.]",
+        "on_complete": ">>> You finished what was needed before the worst of the wind. The storm passes. The island is wetter, kinder for an hour.",
+        "on_expire": "[The storm has passed. Whatever was loose, blew away.]"
+      }
+    }
+  }
+}
