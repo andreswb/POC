@@ -443,7 +443,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.51';
+const ENGINE_VERSION_LABEL = 'v0.52';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -510,6 +510,71 @@ async function loadExtraStoriesIntoBuiltin() {
 }
 
 const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
+// Engine v0.51.1 — Tier D18: short changelog digest, mapped per version.
+// Shown once post-reload when the engine version changes from what the
+// player last played. Keep entries punchy — 1-2 lines, what they'll
+// notice from the player's seat.
+const ENGINE_CHANGELOG = {
+  'v0.52':   'Quest-chain DAG with ending markers + renown gates. State events now gzip-compressed (smaller character-state payloads). New `whatsnew` / `changelog` command. Engine ↔ builder type-sync hint pill.',
+  'v0.51':   'Picker filters + sort + story preview. Map zoom/pan modal (`mapview`). `inv <pattern>` and `recipes <pattern>` filters. Characters dialog from picker. Auto-fix buttons on validation errors.',
+  'v0.50.1': 'Saltbound: weather pool now accepts `hot` and `storm` (storm behaves like rain for fires/yields).',
+  'v0.50':   'Engine slimmed by 25% (dropped dormant DE i18n + stripped comments).',
+  'v0.49':   'Font-size control. Time-of-day color tint. Service-worker reload handshake. First-time + count-based milestone toasts. Color-coded world feed.',
+  'v0.48':   'Whispering Forest decoupled from the engine (fixes picker tags being stale).',
+  'v0.47':   'Theme switcher (dark/light/sepia/contrast). Bulk ops in builder. Skill-tree visualization.',
+  'v0.46':   'Quest-tracker click-to-open. Sidebar inactive-section collapse. Picker random "Surprise me" button.',
+  'v0.45':   'Age-gate / content-warning ack screen on first play of a story with `minimum_age`.',
+  'v0.44':   'Quick-equip shortcuts. Equipment-diff preview before swap. `who am i` / `profile` view. Picker content-warning labels.',
+  'v0.43':   'Saltbound overhead-layer map fixed. Cross-layer exits now render as ⇡⇣⇢⇠ stair markers.',
+  'v0.42':   'Achievement unlock celebration banner. Renown tier-up celebration. Combat HP bar in sidebar. Chat-feed channel filter.',
+  'v0.41':   'Engine version detection (manifest.json declares engine_version; engine prompts reload on mismatch).',
+  'v0.40':   'Ending detection + post-ending overlay + cross-run meta-progression.',
+};
+const LAST_PLAYED_ENGINE_KEY = 'taleforge:last_played_engine';
+
+function showWhatsNewIfUpdated() {
+  try {
+    const last = localStorage.getItem(LAST_PLAYED_ENGINE_KEY);
+    const current = ENGINE_VERSION_LABEL;
+    if (!last) {
+      // First-ever boot — silently set the marker.
+      localStorage.setItem(LAST_PLAYED_ENGINE_KEY, current);
+      return;
+    }
+    if (last === current) return;
+    // Engine has changed — collect changelog entries between last and current.
+    const versions = Object.keys(ENGINE_CHANGELOG);
+    // Order in ENGINE_CHANGELOG is newest → oldest. Take everything strictly above `last`.
+    const since = [];
+    for (const v of versions) {
+      if (v === last) break;
+      since.push(v);
+    }
+    localStorage.setItem(LAST_PLAYED_ENGINE_KEY, current);
+    if (since.length === 0) return;
+    setTimeout(() => {
+      try {
+        write('');
+        write(`=== Engine updated: ${last} → ${current} ===`, 'title');
+        for (const v of since) {
+          write(`  ${v}: ${ENGINE_CHANGELOG[v]}`, 'spark');
+        }
+        write(`(Type "whatsnew" any time to see this again.)`, 'echo');
+      } catch {}
+    }, 1500);
+  } catch {}
+}
+
+function showWhatsNewCommand() {
+  write('=== Engine changelog ===', 'title');
+  const versions = Object.keys(ENGINE_CHANGELOG);
+  for (const v of versions.slice(0, 12)) {
+    write(`  ${v === ENGINE_VERSION_LABEL ? '★ ' : '  '}${v}: ${ENGINE_CHANGELOG[v]}`, v === ENGINE_VERSION_LABEL ? 'success' : 'system');
+  }
+  if (versions.length > 12) write(`  …and ${versions.length - 12} earlier versions.`, 'echo');
+  write('── end ──', 'echo');
+}
+
 async function checkForEngineUpdate({ silentIfSame = true } = {}) {
   try {
     const res = await fetch('./manifest.json', { cache: 'no-cache' });
@@ -2125,12 +2190,49 @@ function saveLocal() {
     }
   }
 }
+// Engine v0.51.1 — Tier C14: state-event payload compression. Browser
+// CompressionStream (gzip) is widely supported. We compress the JSON
+// and prefix the resulting base64 with "Z|" so decode can detect it.
+// Older clients (without compression) read via the legacy fallback below.
+async function compressJson(jsonStr) {
+  try {
+    if (typeof CompressionStream === 'undefined') return null;
+    const stream = new Blob([jsonStr]).stream().pipeThrough(new CompressionStream('gzip'));
+    const buf = await new Response(stream).arrayBuffer();
+    let bin = '';
+    const arr = new Uint8Array(buf);
+    for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]);
+    return 'Z|' + btoa(bin);
+  } catch { return null; }
+}
+async function decompressIfNeeded(payload) {
+  if (typeof payload !== 'string') return payload;
+  if (!payload.startsWith('Z|')) return payload;
+  try {
+    if (typeof DecompressionStream === 'undefined') return payload;
+    const bin = atob(payload.slice(2));
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const stream = new Blob([arr]).stream().pipeThrough(new DecompressionStream('gzip'));
+    const text = await new Response(stream).text();
+    return text;
+  } catch (e) {
+    console.warn('state decompress failed; falling through', e);
+    return payload;
+  }
+}
+
 let lastPublishedTurn = -10;
 async function maybePublishState(force = false) {
   if (!force && player.turn - lastPublishedTurn < 5) return;
   lastPublishedTurn = player.turn;
   try {
-    const ciphertext = await nip04.encrypt(sk, pk, JSON.stringify(serializeState()));
+    const json = JSON.stringify(serializeState());
+    // Try compression — fall back to plain JSON if unavailable. Plain JSON
+    // never starts with "Z|" so the decoder branch is unambiguous.
+    const compressed = await compressJson(json);
+    const payload = compressed && compressed.length < json.length ? compressed : json;
+    const ciphertext = await nip04.encrypt(sk, pk, payload);
     const evt = finalizeEvent({
       kind: KIND_STATE, created_at: Math.floor(Date.now() / 1000),
       tags: [['d', `character:${STORY.meta.id}`]],
@@ -2177,7 +2279,9 @@ async function fetchAndRestoreState(timeoutMs = 5000) {
       async onevent(event) {
         try {
           const plain = await nip04.decrypt(sk, pk, event.content);
-          finish(JSON.parse(plain));
+          // Tier C14: state-event payload may be gzip-compressed (Z| prefix).
+          const decoded = await decompressIfNeeded(plain);
+          finish(JSON.parse(decoded));
         } catch {}
       },
       oneose() { setTimeout(() => finish(null), 500); }
@@ -3175,7 +3279,7 @@ function itemDisplay(id, withArticle = false) {
     if (isShortGlyph(it.image)) {
       glyph = escapeHtml(it.image) + ' ';
     } else if (isImageUrl(it.image)) {
-      glyph = `<img src="${escapeHtml(it.image)}" class="item-icon" alt=""> `;
+      glyph = `<img src="${escapeHtml(it.image)}" class="item-icon" alt="" loading="lazy" decoding="async"> `;
     }
   }
   return withArticle ? `${art} ${glyph}${disp}` : `${glyph}${disp}`;
@@ -3332,6 +3436,18 @@ function applyDefense(rawDmg) {
 }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 const WEATHER_LABELS = { clear: 'clear', rain: 'rain', fog: 'fog', snow: 'snow', hot: 'hot', storm: 'storm' };
+// === ENGINE_TYPES_BEGIN ===
+// Tier C16 single source of truth for builder validator sync.
+// Builder fetches game.html, extracts this block, parses the JSON below,
+// and warns when its own allowlists drift from these values.
+// {
+//   "weather": ["clear","rain","fog","snow","hot","storm"],
+//   "npc_dialogue_conditions": ["quest_completed","quest_active","has_flag","!has_flag","has_skill","has_item","renown_gte","renown_lt"],
+//   "npc_hours_close_max": 24,
+//   "npc_hours_open_max": 23,
+//   "directions": ["north","south","east","west","up","down","in","out"]
+// }
+// === ENGINE_TYPES_END ===
 const DEFAULT_WEATHER_POOL = ['clear', 'clear', 'clear', 'clear', 'rain', 'rain', 'fog'];
 function rollDailyWeather() {
   const pool = (STORY.meta.weather_pool && STORY.meta.weather_pool.length) ? STORY.meta.weather_pool : DEFAULT_WEATHER_POOL;
@@ -8103,6 +8219,7 @@ function handleCommand(input) {
       write('(Type "mapview" / "bigmap" for a fullscreen, zoomable map.)', 'echo');
     }, '── end of map ──'); consumesTurn = false; break;
     case 'mapview': case 'bigmap': case 'mv': showMapModal(); consumesTurn = false; break;
+    case 'whatsnew': case 'changelog': showWhatsNewCommand(); consumesTurn = false; break;
     case 'recap': case 'last':   showRecap(); consumesTurn = false; break;
     case 'endings':              showEndings(); consumesTurn = false; break;
     case 'restart':              restartCommand(); consumesTurn = false; break;
@@ -8325,6 +8442,8 @@ setTimeout(() => { try { checkForStoryUpdate({ silentIfSame: true }); } catch {}
 setInterval(() => { try { checkForStoryUpdate({ silentIfSame: true }); } catch {} }, 10 * 60 * 1000);
 setTimeout(() => { try { checkForEngineUpdate({ silentIfSame: true }); } catch {} }, 8000);
 setInterval(() => { try { checkForEngineUpdate({ silentIfSame: true }); } catch {} }, 10 * 60 * 1000);
+// Tier D18: post-reload "what's new" digest.
+try { showWhatsNewIfUpdated(); } catch {}
 let __lastVisCheck = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
