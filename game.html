@@ -4794,6 +4794,13 @@ const BUILTIN_STORIES = {
 //                 listing_event_id, verified }
 const marketplaceStories = new Map();
 
+// 6.0: track the URL each non-bundled story was loaded from. Used by
+// `reload story` and the periodic update-check to re-fetch the latest JSON
+// when authors push a new version. Bundled stories (whispering-forest-v1,
+// inlined in this file) are NOT in this map — those update only on engine
+// release, which requires a hard page reload.
+const STORY_SOURCE_URL = new Map();  // story_id → URL
+
 // Async loader. Tries manifest first; falls back to hardcoded list.
 // Validates minimal shape before adding to BUILTIN_STORIES so a malformed
 // file can't break the picker.
@@ -4826,10 +4833,85 @@ async function loadExtraStoriesIntoBuiltin() {
       // Built-in wins if id collides. Custom-imported stories with same id
       // are handled by the existing picker logic.
       BUILTIN_STORIES[id] = story;
+      STORY_SOURCE_URL.set(id, url);
     } catch (e) {
       // Silent on file:// / CORS / network errors — these are expected in dev
       // and the user can still import via the file picker.
     }
+  }
+}
+
+// 6.0 update notification: silently fetch the active story's URL and compare
+// meta.version. If the live JSON is newer than what's loaded, write a notice
+// to the player's feed pointing at `reload story`. Quiet on bundled stories
+// (no remote URL → no update path from here; player must hard-refresh the
+// page to get the latest engine + bundled story).
+async function checkForStoryUpdate({ silentIfSame = true } = {}) {
+  if (typeof STORY === 'undefined' || !STORY?.meta?.id) return;
+  const id = STORY.meta.id;
+  const url = STORY_SOURCE_URL.get(id);
+  if (!url) {
+    if (!silentIfSame) write('[This story is bundled with the engine. Hard-refresh the page for engine + story updates.]', 'system');
+    return;
+  }
+  try {
+    const res = await fetch(url, { cache: 'no-cache' });
+    if (!res.ok) return;
+    const fresh = await res.json();
+    if (!fresh?.meta?.version) return;
+    const cur = STORY.meta.version || '?';
+    const next = fresh.meta.version;
+    if (cur === next) {
+      if (!silentIfSame) write(`[You're on the latest: ${fresh.meta.title} v${cur}.]`, 'system');
+      return;
+    }
+    write(`[Update available: ${fresh.meta.title} v${next} (you have v${cur}). Type \`reload story\` to apply.]`, 'spark');
+  } catch { /* silent */ }
+}
+
+// 6.0: re-fetch the active story's URL, validate, and swap the STORY object
+// in place so the rest of the engine (which holds STORY by reference) sees
+// the new content. Player state (location, inventory, quests, skills) is
+// preserved — but be aware that renamed/removed rooms or items in the new
+// version can leave the player holding orphan IDs. Engine handles unknown
+// item IDs gracefully; an invalid player.location is restored to the new
+// starting_location.
+async function reloadStory() {
+  if (typeof STORY === 'undefined' || !STORY?.meta?.id) {
+    write('No story loaded.', 'error');
+    return;
+  }
+  const id = STORY.meta.id;
+  const url = STORY_SOURCE_URL.get(id);
+  if (!url) {
+    write('This story is bundled with the engine — hard-refresh the page (Cmd/Ctrl+Shift+R) to get the latest engine + bundled story.', 'error');
+    return;
+  }
+  write('Fetching latest…', 'system');
+  try {
+    const res = await fetch(url, { cache: 'no-cache' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const fresh = await res.json();
+    const err = validateStoryShape(fresh);
+    if (err) throw new Error(err);
+    const oldVersion = STORY.meta.version || '?';
+    const newVersion = fresh.meta.version || '?';
+    // Mutate STORY in place so all references throughout the engine see new content.
+    for (const k of Object.keys(STORY)) delete STORY[k];
+    Object.assign(STORY, fresh);
+    BUILTIN_STORIES[id] = fresh;
+    // Repair player.location if the room was renamed/removed
+    if (!STORY.rooms?.[player.location]) {
+      const fallback = STORY.meta?.starting_location;
+      if (fallback && STORY.rooms?.[fallback]) {
+        write(`[Note: your previous location no longer exists in the new version. Moved to ${STORY.rooms[fallback].name || fallback}.]`, 'system');
+        player.location = fallback;
+      }
+    }
+    write(`[Story reloaded: ${fresh.meta.title} v${oldVersion} → v${newVersion}.]`, 'success');
+    if (typeof describeRoom === 'function') describeRoom();
+  } catch (e) {
+    write(`Failed to reload: ${e.message}`, 'error');
   }
 }
 
@@ -11127,6 +11209,7 @@ function help() {
     T('Language:        lang  (show)  ·  lang <code>  (switch, e.g. "lang de")'),
     T('Tutorial:        tutorial  (beginner\'s guide)  ·  tutorial off  (silence hints)'),
     T('Feedback:        bug / report  (open a bug-report dialog)'),
+    T('Updates:         reload story  (fetch the latest version of the active story without losing progress)'),
     T('Misc:            clear · help')
   ];
   for (const l of lines) write(l, 'system');
@@ -11223,6 +11306,10 @@ function handleCommand(input) {
     case 'sharpen':              sharpen(arg); break;
     case 'repair':               repair(arg); break;
     case 'bug': case 'report':   showBugReporter(); consumesTurn = false; break;
+    case 'reload': case 'update':
+      if (arg === 'story' || arg === '' || arg === undefined) { reloadStory(); consumesTurn = false; }
+      else write(`Reload what? Try "reload story".`, 'error');
+      break;
     case 'tame':                 tameAttempt(); break;
     case 'feed':                 feedCompanion(); break;
     case 'companion': case 'pet':showCompanion(); consumesTurn = false; break;
@@ -11335,6 +11422,12 @@ cmdInput.addEventListener('keydown', e => {
 write(`=== Taleforge — ${t(STORY.meta.title)} — ${ENGINE_VERSION_LABEL} ===`, 'title');
 write(`awb_<svg viewBox="0 0 32 32" width="11" height="11" style="vertical-align:-1px;display:inline-block;border-radius:1px;"><rect width="32" height="32" fill="#d8232a"/><rect x="13" y="6" width="6" height="20" fill="#fff"/><rect x="6" y="13" width="20" height="6" fill="#fff"/></svg> · 2026`, 'system');
 write('');
+
+// 6.0: check for a newer version of the active story shortly after boot, and
+// poll every 10 minutes after that. Silent if the player is already on the
+// latest version. Bundled stories skipped (no remote URL to compare against).
+setTimeout(() => { try { checkForStoryUpdate({ silentIfSame: true }); } catch {} }, 8000);
+setInterval(() => { try { checkForStoryUpdate({ silentIfSame: true }); } catch {} }, 10 * 60 * 1000);
 
 if (isNewCharacter) {
   // Stamp creation time so the inactive-character cleanup (5.4) can decide
