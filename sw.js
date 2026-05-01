@@ -13,6 +13,7 @@ const CACHE = 'nstadv-cache-v1';
 // / nostr_text_adventure.html / whatever).
 const PRECACHE = [
   './',
+  './engine.mjs',
   'https://esm.sh/nostr-tools@2.7.2'
 ];
 
@@ -42,7 +43,9 @@ self.addEventListener('message', (e) => {
         const cache = await caches.open(CACHE);
         const reqs = await cache.keys();
         for (const r of reqs) {
-          if (/\.html?$/i.test(r.url) || r.mode === 'navigate' || r.url.endsWith('/')) {
+          // v0.55: also drop engine.mjs so the extracted engine module
+          // refreshes alongside the HTML shell.
+          if (/\.html?$/i.test(r.url) || /engine\.mjs(?:$|\?)/.test(r.url) || r.mode === 'navigate' || r.url.endsWith('/')) {
             await cache.delete(r);
           }
         }
