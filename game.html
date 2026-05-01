@@ -8030,12 +8030,32 @@ const VERB_NARRATION = {
   mine:   { success: 'You mine and gain {0} {1}.{2}',   cant: "You can't mine here.",   need: 'You need {0} to mine.' },
   fish:   { success: 'You fish and gain {0} {1}.{2}',   cant: "You can't fish here.",   need: 'You need {0} to fish.' }
 };
-function gather(verb) {
+function gather(verb, arg) {
   if (combatBlock('gather')) return;
   const room = player.rooms[player.location];
-  const res = (room.resources || []).find(r => r.verb === verb);
+  // 6.0 fix: previously this used .find() and picked the first verb-matching
+  // resource regardless of skill. When a room had two resources with the same
+  // verb (e.g. shipwreck_beach: stone_chip via stone_knapping AND driftwood
+  // via foraging — both verb 'gather'), the second was unreachable. Now:
+  //   - filter all candidates matching the verb,
+  //   - if user supplied an argument, match by id or display name,
+  //   - else prefer a candidate whose skill the player has,
+  //   - fall back to the first candidate so skill-need messages still surface.
+  const candidates = (room.resources || []).filter(r => r.verb === verb);
   const tmpl = VERB_NARRATION[verb] || { success: `You ${verb} and gain {0} {1}.{2}`, cant: `You can't ${verb} here.`, need: `You need {0} to ${verb}.` };
-  if (!res) { write(T(tmpl.cant), 'error'); return; }
+  if (candidates.length === 0) { write(T(tmpl.cant), 'error'); return; }
+  let res;
+  if (arg) {
+    const q = arg.toLowerCase().trim();
+    res = candidates.find(r => {
+      if (r.id === q) return true;
+      const disp = (STORY.items[r.id]?.display || '').toLowerCase();
+      return disp.includes(q) || disp.split(/\s+/).includes(q);
+    });
+    if (!res) { write(`Nothing here you can ${verb} matches "${arg}".`, 'error'); return; }
+  } else {
+    res = candidates.find(r => player.skills.has(r.skill)) || candidates[0];
+  }
   if (!player.skills.has(res.skill)) { write(T(tmpl.need, t(STORY.skills[res.skill].display)), 'error'); return; }
   const cdKey = `${player.location}:${verb}`;
   const next = player.resource_cooldowns.get(cdKey) || 0;
@@ -11122,7 +11142,7 @@ function handleCommand(input) {
                      ...DIR_INPUT_ALIASES };
 
   if (dynamicVerbs.has(cmd) && dynamicVerbs.get(cmd) === 'gather') {
-    gather(cmd); tickTurn(); return;
+    gather(cmd, arg); tickTurn(); return;
   }
 
   let consumesTurn = true;
