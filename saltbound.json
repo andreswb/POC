@@ -5,7 +5,7 @@
     "title": "Saltbound",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.0.3",
+    "version": "1.0.4",
     "created_at": "2026-05-01T00:00:00Z",
     "language": "en",
     "languages": ["en"],
@@ -387,7 +387,8 @@
       "summary": "A small platform of dry boards. A brazier in the centre, banked with seasalt-encrusted kindling. From up here, you can see the whole horizon. A signal lit here would be seen from very far.",
       "example_descriptions": [
         "Wind. Just wind. The horizon is a flat line painted with light.",
-        "The brazier holds a heap of dry kindling — old, but the salt has kept it. With the right tinder, it would catch."
+        "The brazier holds a heap of dry kindling — old, but the salt has kept it. With a signal-fire kit (try `craft build_signal_kit` — needs 1× sail_cloth + 3× driftwood) it would catch fast and high.",
+        "The brazier waits, cold, salt-encrusted. A bundle of dry tinder fits the cradle. The smoke from one good fire here would be seen by any ship within ten miles."
       ],
       "tone_hints": ["high", "windy", "open"],
       "exits": {
@@ -1387,7 +1388,8 @@
       "dialogue_seeds": [
         "Sit. The fire knows its work, even now.",
         "I came in '89. The years stopped keeping separate after the second winter alone.",
-        "Two ways off this island, traveller. The signal at the tower — slow, depends on a ship passing. Or the raft. Build it well; the sea took mine."
+        "Two ways off this island, traveller. The signal at the tower — slow, depends on a ship passing. Or the raft. Build it well; the sea took mine.",
+        "If you want the signal — `craft build_signal_kit` for the brazier, then climb the tower. The `recipes` command lists what your skills can make."
       ],
       "behaviors": ["tells_rumors", "teaches_skill"],
       "is_marketplace": false,
@@ -1409,8 +1411,9 @@
         },
         "leaving": {
           "lines": [
-            "Two ways. The signal-fire on the tower — bring dry sail-cloth and driftwood, climb up, and light it. A ship will see it within a fortnight, maybe.",
-            "Or build a raft. Bamboo from the thicket, driftwood from the cove, sail-cloth from your wreck. Lash with rope. The sea is a hard road, but it is yours."
+            "Two ways. The signal-fire on the tower — gather dry sail-cloth and driftwood, then `craft build_signal_kit`, climb the tower, and the brazier will catch. A ship will see it within a fortnight, maybe.",
+            "Or build a raft. Bamboo from the thicket, driftwood from the cove, sail-cloth from your wreck. Lash with rope (`craft build_raft` once you've learned carpentry). The sea is a hard road, but it is yours.",
+            "Type `recipes` any time to see what your hands can make."
           ],
           "choices": [
             {"label": "What about the ruins?", "goto": "ruins_lore"},
@@ -1538,7 +1541,7 @@
         {"type": "visited", "room": "abandoned_camp"}
       ],
       "rewards": {"gold": 10, "sparks": 10, "items": []},
-      "completion_message": "You know where the water is. You have seen the camp of an earlier survivor — and the ghost who tends it still. You can begin to choose your way out."
+      "completion_message": "You know where the water is. You have seen the camp of an earlier survivor — and the ghost who tends it still. You can begin to choose your way out.\n\nThree paths:\n  · Signal-fire — `craft build_signal_kit` (1 sail_cloth + 3 driftwood), climb to tower_top.\n  · Raft — learn carpentry, then `craft build_raft` (8 bamboo + 4 driftwood + 2 sail_cloth).\n  · Lore — bring the ancient_tablet (from the ruins guardian) to the elder's spirit, then find the deep grotto.\n\nType `recipes` to see what your skills can make. Type `quests` for details on each path."
     },
     "the_signal": {
       "title": "The Signal Fire",

@@ -7674,8 +7674,27 @@ function tickTurn() {
   }
   // Scripted on_turn events
   fireEvents('on_turn', {});
+  // 6.0: auto-complete null-giver quests once their objectives are met. With
+  // a real giver the player must physically present items to the NPC, but
+  // null-giver quests have no narrative reason to require an extra `turn in`
+  // command — the game just made you wait. This sweeps active quests with
+  // no giver and turns them in if the objective set is satisfied.
+  autoCompleteReadyQuests();
   if (player.life <= 0) handleDeath('starvation');
   refreshSidebar();
+}
+
+function autoCompleteReadyQuests() {
+  if (typeof STORY === 'undefined' || !STORY.quests) return;
+  for (const [qid, ps] of Object.entries(player.quests || {})) {
+    if (ps?.state !== 'active') continue;
+    const q = STORY.quests[qid];
+    if (!q) continue;
+    if (q.giver) continue;             // explicit turn-in expected at giver
+    if (q.recurrence === 'daily') continue;  // daily quests stay manual for now
+    if (!questComplete(qid)) continue;
+    turnInQuest(qid);
+  }
 }
 
 let __dying = false;
