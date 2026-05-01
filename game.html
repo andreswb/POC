@@ -443,7 +443,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.50';
+const ENGINE_VERSION_LABEL = 'v0.50.1';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -3144,7 +3144,7 @@ function applyDefense(rawDmg) {
   return reduced;
 }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
-const WEATHER_LABELS = { clear: 'clear', rain: 'rain', fog: 'fog', snow: 'snow' };
+const WEATHER_LABELS = { clear: 'clear', rain: 'rain', fog: 'fog', snow: 'snow', hot: 'hot', storm: 'storm' };
 const DEFAULT_WEATHER_POOL = ['clear', 'clear', 'clear', 'clear', 'rain', 'rain', 'fog'];
 function rollDailyWeather() {
   const pool = (STORY.meta.weather_pool && STORY.meta.weather_pool.length) ? STORY.meta.weather_pool : DEFAULT_WEATHER_POOL;
@@ -3187,7 +3187,7 @@ function tickTurn() {
     rollDailyWeather();
     player.weather_day = newDay;
     if (player.weather && player.weather !== 'clear') {
-      const desc = { rain: 'Rain begins to fall.', fog: 'A thick fog rolls in.', snow: 'Snow drifts down silently.' }[player.weather] || `Weather: ${player.weather}.`;
+      const desc = { rain: 'Rain begins to fall.', fog: 'A thick fog rolls in.', snow: 'Snow drifts down silently.', hot: 'The air turns hot and still.', storm: 'A storm rolls in with thunder and driving rain.' }[player.weather] || `Weather: ${player.weather}.`;
       write(`[${desc}]`, 'system');
     }
   }
@@ -4097,7 +4097,7 @@ function gather(verb, arg) {
   if (Date.now() < next) { write(T('Wait {0}s.', Math.ceil((next - Date.now()) / 1000)), 'error'); return; }
   if (!canCarry(res.id, res.yield_qty)) { write(T('Too heavy to carry the {0}.', itemDisplay(res.id)), 'error'); return; }
   let yield_qty = res.yield_qty;
-  if (player.weather === 'rain') yield_qty = Math.max(1, Math.floor(yield_qty * 0.5));
+  if (player.weather === 'rain' || player.weather === 'storm') yield_qty = Math.max(1, Math.floor(yield_qty * 0.5));
   addItem(res.id, yield_qty);
   if (res.regenerates) player.resource_cooldowns.set(cdKey, Date.now() + (res.regen_seconds || 0) * 1000);
   const note = (yield_qty < res.yield_qty) ? T(' (rain reduces the catch)') : '';
@@ -5686,7 +5686,7 @@ function lightFire() {
   const room = player.rooms[player.location];
   const indoor = (room.tags || []).some(t => ['indoor','underground','shelter'].includes(t));
   const weather = player.weather || 'clear';
-  if (!indoor && (weather === 'rain' || weather === 'snow')) {
+  if (!indoor && (weather === 'rain' || weather === 'snow' || weather === 'storm')) {
     if (Math.random() < 0.5) {
       write(`The ${weather} stifles your spark. The kindling smokes and dies.`, 'error');
       return;
