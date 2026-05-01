@@ -259,20 +259,27 @@ Exits: north, south.
 </div>
 <script>
 // Live world strip — counts unique pubkeys from kind 30420 action events
-// (last 30 days) and unique story IDs from kind 30441 listings on public
-// Nostr relays. Strip stays hidden until travelers ≥ MIN_TRAVELERS so a
-// fresh deploy with no players doesn't surface a sad "0 travelers" line.
+// (last 30 days) on public Nostr relays, GROUPED BY story_id, and counts
+// available stories from manifest.json + the bundled Whispering Forest.
+//
+// Renders aggregate ("3 stories · 12 travelers · 5 active this week") and
+// a per-story breakdown ("Whispering Forest: 4 · Hollow Forest: 6 · …")
+// when there's any traffic to show. Threshold lowered to 1 — "0 travelers"
+// is hidden, but "1 traveler" is honest signal of life.
+//
 // Cached in localStorage with 6h TTL; cached value renders immediately on
 // page load while a fresh query refreshes in the background.
 (function () {
   const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band'];
   const KIND_ACTION = 30420;
-  const KIND_STORY_LISTING = 30441;
-  const TOPIC_LISTINGS = 'nta:story-listings';
-  const CACHE_KEY = 'taleforge:live-stats:v1';
-  const CACHE_TTL = 6 * 60 * 60 * 1000;       // 6 hours
-  const QUERY_TIMEOUT = 8000;                 // give up after 8s
-  const MIN_TRAVELERS = 5;                    // hide strip below this
+  const CACHE_KEY = 'taleforge:live-stats:v2';      // bumped — schema changed
+  const CACHE_TTL = 6 * 60 * 60 * 1000;             // 6 hours
+  const QUERY_TIMEOUT = 8000;
+  // Bundled stories that aren't in manifest.json (Whispering Forest is
+  // inlined in the engine and always available even without a story file).
+  const BUNDLED_STORIES = [
+    { id: 'whispering-forest-v1', title: 'The Whispering Forest' }
+  ];
 
   function loadCache() {
     try {
@@ -289,31 +296,37 @@ Exits: north, south.
   function isFresh(c) { return c && (Date.now() - (c.ts || 0)) < CACHE_TTL; }
 
   function render(stats) {
-    if (!stats || stats.travelers < MIN_TRAVELERS) return;
+    if (!stats) return;
     const el = document.getElementById('live-strip');
     if (!el) return;
+    // Aggregate top line
     const parts = [];
     if (stats.stories > 0) parts.push(stats.stories + (stats.stories === 1 ? ' story' : ' stories'));
-    parts.push(stats.travelers + (stats.travelers === 1 ? ' traveler' : ' travelers'));
-    if (stats.activeWeek > 0) parts.push(stats.activeWeek + ' active this week');
-    el.innerHTML = parts.join('<span class="sep">·</span>');
+    if (stats.travelers >= 1) parts.push(stats.travelers + (stats.travelers === 1 ? ' traveler' : ' travelers'));
+    if (stats.activeWeek >= 1) parts.push(stats.activeWeek + ' active this week');
+    if (parts.length === 0) return;  // nothing meaningful to show
+    let html = parts.join('<span class="sep">·</span>');
+    // Per-story breakdown (only stories with at least one traveler)
+    const withCounts = (stats.perStory || []).filter(s => s.count > 0);
+    if (withCounts.length > 0) {
+      const breakdown = withCounts.map(s => `${s.title}: ${s.count}`).join('  ·  ');
+      html += `<br><span style="font-size:11px;color:var(--dim);font-style:italic;">${breakdown}</span>`;
+    }
+    el.innerHTML = html;
     el.classList.add('visible');
   }
 
-  function queryRelay(url, since, sinceWeek, travelers, activeWeek, storyIds) {
+  function queryRelay(url, since, sinceWeek, travelers, activeWeek, perStory) {
     return new Promise(resolve => {
       let resolved = false;
       const finish = () => { if (!resolved) { resolved = true; resolve(); } };
       let ws;
       try { ws = new WebSocket(url); } catch { return finish(); }
       const t = setTimeout(() => { try { ws.close(); } catch {} finish(); }, QUERY_TIMEOUT - 500);
-      let eoseCount = 0;
-      const subA = 'a' + Math.random().toString(36).slice(2, 8);
-      const subS = 's' + Math.random().toString(36).slice(2, 8);
+      const sub = 'a' + Math.random().toString(36).slice(2, 8);
       ws.onopen = () => {
         try {
-          ws.send(JSON.stringify(['REQ', subA, { kinds: [KIND_ACTION], since, limit: 5000 }]));
-          ws.send(JSON.stringify(['REQ', subS, { kinds: [KIND_STORY_LISTING], '#t': [TOPIC_LISTINGS], limit: 200 }]));
+          ws.send(JSON.stringify(['REQ', sub, { kinds: [KIND_ACTION], since, limit: 5000 }]));
         } catch {}
       };
       ws.onmessage = (msg) => {
@@ -321,20 +334,23 @@ Exits: north, south.
           const d = JSON.parse(msg.data);
           if (d[0] === 'EVENT') {
             const ev = d[2];
-            if (ev.kind === KIND_ACTION) {
-              travelers.add(ev.pubkey);
-              if (ev.created_at >= sinceWeek) activeWeek.add(ev.pubkey);
-            } else if (ev.kind === KIND_STORY_LISTING) {
-              const dt = (ev.tags || []).find(x => x[0] === 'd');
-              if (dt && dt[1]) storyIds.add(dt[1]);
+            if (ev.kind !== KIND_ACTION) return;
+            travelers.add(ev.pubkey);
+            if (ev.created_at >= sinceWeek) activeWeek.add(ev.pubkey);
+            // Per-story tally via the 'story:<id>' topic tag
+            const tTag = (ev.tags || []).find(x => x[0] === 't');
+            if (tTag && tTag[1]) {
+              const m = String(tTag[1]).match(/^story:(.+)$/);
+              if (m) {
+                const sid = m[1];
+                if (!perStory.has(sid)) perStory.set(sid, new Set());
+                perStory.get(sid).add(ev.pubkey);
+              }
             }
           } else if (d[0] === 'EOSE') {
-            eoseCount++;
-            if (eoseCount >= 2) {
-              try { ws.close(); } catch {}
-              clearTimeout(t);
-              finish();
-            }
+            try { ws.close(); } catch {}
+            clearTimeout(t);
+            finish();
           }
         } catch {}
       };
@@ -343,17 +359,56 @@ Exits: north, south.
     });
   }
 
+  async function buildCatalog() {
+    // Start with the bundled story (always available)
+    const catalog = [...BUNDLED_STORIES];
+    // Append manifest entries with their actual titles (one fetch per story)
+    try {
+      const mres = await fetch('./manifest.json', { cache: 'no-cache' });
+      if (mres.ok) {
+        const m = await mres.json();
+        if (Array.isArray(m.stories)) {
+          for (const url of m.stories) {
+            try {
+              const sres = await fetch(url, { cache: 'no-cache' });
+              if (!sres.ok) continue;
+              const story = await sres.json();
+              if (story?.meta?.id && story?.meta?.title) {
+                catalog.push({ id: story.meta.id, title: story.meta.title });
+              }
+            } catch {}
+          }
+        }
+      }
+    } catch {}
+    return catalog;
+  }
+
   async function fetchStats() {
     const since = Math.floor((Date.now() - 30 * 86400000) / 1000);
     const sinceWeek = Math.floor((Date.now() - 7 * 86400000) / 1000);
     const travelers = new Set();
     const activeWeek = new Set();
-    const storyIds = new Set();
-    await Promise.all(RELAYS.map(u => queryRelay(u, since, sinceWeek, travelers, activeWeek, storyIds)));
-    return { travelers: travelers.size, activeWeek: activeWeek.size, stories: storyIds.size };
+    const perStory = new Map();   // story_id → Set<pubkey>
+    const [catalog] = await Promise.all([
+      buildCatalog(),
+      Promise.all(RELAYS.map(u => queryRelay(u, since, sinceWeek, travelers, activeWeek, perStory)))
+    ]);
+    // Compose per-story result aligned with the catalog (title + count)
+    const perStoryResult = catalog.map(s => ({
+      id: s.id,
+      title: s.title,
+      count: perStory.get(s.id)?.size || 0
+    }));
+    return {
+      stories: catalog.length,
+      travelers: travelers.size,
+      activeWeek: activeWeek.size,
+      perStory: perStoryResult
+    };
   }
 
-  // Stage 1: render cached value immediately so visitors see something on load
+  // Stage 1: render cached value immediately
   const cached = loadCache();
   if (cached) render(cached);
   // Stage 2: refresh in background if cache is stale (or absent)
