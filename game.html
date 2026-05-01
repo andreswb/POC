@@ -11317,7 +11317,8 @@ function showMap() {
   header.textContent = `-- map (* = you, ⚠ = wolves, 📦 = chest, 🔥 = fire, ↑↓→← = inter-layer)${layerHint} — ${player.visited.size} room${player.visited.size === 1 ? '' : 's'} discovered --`;
   wrap.appendChild(header);
 
-  const playerLayer = layerOf(player.location);
+  // 6.0: playerLayer already computed earlier in this function during the
+  // BFS layout step (used to pick which layer to lay out first). Reuse here.
   for (const L of orderedLayers) {
     const positions = layoutByLayer.get(L);
     const isPlayer = L === playerLayer;
