@@ -357,6 +357,10 @@
       <h3 data-i18n="Active quest">Active quest</h3>
       <div class="mat-list" id="questTracker"></div>
     </section>
+    <section id="bountyTrackerSection" style="display:none;" title="Open bounties on entities. Type `bounty list` for full details, `bounty claim <id>` to collect.">
+      <h3>Open bounties</h3>
+      <div class="mat-list" id="bountyTracker"></div>
+    </section>
     <section id="combatTrackerSection" style="display:none;">
       <h3 data-i18n="In combat">In combat</h3>
       <div class="mat-list" id="combatTracker"></div>
@@ -443,7 +447,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.52';
+const ENGINE_VERSION_LABEL = 'v0.53';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -515,6 +519,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.53':   'WS reconnect with exponential backoff. Marketplace preview modal. Sidebar bounty tracker. Cold-backup character (`backup` / `restore`). `fight` auto-attack command. Hollow Forest now has 3 endings (HUMAN / VAMPIRE / WEREWOLF); Whispering Forest gained 4 (PILGRIM / MASTER_SMITH / FOREST_WARDEN / TRUSTED_MERCHANT). Builder learned to author endings via dedicated UI.',
   'v0.52':   'Quest-chain DAG with ending markers + renown gates. State events now gzip-compressed (smaller character-state payloads). New `whatsnew` / `changelog` command. Engine ↔ builder type-sync hint pill.',
   'v0.51':   'Picker filters + sort + story preview. Map zoom/pan modal (`mapview`). `inv <pattern>` and `recipes <pattern>` filters. Characters dialog from picker. Auto-fix buttons on validation errors.',
   'v0.50.1': 'Saltbound: weather pool now accepts `hot` and `storm` (storm behaves like rain for fires/yields).',
@@ -983,6 +988,43 @@ function showStoryPicker(currentId = null) {
       ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') ov.remove(); });
     }
 
+    // Tier A1: marketplace listing preview — shows the listing metadata
+    // (title, author, version, license/price, description) before the
+    // player commits to fetching the full JSON.
+    function showMarketplacePreview(li) {
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+      const pn = document.createElement('div');
+      pn.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:520px;width:100%;max-height:90vh;overflow:auto;padding:22px;';
+      let shortNpub = '';
+      try { const np = nip19.npubEncode(li.author_pubkey); shortNpub = np.slice(0, 14) + '…' + np.slice(-8); } catch {}
+      const priceSats = li.license?.price_sats || 0;
+      const verifiedBadge = li.verified ? '<span style="color:#6dc28d;font-size:12px;font-weight:normal;">✓ verified signature</span>' : '<span style="color:#9c9388;font-size:12px;font-weight:normal;">unsigned</span>';
+      pn.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+          <div style="font-size:18px;font-weight:bold;">${escapeHtml(li.title || li.id)}</div>
+          <button id="mv-close" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;">×</button>
+        </div>
+        <div style="color:#9c9388;font-size:12px;margin-bottom:4px;">v${escapeHtml(li.version || '?')} · author: ${escapeHtml(li.author || 'anon')}</div>
+        <div style="color:#bcb4a8;font-size:11px;margin-bottom:10px;font-family:monospace;">${escapeHtml(shortNpub)}</div>
+        <div style="margin-bottom:10px;">${verifiedBadge}</div>
+        <div style="margin-bottom:10px;font-size:13px;">License: ${priceSats > 0 ? `<strong style="color:#f0b54a;">${priceSats} sats</strong>` : '<strong style="color:#6dc28d;">free</strong>'}${li.license?.payment_url ? ` <span style="color:#9c9388;">(${escapeHtml(new URL(li.license.payment_url).host)})</span>` : ''}</div>
+        ${li.description ? `<div style="font-size:13px;line-height:1.5;color:#bcb4a8;background:#0c0e10;padding:10px;border-radius:4px;border-left:3px solid #4a6a3a;margin-bottom:12px;">${escapeHtml(li.description)}</div>` : ''}
+        <div style="font-size:11px;color:#7a7367;margin-bottom:12px;">Hosted at: <code style="color:#bcb4a8;font-size:11px;">${escapeHtml(li.url || '?')}</code></div>
+        <div style="background:#23201c;padding:10px;border-radius:4px;margin-bottom:12px;font-size:12px;color:#9c9388;">
+          <strong style="color:#bcb4a8;">⚠ Marketplace stories</strong> are user-contributed. The engine validates the JSON shape on import, but content is the author's responsibility. Verified signatures attest to authorship, not safety.
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button id="mv-cancel" style="padding:6px 14px;background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;font:inherit;cursor:pointer;">Back to list</button>
+        </div>
+      `;
+      ov.appendChild(pn);
+      document.body.appendChild(ov);
+      pn.querySelector('#mv-close').onclick = () => ov.remove();
+      pn.querySelector('#mv-cancel').onclick = () => ov.remove();
+      ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') ov.remove(); });
+    }
+
     function renderList() {
       renderTagChips();
       listEl.innerHTML = '';
@@ -1134,6 +1176,12 @@ function showStoryPicker(currentId = null) {
             desc.textContent = li.description.slice(0, 200);
             row.append(desc);
           }
+          // Tier A1: preview link on marketplace cards.
+          const previewLink = document.createElement('span');
+          previewLink.textContent = '👁 preview';
+          previewLink.style.cssText = 'color:#9c9388;font-size:11px;cursor:pointer;text-decoration:underline;margin-top:4px;align-self:flex-start;';
+          previewLink.onclick = (ev) => { ev.stopPropagation(); showMarketplacePreview(li); };
+          row.append(previewLink);
           const priceSats = li.license?.price_sats || 0;
           const paymentUrl = li.license?.payment_url;
           const alreadyPaid = isStoryPaid(li.id);
@@ -2463,6 +2511,46 @@ function refreshSidebar() {
       }
     }
   }
+  // Engine v0.52.1 — Tier A4: sidebar bounty tracker.
+  // Show open bounties in the room or globally, so the player has a passive
+  // hint of what targets are worth gold. Click → "bounty list" command.
+  const bountySec = document.getElementById('bountyTrackerSection');
+  const bountyEl = document.getElementById('bountyTracker');
+  if (bountySec && bountyEl) {
+    const list = [];
+    try {
+      for (const [bid, b] of (typeof bounties !== 'undefined' ? bounties : new Map())) {
+        if (player.bounty_claims && player.bounty_claims.has(bid)) continue;
+        list.push(b);
+      }
+    } catch {}
+    if (list.length === 0) {
+      bountySec.style.display = 'none';
+    } else {
+      bountySec.style.display = '';
+      bountySec.style.cursor = 'pointer';
+      bountySec.onclick = () => { try { bountyCommand(''); } catch {} };
+      bountyEl.innerHTML = '';
+      // Show top 3 by gold
+      list.sort((a, b) => (b.gold || 0) - (a.gold || 0));
+      for (const b of list.slice(0, 3)) {
+        const ent = STORY.entities[b.entity];
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.style.fontSize = '11px';
+        row.innerHTML = `<span style="color:var(--muted);">${escapeHtml(ent?.display || b.entity)}</span><span class="qty" style="color:var(--gold);">${b.gold || 0}g</span>`;
+        bountyEl.appendChild(row);
+      }
+      if (list.length > 3) {
+        const more = document.createElement('div');
+        more.className = 'row';
+        more.style.cssText = 'font-size:10px;color:var(--muted);font-style:italic;';
+        more.textContent = `…and ${list.length - 3} more (click to view all)`;
+        bountyEl.appendChild(more);
+      }
+    }
+  }
+
   const combatSec = document.getElementById('combatTrackerSection');
   const combatEl = document.getElementById('combatTracker');
   if (combatSec && combatEl) {
@@ -2578,6 +2666,8 @@ function markRelayUp() {
     relayUp = true;
     document.getElementById('relayDot').classList.add('on');
   }
+  // Tier D17: relay back up — clear backoff state.
+  cancelReconnect();
   refreshRelayLabel();
 }
 function markRelayDown() {
@@ -2597,10 +2687,16 @@ function refreshRelayLabel() {
       : T('{0} relays · live', RELAYS.length);
   } else if (navigator.onLine === false) {
     el.textContent = queued ? T('offline · {0} queued', queued) : T('offline');
+  } else if (__reconnectAt > 0) {
+    // Tier D17: countdown during exponential backoff.
+    const secs = Math.max(0, Math.ceil((__reconnectAt - Date.now()) / 1000));
+    el.textContent = queued ? `reconnecting in ${secs}s · ${queued} queued` : `reconnecting in ${secs}s`;
   } else {
     el.textContent = queued ? T('connecting… · {0} queued', queued) : T('connecting…');
   }
 }
+// Tier D17: 1Hz refresh while a reconnect is pending so the countdown updates.
+setInterval(() => { if (__reconnectAt > 0) refreshRelayLabel(); }, 1000);
 
 const STORAGE_OUTBOX = `nstadv:${STORY.meta.id}:outbox`;
 function loadOutbox() {
@@ -2643,10 +2739,55 @@ function tryPublish(evt) {
   try {
     Promise.any(pool.publish(RELAYS, evt))
       .then(markRelayUp)
-      .catch(() => queueOutbox(evt));
+      .catch(() => { queueOutbox(evt); scheduleReconnect(); });
   } catch {
     queueOutbox(evt);
+    scheduleReconnect();
   }
+}
+
+// Engine v0.52.1 — Tier D17/B6: WS reconnect with exponential backoff.
+// When a publish fails (relays unreachable), schedule a retry with a
+// growing delay and jitter, capped at 30s. Each tick tries draining the
+// outbox; on success, reset the backoff. Status label shows the countdown.
+let __reconnectAttempt = 0;
+let __reconnectTimer = null;
+let __reconnectAt = 0;
+function scheduleReconnect() {
+  if (__reconnectTimer) return;
+  if (navigator.onLine === false) return;  // OS will fire 'online' — no point spinning
+  __reconnectAttempt = Math.min(__reconnectAttempt + 1, 6);
+  // 1s, 2s, 4s, 8s, 16s, 30s (capped)
+  const baseDelays = [1000, 2000, 4000, 8000, 16000, 30000];
+  const base = baseDelays[__reconnectAttempt - 1] || 30000;
+  // ±20% jitter
+  const jitter = Math.floor((Math.random() - 0.5) * base * 0.4);
+  const delay = base + jitter;
+  __reconnectAt = Date.now() + delay;
+  refreshRelayLabel();
+  __reconnectTimer = setTimeout(async () => {
+    __reconnectTimer = null;
+    __reconnectAt = 0;
+    if (loadOutbox().length === 0) {
+      __reconnectAttempt = 0;
+      refreshRelayLabel();
+      return;
+    }
+    const before = loadOutbox().length;
+    await drainOutbox(true);
+    const after = loadOutbox().length;
+    if (after < before) {
+      __reconnectAttempt = 0;
+      refreshRelayLabel();
+    } else if (after > 0) {
+      scheduleReconnect();
+    }
+  }, delay);
+}
+function cancelReconnect() {
+  if (__reconnectTimer) { clearTimeout(__reconnectTimer); __reconnectTimer = null; }
+  __reconnectAttempt = 0;
+  __reconnectAt = 0;
 }
 async function publishAction(actionType, payload) {
   const evt = finalizeEvent({
@@ -3964,6 +4105,57 @@ function describeRoom() {
 }
 
 function inCombat() { return player.combat_target != null; }
+
+// Engine v0.52.1 — Tier B8: fight-to-the-death helper.
+// Repeats `attack` until either the target falls or the player drops below
+// 25% life (auto-flee threshold). Pacing: one attack per ~80ms render frame
+// so the player still sees each line. Spawns a cancel hook on Esc.
+function fightToTheDeath() {
+  if (!player.combat_target) {
+    write('Nothing here to fight. Type "hunt" or "attack" to start a combat.', 'error');
+    return;
+  }
+  if (window.__autoFightActive) {
+    write('Already auto-fighting. Press Esc to break out.', 'system');
+    return;
+  }
+  const maxLife = computeMaxLife();
+  const fleeAt = Math.max(1, Math.floor(maxLife * 0.25));
+  write(`>>> Auto-fight engaged. Press Esc or "flee" to break out. (Will auto-flee under ${fleeAt} life.)`, 'combat');
+  window.__autoFightActive = true;
+  let rounds = 0;
+  function escHandler(e) { if (e.key === 'Escape') { window.__autoFightActive = false; write('>>> Auto-fight cancelled.', 'system'); } }
+  document.addEventListener('keydown', escHandler);
+  const tickFight = () => {
+    if (!window.__autoFightActive) {
+      document.removeEventListener('keydown', escHandler);
+      return;
+    }
+    if (!player.combat_target) {
+      window.__autoFightActive = false;
+      document.removeEventListener('keydown', escHandler);
+      write(`>>> Auto-fight: target down after ${rounds} round${rounds === 1 ? '' : 's'}.`, 'success');
+      return;
+    }
+    if (player.life <= fleeAt) {
+      window.__autoFightActive = false;
+      document.removeEventListener('keydown', escHandler);
+      write(`>>> Auto-fight: life under threshold (${Math.floor(player.life)}/${maxLife}). Auto-fleeing.`, 'error');
+      try { flee(); } catch {}
+      return;
+    }
+    rounds++;
+    if (rounds > 60) {
+      window.__autoFightActive = false;
+      document.removeEventListener('keydown', escHandler);
+      write('>>> Auto-fight: 60-round safety stop. Type "fight" again to continue or "flee".', 'system');
+      return;
+    }
+    try { attack(); tickTurn(); } catch (e) { window.__autoFightActive = false; return; }
+    setTimeout(tickFight, 120);
+  };
+  setTimeout(tickFight, 50);
+}
 function combatBlock(action) {
   if (!inCombat()) return false;
   const allowed = ['attack','flee','look','l','status','stats','inv','inventory','i','help','?','clear','eat','use','map','m'];
@@ -6649,6 +6841,82 @@ function showCharactersDialog() {
   };
 }
 
+// Engine v0.52.1 — Tier A3: cold-backup of the full character.
+// Writes a JSON file containing the nsec + the serialized state (the same
+// payload that lives in kind-30425 events) so the player has a fully
+// offline-recoverable bundle. Pairs with `restore` to load back in.
+function backupCharacterCommand(argRaw) {
+  try {
+    const payload = {
+      format: 'taleforge-character-backup',
+      format_version: '1',
+      exported_at: new Date().toISOString(),
+      engine_version: ENGINE_VERSION_LABEL,
+      story_id: STORY.meta.id,
+      story_version: STORY.meta.version,
+      character_name: player.name || null,
+      npub_short: npubShort,
+      nsec: typeof nsec !== 'undefined' ? nsec : null,
+      state: serializeState()
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const fname = `taleforge-${STORY.meta.id}-${(player.name || 'character').replace(/[^a-z0-9]+/gi, '_')}-${new Date().toISOString().slice(0,10)}.json`;
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    write(`Backup saved: ${fname}`, 'success');
+    write('This file contains your nsec — keep it safe and offline. Use "restore" + the file to bring this character back.', 'system');
+  } catch (e) {
+    write('Backup failed: ' + (e?.message || e), 'error');
+  }
+}
+
+function restoreCharacterCommand(argRaw) {
+  // Spawn a hidden file picker; on file → parse → confirm → swap nsec → reload.
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.json,application/json';
+  inp.style.display = 'none';
+  inp.addEventListener('change', () => {
+    const f = inp.files?.[0]; inp.remove();
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(reader.result);
+        if (obj?.format !== 'taleforge-character-backup') {
+          write('Not a Taleforge character backup file.', 'error'); return;
+        }
+        if (!obj.nsec) { write('Backup is missing the nsec — cannot restore.', 'error'); return; }
+        // Validate the nsec parses
+        try { nip19.decode(obj.nsec); }
+        catch { write('Backup nsec is malformed.', 'error'); return; }
+        const tag = obj.character_name ? `"${obj.character_name}"` : '(unnamed)';
+        const ok = confirm(`Restore character ${tag} from backup?\n\nStory: ${obj.story_id} v${obj.story_version}\nExported: ${obj.exported_at}\n\nThis will save your CURRENT character to this browser's recent list (so you can switch back later) and reload the page.`);
+        if (!ok) return;
+        try { recordRecentChar(); } catch {}
+        localStorage.setItem(STORAGE_NSEC, obj.nsec);
+        localStorage.setItem(STORAGE_NSEC_CREATED, String(Date.now()));
+        // Optimistically write the saved state so the engine picks it up before relays sync.
+        if (obj.state) {
+          try { localStorage.setItem(STORAGE_STATE, JSON.stringify(obj.state)); } catch {}
+        }
+        write('Restoring — page reloading…', 'system');
+        setTimeout(() => location.reload(), 600);
+      } catch (e) {
+        write('Restore failed: ' + (e?.message || e), 'error');
+      }
+    };
+    reader.readAsText(f);
+  });
+  document.body.appendChild(inp);
+  inp.click();
+  write('Pick a previously-exported backup .json file…', 'system');
+}
+
 function charactersCommand(argRaw) {
   const arg = (argRaw || '').trim();
   const list = loadRecentChars();
@@ -8114,6 +8382,7 @@ function handleCommand(input) {
     case 'answer': case 'say':   answer(argRaw); break;
     case 'hunt':                 hunt(); break;
     case 'attack':               attack(); break;
+    case 'fight':                fightToTheDeath(); consumesTurn = false; break;
     case 'flee':                 flee(); break;
     case 'parry':                parry(); break;
     case 'charge':               charge(); break;
@@ -8171,6 +8440,8 @@ function handleCommand(input) {
     case 'soul':                 showSoul(); consumesTurn = false; break;
     case 'import':               importSoul(argRaw); consumesTurn = false; break;
     case 'characters': case 'chars': charactersCommand(argRaw); consumesTurn = false; break;
+    case 'backup':               backupCharacterCommand(argRaw); consumesTurn = false; break;
+    case 'restore':              restoreCharacterCommand(argRaw); consumesTurn = false; break;
     case 'profile':              showProfile(); consumesTurn = false; break;
     case 'whoami': case 'me':    showWhoAmI(); consumesTurn = false; break;
     case 'signature': case 'sig':

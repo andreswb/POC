@@ -5,7 +5,7 @@
     "title": "The Whispering Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.16.2",
+    "version": "1.17.0",
     "created_at": "2026-04-28T00:00:00Z",
     "language": "en",
     "tone": "eerie, sensory, hopeful undertones; never explain too much; favor sound and texture over exposition",
@@ -94,7 +94,7 @@
         },
         "attack_bonus": 2,
         "starting_skills_extra": [
-          "smithing"
+          "smelting"
         ],
         "starting_inventory_extra": [
           "broken_sword"
@@ -1058,7 +1058,7 @@
         },
         {
           "id": "frost_crystal",
-          "skill": "mining",
+          "skill": "stone_knapping",
           "verb": "gather",
           "yield_qty": 1,
           "regenerates": true,
@@ -4497,7 +4497,7 @@
           }
         ]
       },
-      "completion_message": "The hermit looks at you a long time. \"You stood where the wind asks. That changes a person. The pack is yours; carry it well.\""
+      "completion_message": "The hermit looks at you a long time. \"You stood where the wind asks. That changes a person. The pack is yours; carry it well. Few finish the climb. Fewer come back wanting to tell about it. You will not need a road from now on. Find your own way.\"\n\n>>> ENDING: PILGRIM <<<"
     },
     "wolf_culler": {
       "title": "Quiet the Howling",
@@ -4731,7 +4731,7 @@
           }
         ]
       },
-      "completion_message": "\"This is good work.\" The smith presses an iron sword into your hand. \"Keep that axe. Take this too — and remember the price of iron.\""
+      "completion_message": "\"This is good work.\" The smith presses an iron sword into your hand. \"Keep that axe. Take this too — and remember the price of iron. You are not my apprentice any more, and not my journeyman. The forge is yours when I am gone, and it will not be long. Take care of the village. They have come to depend on what you make.\"\n\n>>> ENDING: MASTER_SMITH <<<"
     },
     "trappers_introduction": {
       "title": "The Trapper's Pact: Pelts",
@@ -4804,7 +4804,7 @@
           }
         ]
       },
-      "completion_message": "He breathes out long and slow. \"You've done well, traveller. Take the cloak — the cold takes me first now, but you've bought me a winter.\""
+      "completion_message": "He breathes out long and slow. \"You've done well, traveller. Take the cloak — the cold takes me first now, but you've bought me a winter. The wood remembers who walks it kindly. You will, too. The animals know your step now; the children know your name. Stay among us, or go — either way, the forest is yours.\"\n\n>>> ENDING: FOREST_WARDEN <<<"
     },
     "merchants_trusted_contract": {
       "title": "The Most Trusted Contract",
@@ -4837,7 +4837,7 @@
           }
         ]
       },
-      "completion_message": "He counts your goods carefully. \"This will keep my caravan rolling for the season. You earned this.\" He pays you, and presses something cold and small into your hand — a spirit glass."
+      "completion_message": "He counts your goods carefully. \"This will keep my caravan rolling for the season. You earned this.\" He pays you, and presses something cold and small into your hand — a spirit glass. \"Take it. There's a road that opens for those who keep their word. You're on it now. Walk it.\" The caravan rolls out at dawn; the village comes to watch you off, the way they only do for the ones the road truly takes.\n\n>>> ENDING: TRUSTED_MERCHANT <<<"
     }
   },
   "signature": null,

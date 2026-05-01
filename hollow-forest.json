@@ -5,7 +5,7 @@
     "title": "The Hollow Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.5.0",
+    "version": "1.6.0",
     "created_at": "2026-04-30T00:00:00Z",
     "language": "en",
     "languages": [
@@ -2898,7 +2898,7 @@
           }
         ]
       },
-      "completion_message": "The Count receives you again. 'Three is enough. The night accepts you.' He pours another glass."
+      "completion_message": "The Count receives you again. 'Three is enough. The night accepts you.' He pours another glass — and this time you taste it without flinching. Outside, dawn is hours away, and you are no longer afraid of it. Sunlight will burn now, and that is fine. You have other hours.\n\n>>> ENDING: VAMPIRE <<<"
     },
     "the_slayer": {
       "title": "The Slayer",
@@ -2921,7 +2921,7 @@
         "sparks": 60,
         "items": []
       },
-      "completion_message": "You bring the priest the signet. He weeps, briefly, and rings the bell himself. The shutters in the village open one by one."
+      "completion_message": "You bring the priest the signet. He weeps, briefly, and rings the bell himself. The shutters in the village open one by one. Children come out into the lane for the first time in a season. The priest puts a hand on your shoulder. 'You stayed yourself,' he says, 'when the forest asked otherwise. The village will remember.'\n\n>>> ENDING: HUMAN <<<"
     },
     "the_silver_key": {
       "title": "The Silver Key",
@@ -2964,6 +2964,28 @@
         "items": []
       },
       "completion_message": "She weighs them, nods once, and pays. \"Bring more if you find them.\""
+    },
+    "embrace_the_wolf": {
+      "title": "Run with the Pack",
+      "description": "If you keep the wolf — refuse the priest's cure, refuse the witch's baptism, refuse the Count's bargain — you are not yours alone any more. The pack will claim you. There is one rite that closes the change for good: hunt three of your own under a full moon and stand witness as the forest accepts you.",
+      "giver": null,
+      "auto_accept": true,
+      "requires": [
+        "the_witch_offer"
+      ],
+      "objectives": [
+        {
+          "type": "kill",
+          "entity": "werewolf",
+          "qty": 3
+        }
+      ],
+      "rewards": {
+        "gold": 0,
+        "sparks": 50,
+        "items": []
+      },
+      "completion_message": "You stand at the heart of the wood. The pack does not approach — they wait. Three of theirs lie at your feet, and the moon is high enough that the boundary between you and them has stopped meaning anything. The change settles. It is not a curse any more. It is who you are.\n\nYou will not see the village again. You do not need to. The forest is wide, and the hunger is not loneliness — it is direction. You run.\n\n>>> ENDING: WEREWOLF <<<"
     },
     "hollow_origin": {
       "title": "The Hollow Origin",
