@@ -4752,7 +4752,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.34';
+const ENGINE_VERSION_LABEL = 'v0.35';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -8177,6 +8177,35 @@ function bury(arg) {
     query = parts[1];
   }
   if (qty < 1) { write('Bury at least 1.', 'error'); return; }
+  // v0.35: confirmation guard for valuable items. Bury is irreversible — a
+  // mis-typed bury of a fine sword shouldn't destroy it. Resolve a sample
+  // item id (inventory first, then materials) and check its `value`. If the
+  // total burying value crosses ~50 gold OR the item is non-stackable
+  // (durable / unique), require a typed confirmation pattern.
+  let sampleId = null;
+  const idxPreview = findItemIn(player.inventory, query);
+  if (idxPreview !== -1) sampleId = player.inventory[idxPreview];
+  else {
+    const matKey = findMaterialKey(query);
+    if (matKey && (player.materials[matKey] || 0) > 0) sampleId = matKey;
+  }
+  if (sampleId) {
+    const item = STORY.items[sampleId];
+    const unitValue = (item?.value ?? 0);
+    const totalValue = unitValue * qty;
+    const isUnique = item && item.stackable === false;
+    const isWeapon = (item?.tags || []).includes('weapon');
+    const guarded = totalValue >= 50 || isUnique || isWeapon;
+    if (guarded && player._bury_confirmed !== `${sampleId}:${qty}`) {
+      write(`Bury ${qty}× ${itemDisplay(sampleId, true)}? That's worth ~${totalValue} gold and is gone forever once buried.`, 'error');
+      write(`Type "bury ${qty} ${query}" again within the next move to confirm.`, 'system');
+      player._bury_confirmed = `${sampleId}:${qty}`;
+      // Auto-clear after one tick — the next non-bury command resets.
+      return;
+    }
+    // Confirmed; clear the guard for next time.
+    player._bury_confirmed = null;
+  }
   // Try inventory then materials
   let buried = 0;
   for (let n = 0; n < qty; n++) {
@@ -8194,32 +8223,35 @@ function bury(arg) {
 }
 
 function showInventory() {
-  if (!player.inventory.length) write(T('You carry no discrete items.'));
-  else {
-    // Group identical items so multiples render as "cooked meat ×3" instead of three rows.
-    // Skip grouping for items with edge/durability (each weapon copy is unique).
-    const groups = new Map(); // item_id -> count
-    const unique = []; // items with durability tracked separately
-    for (const i of player.inventory) {
-      if (player.edges?.has(i)) unique.push(i);
-      else groups.set(i, (groups.get(i) || 0) + 1);
+  // v0.35: wrapped in writeBlock for mobile-overflow polish.
+  writeBlock('=== Inventory ===', () => {
+    if (!player.inventory.length) write(T('You carry no discrete items.'));
+    else {
+      // Group identical items so multiples render as "cooked meat ×3" instead of three rows.
+      // Skip grouping for items with edge/durability (each weapon copy is unique).
+      const groups = new Map(); // item_id -> count
+      const unique = []; // items with durability tracked separately
+      for (const i of player.inventory) {
+        if (player.edges?.has(i)) unique.push(i);
+        else groups.set(i, (groups.get(i) || 0) + 1);
+      }
+      const parts = [];
+      for (const [id, n] of groups) {
+        parts.push(n > 1 ? `${itemDisplay(id, true)} ×${n}` : itemDisplay(id, true));
+      }
+      for (const i of unique) parts.push(itemDisplay(i, true));
+      write(T('You carry: {0}', parts.join(', ')));
     }
-    const parts = [];
-    for (const [id, n] of groups) {
-      parts.push(n > 1 ? `${itemDisplay(id, true)} ×${n}` : itemDisplay(id, true));
+    const mats = Object.entries(player.materials).filter(([_, q]) => q > 0);
+    if (mats.length) {
+      write(T('Materials: {0}', mats.map(([k, q]) => {
+        const left = freshnessRemaining(k);
+        const fresh = (left != null) ? ' ' + T('(rots in {0} turn{1})', left, left === 1 ? '' : 's') : '';
+        return `${itemDisplay(k)} ×${q}${fresh}`;
+      }).join(', ')), 'gold');
     }
-    for (const i of unique) parts.push(itemDisplay(i, true));
-    write(T('You carry: {0}', parts.join(', ')));
-  }
-  const mats = Object.entries(player.materials).filter(([_, q]) => q > 0);
-  if (mats.length) {
-    write(T('Materials: {0}', mats.map(([k, q]) => {
-      const left = freshnessRemaining(k);
-      const fresh = (left != null) ? ' ' + T('(rots in {0} turn{1})', left, left === 1 ? '' : 's') : '';
-      return `${itemDisplay(k)} ×${q}${fresh}`;
-    }).join(', ')), 'gold');
-  }
-  write(T('Load: {0}/{1}', Math.round(computeWeight()*10)/10, computeMaxCapacity()), 'system');
+    write(T('Load: {0}/{1}', Math.round(computeWeight()*10)/10, computeMaxCapacity()), 'system');
+  }, '── end of inventory ──');
 }
 
 function showStatus() {
@@ -8344,19 +8376,22 @@ function gather(verb, arg) {
 }
 
 function showRecipes() {
-  const known = [...player.skills].map(s => STORY.skills[s]);
-  const recipeIds = new Set();
-  for (const sk of known) for (const r of (sk.unlocks?.recipes || [])) recipeIds.add(r);
-  if (recipeIds.size === 0) { write('No recipes available. Learn a crafting skill first.'); return; }
-  write('Available recipes:', 'system');
-  for (const rid of recipeIds) {
-    const r = STORY.recipes[rid];
-    const ins = r.inputs.map(io => `${io.qty} ${itemDisplay(io.item)}`).join(' + ');
-    const outs = r.outputs.map(io => `${io.qty} ${itemDisplay(io.item)}`).join(' + ');
-    const fire = r.requires_fire ? '  🔥 (needs fire)' : '';
-    write(`  ${rid}  —  ${r.display}: ${ins} → ${outs}${fire}`);
-  }
-  write('Type "craft <recipe_id>" to craft. Each craft awards ' + STORY.meta.sparks_per_craft + ' sparks.', 'system');
+  // v0.35: writeBlock for mobile-overflow polish.
+  writeBlock('=== Recipes ===', () => {
+    const known = [...player.skills].map(s => STORY.skills[s]);
+    const recipeIds = new Set();
+    for (const sk of known) for (const r of (sk.unlocks?.recipes || [])) recipeIds.add(r);
+    if (recipeIds.size === 0) { write('No recipes available. Learn a crafting skill first.'); return; }
+    write('Available recipes:', 'system');
+    for (const rid of recipeIds) {
+      const r = STORY.recipes[rid];
+      const ins = r.inputs.map(io => `${io.qty} ${itemDisplay(io.item)}`).join(' + ');
+      const outs = r.outputs.map(io => `${io.qty} ${itemDisplay(io.item)}`).join(' + ');
+      const fire = r.requires_fire ? '  🔥 (needs fire)' : '';
+      write(`  ${rid}  —  ${r.display}: ${ins} → ${outs}${fire}`);
+    }
+    write('Type "craft <recipe_id>" to craft. Each craft awards ' + STORY.meta.sparks_per_craft + ' sparks.', 'system');
+  }, '── end of recipes ──');
 }
 
 function craft(argRaw) {
@@ -11012,6 +11047,16 @@ function declineGift(arg) {
   }
   if (!foundId) { write(`No incoming offer matching "${arg}".`, 'error'); return; }
   const offer = player.incoming_offers.get(foundId);
+  // v0.35: confirmation guard for high-value gifts. The other player paid
+  // attention to give this; declining without a beat is rude AND irreversible.
+  const item = STORY.items[offer.item];
+  const total = (item?.value || 0) * (offer.qty || 1);
+  if (total >= 50 && player._decline_confirmed !== foundId) {
+    write(`Decline ${offer.sender_name}'s gift of ${offer.qty}× ${itemDisplay(offer.item)} (worth ~${total} gold)? Type "decline ${arg}" again to confirm.`, 'error');
+    player._decline_confirmed = foundId;
+    return;
+  }
+  player._decline_confirmed = null;
   player.incoming_offers.delete(foundId);
   publishGiftDecline(foundId, offer.sender_pubkey);
   write(`You decline ${offer.sender_name}'s gift.`, 'system');
@@ -11375,16 +11420,33 @@ function showMap() {
     positions.set(primarySeed, [0, 0]);
     occupied.add('0,0');
     const seedQueue = [primarySeed];
-    // Place additional anchors at their own X (Y=0 unless taken)
+    // Place additional anchors at their own X. v0.35: if Y=0..50 are all
+    // taken at the desired X (component pile-up edge case), slide X outward
+    // until free space exists. Previously gave up at Y=50 and silently
+    // overwrote, which produced mid-layout overlaps when several disconnected
+    // up/down-only components shared an anchor X.
     for (const { room, x } of anchors) {
       if (positions.has(room)) continue;
       let ax = x, ay = 0;
-      while (occupied.has(`${ax},${ay}`) && ay < 50) ay++;
+      let xSlide = 0;
+      while (occupied.has(`${ax},${ay}`)) {
+        ay++;
+        if (ay > 50) {
+          // Column saturated — slide outward (alternating right/left) and retry.
+          xSlide++;
+          ax = x + (xSlide % 2 === 1 ? xSlide : -xSlide);
+          ay = 0;
+          if (xSlide > 10) break; // hard guard; never seen but kept for safety
+        }
+      }
       positions.set(room, [ax, ay]);
       occupied.add(`${ax},${ay}`);
       seedQueue.push(room);
     }
-    // BFS from all seeds in turn, with collision-avoidance push-along-direction
+    // BFS from all seeds in turn, with collision-avoidance push-along-direction.
+    // v0.35: guard raised from 20 → 200. The previous cap could silently
+    // overwrite occupied cells in dense vertical-only graphs; the new cap is
+    // generous enough to never trigger on real maps yet still bounded.
     while (seedQueue.length) {
       const cur = seedQueue.shift();
       const [cx, cy] = positions.get(cur);
@@ -11398,11 +11460,15 @@ function showMap() {
         let guard = 0;
         const stepX = off[0] === 0 ? 0 : Math.sign(off[0]);
         const stepY = off[1] === 0 ? 0 : Math.sign(off[1]);
-        while (occupied.has(`${nx},${ny}`) && guard < 20) {
+        while (occupied.has(`${nx},${ny}`) && guard < 200) {
           nx += stepX || 1;
           ny += stepY;
           guard++;
         }
+        // v0.35: if BFS push-along still hits occupied (extreme dense case),
+        // skip placement rather than overwrite. The orphan catch-all below
+        // will pick this room up and stack it cleanly.
+        if (occupied.has(`${nx},${ny}`)) continue;
         positions.set(target, [nx, ny]);
         occupied.add(`${nx},${ny}`);
         seedQueue.push(target);
@@ -11659,6 +11725,23 @@ function tutorialCommand(arg) {
   write('Type "tutorial off" to silence the auto-hints, or "help" for the full command list.', 'system');
 }
 
+// v0.35: shared wrapper for long terminal blocks (help / map / inventory /
+// recipes / quests / equipment). Writes a header, runs the body, writes a
+// footer sentinel, then scrollIntoView() on the header so mobile users land
+// at the top of the block instead of at the bottom of the bottommost line.
+function writeBlock(headerText, bodyFn, footerText = '── end ──') {
+  const startIdx = out.children.length;
+  write(headerText, 'title');
+  bodyFn();
+  write(footerText, 'echo');
+  requestAnimationFrame(() => {
+    const hdr = out.children[startIdx];
+    if (hdr && typeof hdr.scrollIntoView === 'function') {
+      try { hdr.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch { hdr.scrollIntoView(); }
+    }
+  });
+}
+
 function help() {
   // 6.0: filter story-specific lines based on what the loaded STORY uses.
   // Some commands (transform/revert, sharpen/repair, taming) only matter
@@ -11727,23 +11810,11 @@ function help() {
     T('Updates:         reload story  (fetch the latest version of the active story without losing progress)'),
     T('Misc:            clear · help')
   ];
-  // v0.33: mobile-overflow polish. The help block is long enough on small
-  // screens that the top half scrolls off-screen the moment the bottom
-  // arrives. Capture the first new line, write a header + footer sentinel,
-  // then scroll the header into view so the player lands at the top of the
-  // block. Without this, the most-used commands (Movement, Items, World)
-  // would only be visible by manually scrolling up.
-  const firstHelpIdx = out.children.length;
-  write('=== Help ===', 'title');
-  for (const l of lines) write(l, 'system');
-  write('── end of help ──', 'echo');
-  // Defer the scroll until after the layout settles so heights are correct.
-  requestAnimationFrame(() => {
-    const hdr = out.children[firstHelpIdx];
-    if (hdr && typeof hdr.scrollIntoView === 'function') {
-      try { hdr.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch { hdr.scrollIntoView(); }
-    }
-  });
+  // v0.35: routed through writeBlock() so the same scroll-to-top + sentinel
+  // affordance applies uniformly across help / map / inventory / recipes.
+  writeBlock('=== Help ===', () => {
+    for (const l of lines) write(l, 'system');
+  }, '── end of help ──');
 }
 
 // ============================================================
@@ -11909,7 +11980,7 @@ function handleCommand(input) {
     case 'gifts': case 'offers': showGifts(); consumesTurn = false; break;
     case 'heal':                 healCommand(arg); break;
     case 'who':                  who(); consumesTurn = false; break;
-    case 'map': case 'm':        showMap(); consumesTurn = false; break;
+    case 'map': case 'm':        writeBlock('=== Map ===', () => showMap(), '── end of map ──'); consumesTurn = false; break;
     case 'help': case '?':       help(); consumesTurn = false; break;
     case 'tutorial': case 'guide': tutorialCommand(argRaw); consumesTurn = false; break;
     case 'clear':                out.innerHTML = ''; consumesTurn = false; break;
@@ -11954,8 +12025,129 @@ backdrop.addEventListener('click', closeDrawer);
 //  BOOTSTRAP
 // ============================================================
 const cmdInput = document.getElementById('cmd');
+
+// v0.35: terminal staples — command history (↑/↓) + Tab auto-complete.
+// History is per-character via the existing nstadv:<storyId>:hist key,
+// surviving reload. Tab cycles completions for the typed prefix; the source
+// pool is dynamic — verbs, items in inventory or current room, NPCs in the
+// current room, exits, and skill ids are all candidates.
+const HIST_KEY = `nstadv:${STORY?.meta?.id || 'default'}:hist`;
+const HIST_MAX = 100;
+let cmdHistory = [];
+try { cmdHistory = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); if (!Array.isArray(cmdHistory)) cmdHistory = []; } catch { cmdHistory = []; }
+let histIdx = cmdHistory.length;     // points to "next slot" (one past newest)
+let histDraft = '';                  // unsubmitted text the player had typed
+function pushHistory(s) {
+  if (!s || !s.trim()) return;
+  // De-dup adjacent (typing the same command twice in a row shouldn't double the entry)
+  if (cmdHistory.length && cmdHistory[cmdHistory.length - 1] === s) {
+    histIdx = cmdHistory.length;
+    return;
+  }
+  cmdHistory.push(s);
+  if (cmdHistory.length > HIST_MAX) cmdHistory = cmdHistory.slice(-HIST_MAX);
+  histIdx = cmdHistory.length;
+  try { localStorage.setItem(HIST_KEY, JSON.stringify(cmdHistory)); } catch {}
+}
+
+// Tab completion. Returns sorted unique candidates for the typed prefix.
+// The candidate pool depends on token position: first token = verb space;
+// later tokens = noun space (items, NPCs, directions, etc.) drawn from the
+// current room and player state.
+const STATIC_VERBS = [
+  'look','take','drop','bury','inv','status','talk','answer','read','examine','inspect',
+  'skills','learn','recipes','craft','eat','drink','rest','sleep','hunt','attack','flee',
+  'parry','charge','retreat','transform','revert','assist','wear','wield','unwear','equipment','eq',
+  'sharpen','repair','tame','feed','companion','pet','dismiss','quests','q','stats','achievements',
+  'accept','place','chest','store','retrieve','bestiary','news','bounties','bounty','sell','buy','market','listings',
+  'corpses','loot','whisper','dm','messages','inbox','pin','notices','board','carve','carvings','marks',
+  'who','give','gifts','offers','claim','decline','heal','soul','import','rename','characters',
+  'switch','stories','relay','lang','tutorial','bug','report','reload','clear','help','map',
+  'go','n','s','e','w','u','d','in','out','north','south','east','west','up','down',
+  'donate','support'
+];
+function completionCandidates(prefix, tokenIdx) {
+  const cands = new Set();
+  const lc = prefix.toLowerCase();
+  // First token = verb completion
+  if (tokenIdx === 0) {
+    for (const v of STATIC_VERBS) if (v.startsWith(lc)) cands.add(v);
+    return [...cands].sort();
+  }
+  // Later tokens: dynamic noun space
+  const room = (player?.rooms?.[player.location]) || STORY.rooms?.[player.location];
+  // Items in inventory + room
+  for (const id of (player?.inventory || [])) cands.add(id);
+  for (const [k, n] of Object.entries(player?.materials || {})) if (n > 0) cands.add(k);
+  for (const id of (room?.items || [])) cands.add(id);
+  // NPCs in room
+  for (const id of (room?.npcs || [])) cands.add(id);
+  // Exits
+  for (const dir of Object.keys(room?.exits || {})) cands.add(dir);
+  cands.add('north'); cands.add('south'); cands.add('east'); cands.add('west'); cands.add('up'); cands.add('down');
+  // Skills (for `learn`)
+  for (const id of Object.keys(STORY.skills || {})) cands.add(id);
+  // Recipes (for `craft`)
+  for (const id of Object.keys(STORY.recipes || {})) cands.add(id);
+  // Filter by prefix
+  return [...cands].filter(c => c.toLowerCase().startsWith(lc)).sort();
+}
+let tabState = { prefix: null, list: [], idx: 0 }; // cycle-on-repeated-Tab state
+
 cmdInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') { const v = cmdInput.value; cmdInput.value = ''; handleCommand(v); }
+  if (e.key === 'Enter') {
+    const v = cmdInput.value;
+    cmdInput.value = '';
+    pushHistory(v);
+    histDraft = '';
+    tabState.prefix = null;
+    handleCommand(v);
+    return;
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    tabState.prefix = null;
+    if (cmdHistory.length === 0) return;
+    if (histIdx === cmdHistory.length) histDraft = cmdInput.value;
+    histIdx = Math.max(0, histIdx - 1);
+    cmdInput.value = cmdHistory[histIdx] || '';
+    // Move caret to end so editing continues naturally
+    requestAnimationFrame(() => { try { cmdInput.setSelectionRange(cmdInput.value.length, cmdInput.value.length); } catch {} });
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    tabState.prefix = null;
+    if (cmdHistory.length === 0) return;
+    histIdx = Math.min(cmdHistory.length, histIdx + 1);
+    cmdInput.value = (histIdx === cmdHistory.length) ? histDraft : cmdHistory[histIdx];
+    requestAnimationFrame(() => { try { cmdInput.setSelectionRange(cmdInput.value.length, cmdInput.value.length); } catch {} });
+    return;
+  }
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const raw = cmdInput.value;
+    // Only complete the LAST token; leave earlier tokens untouched.
+    const lastSpace = raw.lastIndexOf(' ');
+    const head = raw.slice(0, lastSpace + 1);   // includes trailing space if any
+    const tail = raw.slice(lastSpace + 1);
+    const tokenIdx = head.trim().split(/\s+/).filter(Boolean).length;
+    if (tabState.prefix === tail && tabState.list.length > 0) {
+      tabState.idx = (tabState.idx + 1) % tabState.list.length;
+    } else {
+      const list = completionCandidates(tail, tokenIdx);
+      if (list.length === 0) return; // no match — leave value alone
+      tabState.prefix = tail;
+      tabState.list = list;
+      tabState.idx = 0;
+      // If only one match and it differs from what's typed, show a hint of how many alternates exist later.
+    }
+    cmdInput.value = head + tabState.list[tabState.idx];
+    requestAnimationFrame(() => { try { cmdInput.setSelectionRange(cmdInput.value.length, cmdInput.value.length); } catch {} });
+    return;
+  }
+  // Any other key invalidates the cycling state.
+  tabState.prefix = null;
 });
 
 write(`=== Taleforge — ${t(STORY.meta.title)} — ${ENGINE_VERSION_LABEL} ===`, 'title');
