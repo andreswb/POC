@@ -14,6 +14,35 @@
     --gold: #e8c468; --spark: #c896e0; --life: #e07a7a;
     --fire: #f0884a; --load: #8ec98e;
   }
+  /* v0.47: theme switcher. Body classes override the defaults. The dark
+     theme is the implicit default (no class). Persisted per character. */
+  body.theme-light {
+    color-scheme: light;
+    --bg: #f6f1e7; --panel: #ece4d3; --panel-2: #e0d6c0;
+    --border: #c9bfa9; --text: #2a2620; --muted: #6f6553;
+    --accent: #b8862a; --green: #4a8a4a; --red: #b04545;
+    --blue: #3d6f9f; --purple: #735298;
+    --gold: #a87a18; --spark: #905f9c; --life: #b04545;
+    --fire: #c25a1f; --load: #4a8a4a;
+  }
+  body.theme-sepia {
+    color-scheme: dark;
+    --bg: #2b2418; --panel: #3a2f1f; --panel-2: #463826;
+    --border: #5a4730; --text: #e8d8b8; --muted: #9a8260;
+    --accent: #f0b54a; --green: #c8b070; --red: #d8826b;
+    --blue: #b09870; --purple: #c89a78;
+    --gold: #f0b54a; --spark: #d8b070; --life: #d8826b;
+    --fire: #f0884a; --load: #c8b070;
+  }
+  body.theme-contrast {
+    color-scheme: dark;
+    --bg: #000000; --panel: #0a0a0a; --panel-2: #181818;
+    --border: #4a4a4a; --text: #ffffff; --muted: #b0b0b0;
+    --accent: #ffd000; --green: #00e070; --red: #ff5050;
+    --blue: #5090ff; --purple: #d870ff;
+    --gold: #ffd000; --spark: #d870ff; --life: #ff5050;
+    --fire: #ff8030; --load: #00e070;
+  }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text);
     font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; font-size: 14px;
@@ -4860,7 +4889,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.46';
+const ENGINE_VERSION_LABEL = 'v0.47';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -9327,7 +9356,101 @@ function showSkills() {
       write(`  ${id}  —  ${sk.display}  [${status}]`, known ? 'success' : 'system');
     }
   }
-  write('Type "learn <skill_id>" to learn one.', 'system');
+  write('Type "learn <skill_id>" to learn one.  ·  Type "skilltree" / "tree" for a prereq view.', 'system');
+}
+
+// v0.47: theme switcher. Adds `theme [dark|light|sepia|contrast]`.
+// Persisted per-browser (not per-character — themes are display preferences,
+// not character traits). Toggles a body class which overrides the CSS
+// custom properties declared in :root. Default is dark (no class set).
+const THEME_KEY = 'taleforge:theme';
+const THEMES = ['dark', 'light', 'sepia', 'contrast'];
+function applyTheme(name) {
+  const valid = THEMES.includes(name) ? name : 'dark';
+  // Remove any previous theme class, then add the new one (except for
+  // 'dark' which is the implicit default).
+  for (const t of THEMES) document.body.classList.remove('theme-' + t);
+  if (valid !== 'dark') document.body.classList.add('theme-' + valid);
+  try { localStorage.setItem(THEME_KEY, valid); } catch {}
+}
+function loadTheme() {
+  try { return localStorage.getItem(THEME_KEY) || 'dark'; } catch { return 'dark'; }
+}
+function themeCommand(arg) {
+  const a = (arg || '').trim().toLowerCase();
+  if (!a) {
+    const cur = loadTheme();
+    write(`Current theme: ${cur}`, 'system');
+    write(`Available: ${THEMES.join(' · ')}.  Use "theme <name>" to switch.`, 'system');
+    return;
+  }
+  if (!THEMES.includes(a)) {
+    write(`Unknown theme "${a}". Available: ${THEMES.join(', ')}.`, 'error');
+    return;
+  }
+  applyTheme(a);
+  write(`Theme: ${a}.`, 'success');
+}
+// Apply at script-init so the boot is rendered in the saved theme, not a
+// flash of dark + repaint.
+applyTheme(loadTheme());
+
+// v0.47: skill-tree visualization. Groups skills by tier, then shows the
+// prereq chain inline so the player can see what they need to unlock to
+// reach a particular skill. Status glyph at the start of each line:
+//   ✓ already known
+//   ★ available now (prereqs met, can learn with sparks)
+//   ☆ trigger-only (granted by events; can't be bought)
+//   • locked (missing prereqs)
+// Wrapped in writeBlock for the scroll-to-top affordance on mobile.
+function showSkillTree() {
+  const skills = STORY.skills || {};
+  const ids = Object.keys(skills);
+  if (ids.length === 0) { write('This story has no skills.', 'system'); return; }
+  // Group by tier
+  const byTier = new Map();
+  for (const id of ids) {
+    const tier = skills[id].tier || 1;
+    if (!byTier.has(tier)) byTier.set(tier, []);
+    byTier.get(tier).push(id);
+  }
+  const sortedTiers = [...byTier.keys()].sort((a, b) => a - b);
+  // For each skill, compute its glyph + status text
+  function lineFor(id) {
+    const sk = skills[id];
+    const known = player.skills.has(id);
+    const reqs = sk.prereqs || [];
+    const missing = reqs.filter(r => !player.skills.has(r));
+    const triggerOnly = sk.acquisition === 'trigger';
+    let glyph, status, cls;
+    if (known) { glyph = '✓'; status = 'learned'; cls = 'success'; }
+    else if (triggerOnly) { glyph = '☆'; status = 'earned through experience'; cls = 'spark'; }
+    else if (missing.length === 0) { glyph = '★'; status = `available (${sk.spark_cost || 0} sparks)`; cls = 'spark'; }
+    else { glyph = '•'; status = `requires: ${missing.join(' + ')}`; cls = 'echo'; }
+    return { glyph, id, display: sk.display || id, status, cls, prereqs: reqs };
+  }
+  writeBlock('=== Skill tree ===', () => {
+    write(`You know ${player.skills.size}/${ids.length} skills.  ·  Sparks: ${player.sparks}`, 'system');
+    write('');
+    for (const tier of sortedTiers) {
+      write(`-- Tier ${tier}${tier === sortedTiers[0] ? ' (no prereqs)' : ''} --`, 'system');
+      for (const id of byTier.get(tier).sort()) {
+        const ln = lineFor(id);
+        write(`  ${ln.glyph}  ${ln.id.padEnd(16)} ${ln.display.padEnd(18)} ${ln.status}`, ln.cls);
+        // For tier > 1, show a "↳ via:" line listing prereqs (they're in earlier tiers).
+        if (ln.prereqs && ln.prereqs.length && tier > sortedTiers[0]) {
+          const chain = ln.prereqs.map(p => {
+            const pKnown = player.skills.has(p);
+            return (pKnown ? '✓' : '·') + ' ' + p;
+          }).join('  →  ');
+          write(`     ↳ via: ${chain}`, 'echo');
+        }
+      }
+      write('');
+    }
+    write('Legend:  ✓ learned · ★ available now · ☆ earned through experience · • locked', 'echo');
+    write('Type "learn <skill_id>" to spend sparks on an available skill.', 'system');
+  }, '── end of skill tree ──');
 }
 
 function learn(arg) {
@@ -13184,7 +13307,7 @@ function helpImpl(filterQ) {
     T('Items:           take <x> · drop <x> · bury <x|qty x> · inv · status'),
     T('World:           talk <npc> · answer <text> · read <item>  (lore, letters, books)'),
     T('                 examine / inspect / x <item|creature>  (close inspection — stats, effects, descriptions, kill counts)'),
-    T('Skills:          skills · learn <skill>'),
+    T('Skills:          skills · learn <skill> · skilltree / tree  (visual prereq view)'),
     T('Gathering:       chop / forage / gather (needs skill)'),
     T('Crafting:        recipes · craft <recipe> · craft <qty> <recipe>  (batch; each craft awards sparks)'),
     T('Survival:        eat <x> · eat <qty> <x> · drink · light fire · hunt · attack · flee · rest · sleep'),
@@ -13231,6 +13354,7 @@ function helpImpl(filterQ) {
     T('Relays:          relay list · relay add <wss://...> · relay remove <url> · relay reset'),
     T('Offline:         (no command — events queue automatically when offline, sync on reconnect)'),
     T('Language:        lang  (show)  ·  lang <code>  (switch, e.g. "lang de")'),
+    T('Theme:           theme  (show)  ·  theme <dark|light|sepia|contrast>'),
     T('Tutorial:        tutorial  (beginner\'s guide)  ·  tutorial topics / topic <name>  (replay one)  ·  tutorial off  (silence hints)'),
     T('Feedback:        bug / report  (open a bug-report dialog)'),
     T('Updates:         reload story  (fetch the latest version of the active story without losing progress)'),
@@ -13327,6 +13451,8 @@ function handleCommand(input) {
     case 'inv': case 'inventory': case 'i': showInventory(); consumesTurn = false; break;
     case 'status':               showStatus(); consumesTurn = false; break;
     case 'skills': case 'sk':    showSkills(); consumesTurn = false; break;
+    case 'skilltree': case 'tree': case 'st':  showSkillTree(); consumesTurn = false; break;
+    case 'theme':                themeCommand(arg); consumesTurn = false; break;
     case 'learn':                learn(arg); break;
     case 'recipes': case 'rec':  showRecipes(); consumesTurn = false; break;
     case 'craft':                craft(arg); break;
@@ -13558,7 +13684,7 @@ const STATIC_VERBS = [
   'who','give','gifts','offers','claim','decline','heal','soul','import','rename','characters',
   'switch','stories','relay','lang','tutorial','bug','report','reload','clear','help','map',
   'go','n','s','e','w','u','d','in','out','north','south','east','west','up','down',
-  'donate','support','recap','last','complete','finish','feed','endings','restart','legacy','whoami','me'
+  'donate','support','recap','last','complete','finish','feed','endings','restart','legacy','whoami','me','skilltree','tree','st','theme'
 ];
 // v0.36: tiny Levenshtein for fuzzy "did you mean" suggestions. Caps the
 // matrix at ~30×30 since verbs are short — perfectly fine for runtime use.
