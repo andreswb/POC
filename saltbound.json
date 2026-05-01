@@ -5,7 +5,7 @@
     "title": "Saltbound",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.1.0",
+    "version": "1.2.0",
     "created_at": "2026-05-01T00:00:00Z",
     "language": "en",
     "languages": ["en"],
@@ -48,6 +48,22 @@
         "display": "Scholar",
         "summary": "You were aboard to study the coastal birds of the southern Pacific — a small expedition out of Edinburgh, funded for two years. The birds are still here. The ship is not. You take notes anyway.",
         "attributes": {"str": 8, "agi": 10, "int": 12},
+        "starting_skills_extra": ["herbalism"],
+        "tags": ["mortal"]
+      },
+      "cook": {
+        "display": "Galley Cook",
+        "summary": "You ran the brig's galley. Soup, salt-pork, hardtack — the same three meals in different weather, year after year. You can make a meal from very little, and you can read what's edible by smell better than by sight.",
+        "attributes": {"str": 11, "agi": 9, "int": 10},
+        "carry_capacity_bonus": 8,
+        "starting_skills_extra": ["foraging"],
+        "tags": ["mortal"]
+      },
+      "surgeon": {
+        "display": "Ship's Surgeon",
+        "summary": "You signed on as the Helena's surgeon — two years out of medical school, one chest of instruments, three saved patients on the way over. The chest sank with the ship. The hands are still yours.",
+        "attributes": {"str": 9, "agi": 11, "int": 12},
+        "life_max_bonus": 10,
         "starting_skills_extra": ["herbalism"],
         "tags": ["mortal"]
       }
@@ -464,7 +480,7 @@
       "exits": {
         "up": "shipwreck_beach"
       },
-      "items": ["captains_log", "compass", "flare_gun", "machete"],
+      "items": ["captains_log", "compass", "flare_gun", "machete", "passengers_diary"],
       "npcs": [],
       "riddle": null,
       "tags": ["underground", "water"],
@@ -845,6 +861,23 @@
       "category": "good",
       "stackable": false,
       "image": "📔"
+    },
+    "passengers_diary": {
+      "display": "passenger's diary",
+      "article": "a",
+      "description": "A small leather-bound diary in a passenger's hand. Tucked inside an oilskin in a lockbox. Half the pages are dry.",
+      "read_text": "20 February 1850.\nMy first time on a long crossing. I am thirty-two and I have never seen the open sea. The captain is a kind man. The mate is not. The food is what I expected.\n\n28 February.\nI write at the rail when the weather lets me. There are five passengers. Mr. R. is older than the captain and reads only one book; Miss V. is the surgeon's wife (she is younger than I am, and braver); the brothers from Lima keep to themselves; the boy in the next cabin is eleven and learning his letters from the bo'sun.\n\n07 March.\nA white bird three days now. The lookout will not look at it. I sketch it on this page; the sketch is poor.\n\n11 March.\nThe mate told me, low, that we are off-course. He would not say by how much. He looked at me as if he had not meant to speak. He has not spoken since.\n\n13 March.\nReef on the southern horizon, then everywhere. The captain shouted very calmly. There is a sound a ship makes that I had never heard. I am writing this in the lockbox. If anybody finds this diary — I was Mary Halloran, of Cork, lately of Valparaíso. I was not blown to this place. None of us were. The island wanted us.\n\nIf you read this, traveller — be kind to the others. There are always others. The island remembers them too.\n\n— M. H.",
+      "on_read": [
+        {"type": "set_flag", "flag": "read_passengers_diary"},
+        {"type": "spark_award", "qty": 8},
+        {"type": "narrate", "text": ">>> Mary Halloran's hand is small and exact. The pages smell faintly of bergamot under the salt.", "cls": "spark"}
+      ],
+      "value": 0,
+      "weight": 0.2,
+      "tags": ["lore"],
+      "category": "good",
+      "stackable": false,
+      "image": "📓"
     },
     "compass": {
       "display": "brass compass",

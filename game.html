@@ -4752,7 +4752,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.33';
+const ENGINE_VERSION_LABEL = 'v0.34';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -7765,6 +7765,25 @@ function bestWeaponBonus() {
   bonus += Math.floor(profileAttribute('str') / 4);
   return bonus;
 }
+// v0.34: armor defense was authored on items (head/torso/feet hat/tunic/shoes)
+// but never applied to incoming damage — armor was purely cosmetic. Sum the
+// `defense_bonus` of every equipped item and use it as flat damage reduction
+// in attack / flee / parry / sleep-ambush paths. Damage still floors at 1 so
+// fights never become unwinnable.
+function totalDefenseBonus() {
+  let d = 0;
+  for (const slot of Object.keys(player.equipment || {})) {
+    const itemId = player.equipment[slot];
+    if (!itemId) continue;
+    const ef = STORY.items[itemId]?.effects || {};
+    if (typeof ef.defense_bonus === 'number') d += ef.defense_bonus;
+  }
+  return d;
+}
+function applyDefense(rawDmg) {
+  const reduced = Math.max(1, rawDmg - totalDefenseBonus());
+  return reduced;
+}
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 const WEATHER_LABELS = { clear: 'clear', rain: 'rain', fog: 'fog', snow: 'snow' };
 const DEFAULT_WEATHER_POOL = ['clear', 'clear', 'clear', 'clear', 'rain', 'rain', 'fog'];
@@ -8208,6 +8227,10 @@ function showStatus() {
   write(T('Life: {0}/{1}  ·  Gold: {2}  ·  Sparks: {3}  ·  Load: {4}/{5}  ·  Turn: {6}',
     Math.floor(player.life), computeMaxLife(), player.gold, player.sparks,
     Math.round(computeWeight()*10)/10, computeMaxCapacity(), player.turn));
+  // v0.34: surface defense bonus from equipped armor (head/torso/feet/back).
+  // Helps players see when their armor is actually protecting them.
+  const def = totalDefenseBonus();
+  if (def > 0) write(T('Defense: {0}  (incoming damage reduced; floors at 1)', def));
   write(T('Skills: {0}', player.skills.size === 0 ? T('none') : [...player.skills].map(s => STORY.skills[s].display).join(', ')));
   if (player.companion) {
     const c = player.companion;
@@ -8952,6 +8975,8 @@ function attack() {
     player.charge_recoil = false;
     write(T('Your charge cost you composure — the blow lands harder.'), 'error');
   }
+  // v0.34: armor reduces incoming damage. Flat reduction, floors at 1.
+  enemyDmg = applyDefense(enemyDmg);
   player.life -= enemyDmg;
   write(T('The {0} bites you for {1} damage. ({2}/{3} life)', t.display, enemyDmg, Math.max(0, Math.floor(player.life)), computeMaxLife()), 'error');
   // 5.5: a hostile entity landed a hit — fire on_attacked so events can react
@@ -8963,7 +8988,8 @@ function attack() {
 function flee() {
   if (!inCombat()) { write('There is nothing to flee from.', 'error'); return; }
   const t = player.combat_target;
-  const enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
+  let enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
+  enemyDmg = applyDefense(enemyDmg);
   player.life -= enemyDmg;
   write(`You scramble away. The ${t.display} catches you for ${enemyDmg} parting damage.`, 'error');
   if (player.life > 0) fireEvents('on_attacked', { entity: t.id, dmg: enemyDmg, source: 'flee' });
@@ -9000,8 +9026,8 @@ function parry() {
     write(T('Your blade meets theirs — the blow turns aside.'), 'success');
     return;
   }
-  // Parry partial: reduce damage by half on a failed dodge
-  enemyDmg = Math.max(1, Math.floor(enemyDmg / 2));
+  // Parry partial: reduce damage by half on a failed dodge, then apply armor.
+  enemyDmg = applyDefense(Math.max(1, Math.floor(enemyDmg / 2)));
   player.life -= enemyDmg;
   write(T('You catch most of the blow; {0} damage gets through. ({1}/{2} life)', enemyDmg, Math.max(0, Math.floor(player.life)), computeMaxLife()), 'error');
   if (player.life > 0) fireEvents('on_attacked', { entity: t.id, dmg: enemyDmg, source: 'parry' });
@@ -9481,16 +9507,32 @@ function advanceWorldEvents(currentDay) {
     if (!ev) continue;
     if (worldEventStartedOnDay(eid, currentDay)) {
       // Reset progress and announce
+      // v0.34: stage_idx + stage_kills initialised for multi-stage events.
+      // Non-staged events ignore them; per-stage kill counters live separately
+      // from the legacy `kills` map so that a kill counted toward a stage
+      // doesn't double-count toward a top-level objective if the author
+      // declares both (which would be odd, but defensive).
       player.world_events_progress[eid] = {
         active_day: currentDay, kills: {}, items_seen: [], visited: [],
-        completed: false, expired: false, completion_day: null
+        completed: false, expired: false, completion_day: null,
+        stage_idx: 0, stage_kills: {}
       };
       const narr = ev.narration?.on_start || `>>> A stir runs through the world: ${t(ev.title || eid)}.`;
       write('');
       write(t(narr), 'spark');
       if (ev.description) write(`    ${t(ev.description)}`, 'system');
-      const obj = ev.objective;
-      if (obj) write(`    Objective: ${describeWorldEventObjective(obj)}`, 'system');
+      const hasStages = Array.isArray(ev.stages) && ev.stages.length > 0;
+      if (hasStages) {
+        // v0.34: narrate the first stage. Top-level objective is treated as a
+        // fallback / summary; the stage's own objective drives tracking.
+        const s0 = ev.stages[0];
+        if (s0.title) write(`>>> ${t(s0.title)}`, 'spark');
+        if (s0.narration) write(t(s0.narration), 'spark');
+        if (s0.objective) write(`    Objective: ${describeWorldEventObjective(s0.objective)}`, 'system');
+      } else {
+        const obj = ev.objective;
+        if (obj) write(`    Objective: ${describeWorldEventObjective(obj)}`, 'system');
+      }
       const dur = ev.duration_days || 1;
       write(`    Active for ${dur} day${dur === 1 ? '' : 's'}.`, 'system');
       player.world_events_seen.add(eid);
@@ -9526,6 +9568,47 @@ function tickWorldEventProgress(kind, params) {
     if (!ev) continue;
     const prog = player.world_events_progress[eid];
     if (!prog || prog.completed || prog.expired) continue;
+    // v0.34: multi-stage events. The active stage's own objective drives
+    // tracking. When a stage's objective is met, advance the index and
+    // narrate the next stage; once past the last stage, the event is
+    // complete and the top-level rewards fire (via completeWorldEvent).
+    if (Array.isArray(ev.stages) && ev.stages.length) {
+      // Defensive: older saves may not have stage tracking fields.
+      if (typeof prog.stage_idx !== 'number') prog.stage_idx = 0;
+      if (!prog.stage_kills || typeof prog.stage_kills !== 'object') prog.stage_kills = {};
+      const idx = prog.stage_idx;
+      if (idx >= ev.stages.length) continue; // shouldn't happen — would've completed
+      const stage = ev.stages[idx];
+      const sObj = stage.objective; if (!sObj) continue;
+      let stageMet = false;
+      if (!prog.stage_kills[idx]) prog.stage_kills[idx] = {};
+      const sKills = prog.stage_kills[idx];
+      if (kind === 'kill' && sObj.type === 'kill' && sObj.entity === params.entity) {
+        sKills[sObj.entity] = (sKills[sObj.entity] || 0) + 1;
+        if ((sKills[sObj.entity] || 0) >= (sObj.qty || 1)) stageMet = true;
+      }
+      if (kind === 'have_check' && sObj.type === 'have_item') {
+        const have = player.inventory.filter(i => i === sObj.item).length + (player.materials[sObj.item] || 0);
+        if (have >= (sObj.qty || 1)) stageMet = true;
+      }
+      if (kind === 'visit' && sObj.type === 'visit' && sObj.room === params.room) stageMet = true;
+      if (stageMet) {
+        // Stage cleared — write a brief beat, advance, narrate next or complete.
+        if (stage.completion_text) { write(''); write(t(stage.completion_text), 'spark'); }
+        prog.stage_idx = idx + 1;
+        if (prog.stage_idx >= ev.stages.length) {
+          completeWorldEvent(eid);
+        } else {
+          const next = ev.stages[prog.stage_idx];
+          write('');
+          if (next.title) write(`>>> ${t(next.title)}`, 'spark');
+          if (next.narration) write(t(next.narration), 'spark');
+          if (next.objective) write(`    Objective: ${describeWorldEventObjective(next.objective)}`, 'system');
+        }
+      }
+      continue; // staged events ignore the top-level objective for tracking
+    }
+    // Legacy (no stages): top-level objective drives completion.
     const obj = ev.objective; if (!obj) continue;
     let nowMet = false;
     if (kind === 'kill' && obj.type === 'kill' && obj.entity === params.entity) {
@@ -9591,14 +9674,36 @@ function showNews() {
       const status = prog.completed ? ' ✓ done' : (prog.expired ? ' (expired)' : '');
       write(`  ${t(ev.title || eid)}${status}`, prog.completed ? 'success' : 'spark');
       if (ev.description) write(`    ${t(ev.description)}`, 'system');
-      const obj = ev.objective;
-      if (obj && !prog.completed) {
-        let progStr = '';
-        if (obj.type === 'kill') {
-          const got = prog.kills?.[obj.entity] || 0;
-          progStr = ` (${got}/${obj.qty || 1})`;
+      // v0.34: stage-aware progress display. For multi-stage events, show
+      // the active stage (and what's done / what's left). Top-level
+      // objective is hidden when stages drive completion to avoid confusion.
+      if (Array.isArray(ev.stages) && ev.stages.length && !prog.completed) {
+        const idx = (typeof prog.stage_idx === 'number') ? prog.stage_idx : 0;
+        const total = ev.stages.length;
+        write(`    Watch ${Math.min(idx + 1, total)}/${total}`, 'system');
+        if (idx < total) {
+          const s = ev.stages[idx];
+          if (s.title) write(`    ${t(s.title)}`, 'system');
+          const sObj = s.objective;
+          if (sObj) {
+            let progStr = '';
+            if (sObj.type === 'kill') {
+              const got = prog.stage_kills?.[idx]?.[sObj.entity] || 0;
+              progStr = ` (${got}/${sObj.qty || 1})`;
+            }
+            write(`    Objective: ${describeWorldEventObjective(sObj)}${progStr}`, 'system');
+          }
         }
-        write(`    Objective: ${describeWorldEventObjective(obj)}${progStr}`, 'system');
+      } else {
+        const obj = ev.objective;
+        if (obj && !prog.completed) {
+          let progStr = '';
+          if (obj.type === 'kill') {
+            const got = prog.kills?.[obj.entity] || 0;
+            progStr = ` (${got}/${obj.qty || 1})`;
+          }
+          write(`    Objective: ${describeWorldEventObjective(obj)}${progStr}`, 'system');
+        }
       }
     }
   } else {
@@ -10052,8 +10157,8 @@ function tameAttempt() {
     publishAction('tamed', { entity: t.id });
   } else {
     write(T('The {0} snatches the meat and lunges anyway.', t.display), 'error');
-    // Counter-attack
-    const enemyDmg = randInt(t.attack_damage_range[0], t.attack_damage_range[1]);
+    // Counter-attack — armor still applies.
+    const enemyDmg = applyDefense(randInt(t.attack_damage_range[0], t.attack_damage_range[1]));
     player.life -= enemyDmg;
     write(T('The {0} bites you for {1} damage.', t.display, enemyDmg), 'error');
     if (player.life > 0) fireEvents('on_attacked', { entity: t.id, dmg: enemyDmg, source: 'tame_fail' });
@@ -10118,7 +10223,8 @@ function sleep() {
     if (isHazard) {
       const w = room.hazards.wolves;
       const ent = STORY.entities[w.entity];
-      const sneakDmg = randInt(ent.attack_damage_range[0], ent.attack_damage_range[1]) * 2;
+      // Sleep ambush: bite is doubled, but armor still helps a little.
+      const sneakDmg = applyDefense(randInt(ent.attack_damage_range[0], ent.attack_damage_range[1]) * 2);
       player.life -= sneakDmg;
       write(`You sleep. A ${ent.display} catches you in the dark — ${sneakDmg} damage before you wake.`, 'combat');
       if (player.life > 0) fireEvents('on_attacked', { entity: w.entity, dmg: sneakDmg, source: 'sleep_ambush' });
@@ -11621,7 +11727,23 @@ function help() {
     T('Updates:         reload story  (fetch the latest version of the active story without losing progress)'),
     T('Misc:            clear · help')
   ];
+  // v0.33: mobile-overflow polish. The help block is long enough on small
+  // screens that the top half scrolls off-screen the moment the bottom
+  // arrives. Capture the first new line, write a header + footer sentinel,
+  // then scroll the header into view so the player lands at the top of the
+  // block. Without this, the most-used commands (Movement, Items, World)
+  // would only be visible by manually scrolling up.
+  const firstHelpIdx = out.children.length;
+  write('=== Help ===', 'title');
   for (const l of lines) write(l, 'system');
+  write('── end of help ──', 'echo');
+  // Defer the scroll until after the layout settles so heights are correct.
+  requestAnimationFrame(() => {
+    const hdr = out.children[firstHelpIdx];
+    if (hdr && typeof hdr.scrollIntoView === 'function') {
+      try { hdr.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch { hdr.scrollIntoView(); }
+    }
+  });
 }
 
 // ============================================================
