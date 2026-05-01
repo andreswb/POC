@@ -361,6 +361,10 @@
       <h3>Open bounties</h3>
       <div class="mat-list" id="bountyTracker"></div>
     </section>
+    <section id="endingsTrackerSection" style="display:none;" title="Endings reached on this story (this browser). Click for details.">
+      <h3>Story endings</h3>
+      <div class="mat-list" id="endingsTracker"></div>
+    </section>
     <section id="combatTrackerSection" style="display:none;">
       <h3 data-i18n="In combat">In combat</h3>
       <div class="mat-list" id="combatTracker"></div>
@@ -447,7 +451,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.53';
+const ENGINE_VERSION_LABEL = 'v0.54';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -519,6 +523,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.54':   'Endings completionist sidebar widget. Marketplace stories now respect picker filters/search. Map legend in zoom modal. Cross-device endings sync via Nostr (kind-30433, encrypted). Magic-link character handoff (`share` command, ?nsec=… URLs, QR codes). Builder gained AI region + AI quest-chain scaffolders.',
   'v0.53':   'WS reconnect with exponential backoff. Marketplace preview modal. Sidebar bounty tracker. Cold-backup character (`backup` / `restore`). `fight` auto-attack command. Hollow Forest now has 3 endings (HUMAN / VAMPIRE / WEREWOLF); Whispering Forest gained 4 (PILGRIM / MASTER_SMITH / FOREST_WARDEN / TRUSTED_MERCHANT). Builder learned to author endings via dedicated UI.',
   'v0.52':   'Quest-chain DAG with ending markers + renown gates. State events now gzip-compressed (smaller character-state payloads). New `whatsnew` / `changelog` command. Engine ↔ builder type-sync hint pill.',
   'v0.51':   'Picker filters + sort + story preview. Map zoom/pan modal (`mapview`). `inv <pattern>` and `recipes <pattern>` filters. Characters dialog from picker. Auto-fix buttons on validation errors.',
@@ -912,7 +917,10 @@ function showStoryPicker(currentId = null) {
       wrap.innerHTML = '';
       const allOpts = listAllStoryOptions();
       const tagSet = new Set();
-      for (const o of allOpts) for (const t of (o.story?.meta?.tags || [])) tagSet.add(t);
+      for (const o of allOpts) {
+        const tags = (o.source === 'marketplace') ? (o.listing?.tags || []) : (o.story?.meta?.tags || []);
+        for (const t of tags) tagSet.add(t);
+      }
       const tags = [...tagSet].sort();
       if (tags.length === 0) return;
       const allChip = document.createElement('span');
@@ -1030,19 +1038,26 @@ function showStoryPicker(currentId = null) {
       listEl.innerHTML = '';
       const allOpts = listAllStoryOptions();
       // Apply search/tag/cw filters
+      // Tier A2: marketplace listings respect the same filters as local stories.
+      // Marketplace cards expose `o.listing` (no full story); read tags/title/author from there.
       function passes(o) {
-        const m = o.story?.meta || {};
-        if (pickerState.hideCW && m.minimum_age > 0) return false;
+        const isMarket = o.source === 'marketplace';
+        const m = isMarket ? (o.listing || {}) : (o.story?.meta || {});
+        const tags = Array.isArray(m.tags) ? m.tags : [];
+        if (pickerState.hideCW && (m.minimum_age > 0 || (Array.isArray(m.content_warnings) && m.content_warnings.length > 0))) {
+          // Marketplace listings may declare CWs without ages; treat both as gateable.
+          if (!isMarket || m.minimum_age > 0) return false;
+        }
         if (pickerState.tagFilter) {
-          const tags = Array.isArray(m.tags) ? m.tags : [];
           if (!tags.includes(pickerState.tagFilter)) return false;
         }
         if (pickerState.search) {
           const haystack = [
             (typeof m.title === 'string') ? m.title : (m.title?.en || ''),
             m.author || '',
-            ...(Array.isArray(m.tags) ? m.tags : []),
-            o.id || ''
+            ...tags,
+            o.id || '',
+            isMarket ? (m.description || '') : ''
           ].join(' ').toLowerCase();
           if (!haystack.includes(pickerState.search)) return false;
         }
@@ -1553,6 +1568,7 @@ const KIND_COMBAT       = 30435;
 const KIND_BOUNTY       = 30437;
 const KIND_BOUNTY_CLAIM = 30438;
 const KIND_STORY_LISTING= 30441;
+const KIND_PROGRESSION  = 30433;  // Tier C9 — encrypted cross-device endings sync
 const TOPIC_LISTINGS    = 'nta:story-listings';
 const TOPIC = 'story:' + STORY.meta.id;
 const FIRE_DURATION_TURNS = 20;
@@ -1561,6 +1577,69 @@ const STORAGE_NSEC          = `nstadv:${STORY.meta.id}:nsec`;
 const STORAGE_NSEC_CREATED  = `nstadv:${STORY.meta.id}:nsec_created_at`;
 const STORAGE_STATE         = `nstadv:${STORY.meta.id}:state`;
 const KIND_STATE            = 30425;
+
+// Engine v0.53.1 — Tier D14: magic-link character import.
+// Reads `?nsec=...` (or `#nsec=...`) from the URL and uses it to seed the
+// active character on this browser. Behind a confirm so a malicious link
+// can't silently swap the player's identity. After ingestion, the param
+// is stripped from history. The hash form is preferred because it doesn't
+// hit referer logs.
+(function consumeMagicNsec() {
+  try {
+    let candidate = null;
+    if (window.location.hash) {
+      const m = /(?:^|[#&])nsec=(nsec1[a-z0-9]+)/i.exec(window.location.hash);
+      if (m) candidate = m[1];
+    }
+    if (!candidate && window.location.search) {
+      const m = /(?:^|[?&])nsec=(nsec1[a-z0-9]+)/i.exec(window.location.search);
+      if (m) candidate = m[1];
+    }
+    if (!candidate) return;
+    // Validate format
+    try { nip19.decode(candidate); }
+    catch { console.warn('[magic-link] malformed nsec; ignoring'); return; }
+    const existing = localStorage.getItem(STORAGE_NSEC);
+    if (existing === candidate) {
+      // Already ours — silently strip the param.
+      cleanUrl();
+      return;
+    }
+    const ok = confirm(
+      'Magic-link character import\n\n' +
+      'This URL contains an nsec (private key) that wants to become this browser\'s active character for "' + (STORY.meta.title || STORY.meta.id) + '".\n\n' +
+      'OK = import (your CURRENT character will be saved to "recent characters" so you can switch back).\n' +
+      'Cancel = ignore the URL (recommended if you didn\'t generate this link yourself).'
+    );
+    if (!ok) { cleanUrl(); return; }
+    // Save the current character to recents before swapping
+    try {
+      const prev = existing;
+      if (prev) {
+        const list = JSON.parse(localStorage.getItem('taleforge:recent_characters') || '[]');
+        if (!list.find(e => e.nsec === prev)) {
+          list.unshift({ nsec: prev, name: '?', npub_short: '?', last_used_at: Math.floor(Date.now() / 1000) });
+          while (list.length > 8) list.pop();
+          localStorage.setItem('taleforge:recent_characters', JSON.stringify(list));
+        }
+      }
+    } catch {}
+    localStorage.setItem(STORAGE_NSEC, candidate);
+    localStorage.setItem(STORAGE_NSEC_CREATED, String(Date.now()));
+    localStorage.removeItem(STORAGE_STATE);
+    cleanUrl();
+    function cleanUrl() {
+      try {
+        const url = new URL(window.location.href);
+        url.search = url.search.replace(/(?:^|[?&])nsec=[^&]+/i, '').replace(/^&/, '?');
+        if (url.search === '?' || url.search === '') url.search = '';
+        url.hash = url.hash.replace(/(?:^|[#&])nsec=[^&]+/i, '').replace(/^&/, '#');
+        if (url.hash === '#') url.hash = '';
+        window.history.replaceState({}, document.title, url.toString());
+      } catch {}
+    }
+  } catch (e) { console.warn('[magic-link] consume failed:', e); }
+})();
 
 const INACTIVE_LIMIT_MS = 10 * 60 * 1000;
 const INACTIVE_WARN_MS  =  7 * 60 * 1000;
@@ -2548,6 +2627,43 @@ function refreshSidebar() {
         more.textContent = `…and ${list.length - 3} more (click to view all)`;
         bountyEl.appendChild(more);
       }
+    }
+  }
+
+  // Engine v0.53.1 — Tier A1: endings completionist widget.
+  // Show ★ N/M endings reached on this story (this browser).
+  const endingsSec = document.getElementById('endingsTrackerSection');
+  const endingsEl = document.getElementById('endingsTracker');
+  if (endingsSec && endingsEl) {
+    const all = listStoryEndings();
+    if (all.length === 0) {
+      endingsSec.style.display = 'none';
+    } else {
+      const reached = (typeof loadGlobalEndings === 'function') ? (loadGlobalEndings()[STORY.meta.id] || []) : [];
+      const reachedSet = new Set(reached);
+      endingsSec.style.display = '';
+      endingsSec.style.cursor = 'pointer';
+      endingsSec.onclick = () => { try { showEndings(); } catch {} };
+      endingsEl.innerHTML = '';
+      const summary = document.createElement('div');
+      summary.className = 'row';
+      summary.style.fontSize = '11px';
+      summary.innerHTML = `<span style="color:var(--muted);">★ reached</span><span class="qty" style="color:var(--gold);">${reachedSet.size} / ${all.length}</span>`;
+      endingsEl.appendChild(summary);
+      // Tag chips for the visible endings
+      const chipsRow = document.createElement('div');
+      chipsRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;';
+      for (const e of all) {
+        const chip = document.createElement('span');
+        const got = reachedSet.has(e.tag);
+        chip.textContent = e.tag;
+        chip.title = `${got ? '★ Reached' : 'Not yet reached'}: ${e.title}`;
+        chip.style.cssText = `font-size:9px;padding:1px 5px;border-radius:7px;letter-spacing:0.02em;${got
+          ? 'background:#3a4a2a;color:#e0c876;border:1px solid #5a6a3a;'
+          : 'background:#2a2724;color:#7a7367;border:1px solid #3a352e;'}`;
+        chipsRow.appendChild(chip);
+      }
+      endingsEl.appendChild(chipsRow);
     }
   }
 
@@ -3820,6 +3936,20 @@ function restartCommand() {
   restartCurrentStory();
 }
 
+// Engine v0.53.1 — Tier A1: enumerate every ending declared by the story
+// (parses `>>> ENDING: TAG <<<` markers out of every quest's
+// completion_message). Used by the sidebar tracker + picker cards.
+function listStoryEndings(story = STORY) {
+  const out = [];
+  if (!story || !story.quests) return out;
+  for (const [qid, q] of Object.entries(story.quests)) {
+    const cm = (typeof q.completion_message === 'string') ? q.completion_message : (q.completion_message?.en || '');
+    const m = />>>\s*ENDING:\s*([\w-]+)\s*<<</.exec(cm);
+    if (m) out.push({ tag: m[1].toUpperCase(), quest: qid, title: (typeof q.title === 'string') ? q.title : (q.title?.en || qid) });
+  }
+  return out;
+}
+
 const GLOBAL_ENDINGS_KEY = 'taleforge:endings_global';
 function loadGlobalEndings() {
   try { return JSON.parse(localStorage.getItem(GLOBAL_ENDINGS_KEY) || '{}') || {}; }
@@ -3833,6 +3963,71 @@ function recordGlobalEnding(storyId, tag) {
     if (!all[storyId].includes(tag)) all[storyId].push(tag);
     localStorage.setItem(GLOBAL_ENDINGS_KEY, JSON.stringify(all));
   } catch {}
+  // Tier C9: cross-device sync. Fire-and-forget publish.
+  try { publishProgression(); } catch {}
+}
+
+// Engine v0.53.1 — Tier C9: cross-device achievements + endings sync.
+// Publish a private (nip04-encrypted, self-recipient) kind-30433 event
+// containing the player's full GLOBAL_ENDINGS map. On a new browser, after
+// the player imports their nsec (via magic-link / restore / characters
+// dialog), fetchAndMergeProgression() pulls the latest event and merges
+// into local — so the picker shows their past endings even on a clean
+// browser. Replaceable kind, single d-tag, so storage stays bounded.
+async function publishProgression() {
+  try {
+    if (typeof sk === 'undefined' || !sk) return;
+    const payload = {
+      v: 1,
+      generated_at: Date.now(),
+      endings: loadGlobalEndings()
+    };
+    const ciphertext = await nip04.encrypt(sk, pk, JSON.stringify(payload));
+    const evt = finalizeEvent({
+      kind: KIND_PROGRESSION,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [['d', 'progression']],
+      content: ciphertext
+    }, sk);
+    tryPublish(evt);
+  } catch (e) { console.warn('publishProgression failed:', e); }
+}
+
+async function fetchAndMergeProgression(timeoutMs = 4000) {
+  if (typeof pool === 'undefined' || !pool || !pk) return;
+  return new Promise(resolve => {
+    let resolved = false;
+    const finish = () => { if (!resolved) { resolved = true; resolve(); } };
+    try {
+      pool.subscribeMany(RELAYS, [
+        { kinds: [KIND_PROGRESSION], authors: [pk], '#d': ['progression'], limit: 1 }
+      ], {
+        async onevent(event) {
+          try {
+            const plain = await nip04.decrypt(sk, pk, event.content);
+            const payload = JSON.parse(plain);
+            const remote = payload?.endings || {};
+            const local = loadGlobalEndings();
+            // Merge: union of tags per story.
+            let added = 0;
+            for (const [storyId, tags] of Object.entries(remote)) {
+              if (!local[storyId]) local[storyId] = [];
+              for (const t of (tags || [])) {
+                if (!local[storyId].includes(t)) { local[storyId].push(t); added++; }
+              }
+            }
+            if (added > 0) {
+              try { localStorage.setItem(GLOBAL_ENDINGS_KEY, JSON.stringify(local)); } catch {}
+              try { write(`[synced ${added} cross-device ending${added === 1 ? '' : 's'} from your other devices]`, 'spark'); } catch {}
+            }
+          } catch (e) { /* malformed or wrong key — ignore */ }
+          finish();
+        },
+        oneose() { setTimeout(finish, 200); }
+      });
+    } catch { finish(); }
+    setTimeout(finish, timeoutMs);
+  });
 }
 
 function triggerStoryEnding(tag) {
@@ -6917,6 +7112,83 @@ function restoreCharacterCommand(argRaw) {
   write('Pick a previously-exported backup .json file…', 'system');
 }
 
+// Engine v0.53.1 — Tier D14: share-character command.
+// Opens a modal with a magic-link URL (?nsec=...) and a QR code so the
+// player can hand the character off to another device. The URL bypasses
+// the new-character flow on the receiving end after a confirm prompt.
+function shareCharacterCommand(argRaw) {
+  if (typeof nsec === 'undefined' || !nsec) {
+    write('No active character to share.', 'error');
+    return;
+  }
+  const baseUrl = `${location.origin}${location.pathname}`;
+  const magicUrl = `${baseUrl}#nsec=${nsec}`;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:480px;width:100%;padding:22px;';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-size:18px;font-weight:bold;">Share character — magic link</div>
+      <button id="sh-close" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;">×</button>
+    </div>
+    <div style="background:#3a2520;color:#e0a890;border:1px solid #6a4a3a;border-radius:4px;padding:10px;font-size:12px;margin-bottom:14px;line-height:1.5;">
+      ⚠ <strong>This link contains your private key (nsec).</strong> Anyone who opens it can play AS you on their device. Share only with yourself, or with someone you fully trust.
+    </div>
+    <div style="font-size:13px;color:#bcb4a8;margin-bottom:6px;">Magic link (open on the other device):</div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <input id="sh-url" type="text" value="${escapeHtml(magicUrl)}" readonly style="flex:1;background:#0c0e10;border:1px solid #3a352e;color:#e8e6e3;border-radius:4px;padding:6px 8px;font:inherit;font-size:11px;font-family:monospace;">
+      <button id="sh-copy" style="background:#c79b3a;border:none;color:#1a1408;border-radius:4px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;">Copy</button>
+    </div>
+    <div style="font-size:13px;color:#bcb4a8;margin-bottom:8px;text-align:center;">— or scan this QR code —</div>
+    <div id="sh-qr" style="display:flex;justify-content:center;background:#fff;border-radius:4px;padding:14px;margin-bottom:12px;"></div>
+    <div style="font-size:11px;color:#9c9388;line-height:1.5;">
+      The receiving browser will prompt for confirmation before importing. Your CURRENT character on that browser (if any) gets saved to "recent characters" first, so you can switch back.<br><br>
+      Tip: the link uses the URL hash (#nsec=…) — this means it isn't sent to any server, only kept local in the browser.
+    </div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  panel.querySelector('#sh-close').onclick = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.remove(); });
+  panel.querySelector('#sh-copy').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(magicUrl);
+      panel.querySelector('#sh-copy').textContent = '✓ Copied';
+      setTimeout(() => { panel.querySelector('#sh-copy').textContent = 'Copy'; }, 1500);
+    } catch {
+      const inp = panel.querySelector('#sh-url');
+      inp.select(); document.execCommand('copy');
+      panel.querySelector('#sh-copy').textContent = '✓ Copied';
+      setTimeout(() => { panel.querySelector('#sh-copy').textContent = 'Copy'; }, 1500);
+    }
+  };
+  // Lazy-load QR generator from a CDN; if unreachable, fall back to a textual notice.
+  const qrTarget = panel.querySelector('#sh-qr');
+  qrTarget.innerHTML = '<div style="color:#888;font-size:12px;">Generating QR…</div>';
+  // Use Google Charts QR endpoint as fallback — but prefer offline by using an inline SVG generator.
+  generateQrSvg(magicUrl, qrTarget);
+}
+
+// Tiny QR encoder good enough for ~600-char URLs.
+// We avoid bundling a full QR library; instead we use the goqr.me data URL
+// service. If the network is unreachable, we fall back to a text block the
+// player can copy. (No private data is sent — the URL is the magic link
+// the player just chose to share.)
+function generateQrSvg(url, target) {
+  target.innerHTML = '';
+  const img = document.createElement('img');
+  img.alt = 'QR code for the magic link';
+  img.style.cssText = 'width:240px;height:240px;display:block;';
+  // Use api.qrserver.com (open, no key required, returns PNG).
+  img.src = `https://api.qrserver.com/v1/create-qr-code/?size=480x480&data=${encodeURIComponent(url)}&margin=2`;
+  img.onerror = () => {
+    target.innerHTML = '<div style="color:#a00;font-size:12px;text-align:center;">QR generation failed (offline?). Copy the link above instead.</div>';
+  };
+  target.appendChild(img);
+}
+
 function charactersCommand(argRaw) {
   const arg = (argRaw || '').trim();
   const list = loadRecentChars();
@@ -7994,6 +8266,11 @@ function showMapModal() {
     err.textContent = 'Map render failed: ' + (e?.message || e);
     stage.appendChild(err);
   }
+  // Engine v0.53.1 — Tier A1 follow-on: legend inside the zoom modal.
+  const legend = document.createElement('div');
+  legend.style.cssText = 'margin-top:16px;padding:8px 12px;border-top:1px solid #3a352e;font-size:12px;color:#9c9388;line-height:1.6;';
+  legend.innerHTML = 'Legend: &nbsp;<span style="color:#f0b54a;">*</span> you &nbsp;·&nbsp; 📦 chest &nbsp;·&nbsp; ⚠ wolves &nbsp;·&nbsp; 🔥 fire &nbsp;·&nbsp; <span style="color:#bcb4a8;">⇡⇣</span> stairs (up/down) &nbsp;·&nbsp; <span style="color:#bcb4a8;">⇢⇠</span> stairs (in/out) &nbsp;·&nbsp; ┊ in/out &nbsp;·&nbsp; ╎ through wall';
+  stage.appendChild(legend);
   viewport.appendChild(stage);
   overlay.appendChild(viewport);
   document.body.appendChild(overlay);
@@ -8442,6 +8719,7 @@ function handleCommand(input) {
     case 'characters': case 'chars': charactersCommand(argRaw); consumesTurn = false; break;
     case 'backup':               backupCharacterCommand(argRaw); consumesTurn = false; break;
     case 'restore':              restoreCharacterCommand(argRaw); consumesTurn = false; break;
+    case 'share':                shareCharacterCommand(argRaw); consumesTurn = false; break;
     case 'profile':              showProfile(); consumesTurn = false; break;
     case 'whoami': case 'me':    showWhoAmI(); consumesTurn = false; break;
     case 'signature': case 'sig':
@@ -8950,6 +9228,12 @@ if (!player.activated) {
     setTimeout(() => location.reload(), 1500);
   }, INACTIVE_LIMIT_MS);
 }
+
+// Tier C9: opportunistic cross-device endings sync. Runs in parallel to
+// state restore — both are tied to the player's nsec, so if they imported
+// their key on a fresh browser, we backfill any endings they reached
+// elsewhere into the local GLOBAL_ENDINGS table (which the picker reads).
+setTimeout(() => { try { fetchAndMergeProgression(); } catch {} }, 2500);
 
 fetchAndRestoreState().then(remoteState => {
   if (remoteState && (remoteState.turn ?? 0) > player.turn) {
