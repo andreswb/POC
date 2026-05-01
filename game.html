@@ -443,7 +443,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.50.1';
+const ENGINE_VERSION_LABEL = 'v0.51';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -729,12 +729,26 @@ function showStoryPicker(currentId = null) {
     const panel = document.createElement('div');
     panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:24px;';
     panel.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px;flex-wrap:wrap;">
         <div style="font-size:20px;font-weight:bold;">Pick a story</div>
-        <button id="picker-random" title="Pick a random non-trial, non-age-gated story." style="background:#23201c;border:1px solid #3a352e;color:#f0b54a;border-radius:4px;padding:4px 10px;cursor:pointer;font:inherit;font-size:13px;">⚄ Surprise me</button>
+        <div style="display:flex;gap:6px;">
+          <button id="picker-chars" title="Switch between characters saved on this browser." style="background:#23201c;border:1px solid #3a352e;color:#bcb4a8;border-radius:4px;padding:4px 10px;cursor:pointer;font:inherit;font-size:13px;">👤 Characters</button>
+          <button id="picker-random" title="Pick a random non-trial, non-age-gated story." style="background:#23201c;border:1px solid #3a352e;color:#f0b54a;border-radius:4px;padding:4px 10px;cursor:pointer;font:inherit;font-size:13px;">⚄ Surprise me</button>
+        </div>
       </div>
       <div style="color:#9c9388;font-size:13px;margin-bottom:16px;">Each story is its own world with its own character. You can switch any time with the <code>switch story</code> command.</div>
       <div id="picker-continue" style="margin-bottom:14px;"></div>
+      <div id="picker-controls" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px;font-size:12px;color:#9c9388;">
+        <input id="picker-search" type="text" placeholder="search title / author / tag…" style="flex:1;min-width:160px;background:#0c0e10;border:1px solid #3a352e;color:#e8e6e3;border-radius:4px;padding:5px 8px;font:inherit;font-size:12px;">
+        <select id="picker-sort" title="Sort order" style="background:#0c0e10;border:1px solid #3a352e;color:#e8e6e3;border-radius:4px;padding:5px 7px;font:inherit;font-size:12px;">
+          <option value="recent">Sort: most recent</option>
+          <option value="endings">Sort: endings reached</option>
+          <option value="alpha">Sort: A → Z</option>
+          <option value="rooms">Sort: world size</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input id="picker-hide-cw" type="checkbox" style="margin:0;"> hide age-gated</label>
+      </div>
+      <div id="picker-tagchips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;"></div>
       <div id="story-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;"></div>
       <div id="picker-msg" style="margin-top:10px;color:#f0b54a;font-size:13px;min-height:16px;"></div>
     `;
@@ -747,6 +761,13 @@ function showStoryPicker(currentId = null) {
       resolve(id);
     }
 
+    // Tier B8: characters dialog from picker.
+    const charsBtn = panel.querySelector('#picker-chars');
+    if (charsBtn) {
+      charsBtn.addEventListener('click', () => {
+        showCharactersDialog();
+      });
+    }
     const randBtn = panel.querySelector('#picker-random');
     if (randBtn) {
       randBtn.addEventListener('click', () => {
@@ -794,11 +815,160 @@ function showStoryPicker(currentId = null) {
         }
       }
     }).catch(() => {  });
+    // Tier A4: picker filter+sort state.
+    const pickerState = {
+      search: '',
+      sort: 'recent',
+      hideCW: false,
+      tagFilter: null
+    };
+    try { pickerState.sort = localStorage.getItem('taleforge:picker:sort') || 'recent'; } catch {}
+    try { pickerState.hideCW = localStorage.getItem('taleforge:picker:hideCW') === '1'; } catch {}
+    const searchEl = panel.querySelector('#picker-search');
+    const sortEl = panel.querySelector('#picker-sort');
+    const hideCwEl = panel.querySelector('#picker-hide-cw');
+    if (searchEl) searchEl.addEventListener('input', () => { pickerState.search = searchEl.value.toLowerCase(); renderList(); });
+    if (sortEl) {
+      sortEl.value = pickerState.sort;
+      sortEl.addEventListener('change', () => { pickerState.sort = sortEl.value; try { localStorage.setItem('taleforge:picker:sort', sortEl.value); } catch {} renderList(); });
+    }
+    if (hideCwEl) {
+      hideCwEl.checked = pickerState.hideCW;
+      hideCwEl.addEventListener('change', () => { pickerState.hideCW = hideCwEl.checked; try { localStorage.setItem('taleforge:picker:hideCW', hideCwEl.checked ? '1' : '0'); } catch {} renderList(); });
+    }
+    function renderTagChips() {
+      const wrap = panel.querySelector('#picker-tagchips');
+      if (!wrap) return;
+      wrap.innerHTML = '';
+      const allOpts = listAllStoryOptions();
+      const tagSet = new Set();
+      for (const o of allOpts) for (const t of (o.story?.meta?.tags || [])) tagSet.add(t);
+      const tags = [...tagSet].sort();
+      if (tags.length === 0) return;
+      const allChip = document.createElement('span');
+      allChip.textContent = 'all';
+      const isAllActive = !pickerState.tagFilter;
+      allChip.style.cssText = 'font-size:10px;padding:3px 9px;border-radius:9px;cursor:pointer;background:' + (isAllActive ? '#4a6a3a' : '#23201c') + ';color:' + (isAllActive ? '#e8e6e3' : '#9c9388') + ';border:1px solid #4a6a3a;text-transform:lowercase;';
+      allChip.onclick = () => { pickerState.tagFilter = null; renderList(); };
+      wrap.appendChild(allChip);
+      for (const tg of tags) {
+        const chip = document.createElement('span');
+        chip.textContent = tg;
+        const active = pickerState.tagFilter === tg;
+        chip.style.cssText = 'font-size:10px;padding:3px 9px;border-radius:9px;cursor:pointer;background:' + (active ? '#4a6a3a' : '#2a3528') + ';color:' + (active ? '#e8e6e3' : '#a8c7a0') + ';border:1px solid #4a6a3a;text-transform:lowercase;';
+        chip.onclick = () => { pickerState.tagFilter = active ? null : tg; renderList(); };
+        wrap.appendChild(chip);
+      }
+    }
+
+    // Tier A5: story preview modal — opened from the "preview" link on a card.
+    function showStoryPreview(opt) {
+      const m = opt.story?.meta || {};
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+      const pn = document.createElement('div');
+      pn.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:520px;width:100%;max-height:90vh;overflow:auto;padding:22px;';
+      const title = (typeof m.title === 'string') ? m.title : (m.title?.en || opt.id);
+      const tone = (typeof m.tone === 'string') ? m.tone : (m.tone?.en || '');
+      const summary = m.summary ? ((typeof m.summary === 'string') ? m.summary : (m.summary?.en || '')) : '';
+      const counts = {
+        rooms: Object.keys(opt.story.rooms || {}).length,
+        items: Object.keys(opt.story.items || {}).length,
+        npcs: Object.keys(opt.story.npcs || {}).length,
+        skills: Object.keys(opt.story.skills || {}).length,
+        recipes: Object.keys(opt.story.recipes || {}).length,
+        entities: Object.keys(opt.story.entities || {}).length,
+        quests: Object.keys(opt.story.quests || {}).length,
+        events: Object.keys(opt.story.events || {}).length
+      };
+      const profiles = m.character_profiles || {};
+      const profileList = Object.entries(profiles).map(([pid, p]) => `${p.display || pid}`).join(', ');
+      const tags = Array.isArray(m.tags) ? m.tags : [];
+      const cws = Array.isArray(m.content_warnings) ? m.content_warnings : [];
+      const ageStr = m.minimum_age ? `<div style="color:#c08070;font-size:12px;margin-bottom:8px;">⚠ minimum age: ${m.minimum_age}</div>` : '';
+      const globalEndings = (typeof loadGlobalEndings === 'function') ? loadGlobalEndings() : {};
+      const reachedList = (globalEndings[opt.id] || []);
+      pn.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+          <div style="font-size:18px;font-weight:bold;">${escapeHtml(title)}</div>
+          <button id="pv-close" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;">×</button>
+        </div>
+        <div style="color:#9c9388;font-size:12px;margin-bottom:10px;">v${m.version || '?'} · author: ${escapeHtml(m.author || '—')} · license: ${m.creative_license || '—'}</div>
+        ${ageStr}
+        ${tone ? `<div style="font-style:italic;color:#bcb4a8;font-size:13px;margin-bottom:10px;">${escapeHtml(tone)}</div>` : ''}
+        ${summary ? `<div style="margin-bottom:12px;font-size:13px;line-height:1.5;">${escapeHtml(summary)}</div>` : ''}
+        <div style="margin-bottom:10px;font-size:12px;color:#bcb4a8;">
+          <strong style="color:#e8e6e3;">World size:</strong> ${counts.rooms} rooms · ${counts.npcs} NPCs · ${counts.items} items · ${counts.entities} entities<br>
+          ${counts.quests} quests · ${counts.skills} skills · ${counts.recipes} recipes · ${counts.events} events
+        </div>
+        ${profileList ? `<div style="margin-bottom:10px;font-size:12px;"><strong style="color:#e8e6e3;">Character profiles:</strong> <span style="color:#bcb4a8;">${escapeHtml(profileList)}</span></div>` : ''}
+        ${tags.length ? `<div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px;">${tags.map(t => `<span style="font-size:10px;padding:2px 7px;border-radius:9px;background:#2a3528;color:#a8c7a0;border:1px solid #4a6a3a;">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+        ${cws.length ? `<div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;"><span style="font-size:10px;color:#c08070;text-transform:uppercase;">⚠ content:</span>${cws.map(c => `<span style="font-size:10px;padding:2px 7px;border-radius:9px;background:#3a2520;color:#e0a890;border:1px solid #6a4a3a;">${escapeHtml(c)}</span>`).join('')}</div>` : ''}
+        ${reachedList.length ? `<div style="margin-top:10px;font-size:12px;color:#f0b54a;"><strong>★ Endings reached on this browser (${reachedList.length}):</strong> ${reachedList.map(e => escapeHtml(e)).join(', ')}</div>` : ''}
+        <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;">
+          <button id="pv-cancel" style="padding:6px 14px;background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;font:inherit;cursor:pointer;">Back</button>
+          <button id="pv-pick" style="padding:6px 14px;background:#c79b3a;border:none;color:#1a1408;border-radius:4px;font:inherit;font-weight:600;cursor:pointer;">▶ Play this story</button>
+        </div>
+      `;
+      ov.appendChild(pn);
+      document.body.appendChild(ov);
+      pn.querySelector('#pv-close').onclick = () => ov.remove();
+      pn.querySelector('#pv-cancel').onclick = () => ov.remove();
+      pn.querySelector('#pv-pick').onclick = () => { ov.remove(); pick(opt.id); };
+      ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') ov.remove(); });
+    }
+
     function renderList() {
+      renderTagChips();
       listEl.innerHTML = '';
       const allOpts = listAllStoryOptions();
-      const marketplace = allOpts.filter(o => o.source === 'marketplace');
-      const local = allOpts.filter(o => o.source !== 'marketplace');
+      // Apply search/tag/cw filters
+      function passes(o) {
+        const m = o.story?.meta || {};
+        if (pickerState.hideCW && m.minimum_age > 0) return false;
+        if (pickerState.tagFilter) {
+          const tags = Array.isArray(m.tags) ? m.tags : [];
+          if (!tags.includes(pickerState.tagFilter)) return false;
+        }
+        if (pickerState.search) {
+          const haystack = [
+            (typeof m.title === 'string') ? m.title : (m.title?.en || ''),
+            m.author || '',
+            ...(Array.isArray(m.tags) ? m.tags : []),
+            o.id || ''
+          ].join(' ').toLowerCase();
+          if (!haystack.includes(pickerState.search)) return false;
+        }
+        return true;
+      }
+      // Sort comparator
+      const globalEndings = (typeof loadGlobalEndings === 'function') ? loadGlobalEndings() : {};
+      function sortKey(o) {
+        const m = o.story?.meta || {};
+        switch (pickerState.sort) {
+          case 'alpha': return ((typeof m.title === 'string') ? m.title : (m.title?.en || '')).toLowerCase();
+          case 'endings': return -(globalEndings[o.id]?.length || 0);
+          case 'rooms': return -Object.keys(o.story.rooms || {}).length;
+          case 'recent': default:
+            // Prefer the active story id, then most-recent localStorage write timestamp if available.
+            return o.id === currentId ? '0' : ('1_' + ((typeof m.title === 'string') ? m.title : (m.title?.en || '')).toLowerCase());
+        }
+      }
+      let filtered = allOpts.filter(passes);
+      filtered.sort((a, b) => {
+        const ka = sortKey(a), kb = sortKey(b);
+        if (typeof ka === 'number' && typeof kb === 'number') return ka - kb;
+        return String(ka).localeCompare(String(kb));
+      });
+      const marketplace = filtered.filter(o => o.source === 'marketplace');
+      const local = filtered.filter(o => o.source !== 'marketplace');
+      if (filtered.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding:14px;color:#9c9388;font-size:13px;text-align:center;';
+        empty.textContent = 'No stories match these filters.';
+        listEl.appendChild(empty);
+        return;
+      }
       for (const opt of local) {
         const row = document.createElement('button');
         row.style.cssText = 'text-align:left;padding:12px 14px;background:' + (opt.id === currentId ? '#2a3528' : '#23201c') + ';border:1px solid ' + (opt.id === currentId ? '#4a6a3a' : '#3a352e') + ';color:#e8e6e3;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;gap:2px;font:inherit;';
@@ -849,18 +1019,27 @@ function showStoryPicker(currentId = null) {
           }
           row.appendChild(cwRow);
         }
+        // Tier A5: preview link
+        const actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;gap:10px;margin-top:6px;align-items:center;';
+        const preview = document.createElement('span');
+        preview.textContent = '👁 preview';
+        preview.style.cssText = 'color:#9c9388;font-size:11px;cursor:pointer;text-decoration:underline;';
+        preview.onclick = (ev) => { ev.stopPropagation(); showStoryPreview(opt); };
+        actions.appendChild(preview);
         if (opt.source === 'custom') {
           const del = document.createElement('span');
           del.textContent = 'remove';
-          del.style.cssText = 'align-self:flex-start;color:#c66;font-size:11px;margin-top:4px;cursor:pointer;';
+          del.style.cssText = 'color:#c66;font-size:11px;cursor:pointer;text-decoration:underline;';
           del.onclick = (ev) => {
             ev.stopPropagation();
             if (!confirm(`Remove "${opt.story.meta?.title || opt.id}" from your library? Character state stays on the relays.`)) return;
             try { localStorage.removeItem(CUSTOM_STORY_PREFIX + opt.id); } catch {}
             renderList();
           };
-          row.appendChild(del);
+          actions.appendChild(del);
         }
+        row.appendChild(actions);
         row.onclick = () => pick(opt.id);
         listEl.appendChild(row);
       }
@@ -2008,7 +2187,15 @@ async function fetchAndRestoreState(timeoutMs = 5000) {
 }
 
 const out = document.getElementById('output');
+// Engine v0.50.2 — Tier B9: optional capture target. When __writeCapture is
+// non-null, write() pushes lines onto it instead of the DOM. Used by the
+// `mapview` command to render the same map text into a zoomable modal.
+let __writeCapture = null;
 function write(text='', cls='') {
+  if (__writeCapture) {
+    __writeCapture.push({ text: String(text), cls });
+    return;
+  }
   const boot = document.getElementById('boot-loading');
   if (boot) boot.remove();
   const div = document.createElement('div');
@@ -3840,24 +4027,39 @@ function inventoryColorClass(itemId) {
   if (tags.includes('trinket')) return 'spark';
   return '';
 }
-function showInventory() {
-  writeBlock('=== Inventory ===', () => {
+function showInventory(filter) {
+  // Engine v0.50.2 — Tier B10: optional filter argument. `inv leather` shows
+  // only items whose id or display contains "leather" (case-insensitive).
+  const f = (filter || '').trim().toLowerCase();
+  const matches = (id) => {
+    if (!f) return true;
+    if (id.toLowerCase().includes(f)) return true;
+    const disp = (typeof itemDisplay === 'function') ? String(itemDisplay(id) || '').toLowerCase() : '';
+    return disp.includes(f);
+  };
+  const headerSuffix = f ? ` (filter: "${f}")` : '';
+  writeBlock('=== Inventory' + headerSuffix + ' ===', () => {
     if (!player.inventory.length) write(T('You carry no discrete items.'));
     else {
       const groups = new Map();
       const unique = [];
       for (const i of player.inventory) {
+        if (!matches(i)) continue;
         if (player.edges?.has(i)) unique.push(i);
         else groups.set(i, (groups.get(i) || 0) + 1);
       }
-      write(T('You carry:'));
-      for (const [id, n] of groups) {
-        const label = n > 1 ? `  · ${itemDisplay(id, true)} ×${n}` : `  · ${itemDisplay(id, true)}`;
-        write(label, inventoryColorClass(id));
+      const anyDiscrete = groups.size + unique.length;
+      if (f && anyDiscrete === 0) write(`(no items match "${f}")`, 'muted');
+      else {
+        write(T('You carry:'));
+        for (const [id, n] of groups) {
+          const label = n > 1 ? `  · ${itemDisplay(id, true)} ×${n}` : `  · ${itemDisplay(id, true)}`;
+          write(label, inventoryColorClass(id));
+        }
+        for (const i of unique) write(`  · ${itemDisplay(i, true)}`, inventoryColorClass(i));
       }
-      for (const i of unique) write(`  · ${itemDisplay(i, true)}`, inventoryColorClass(i));
     }
-    const mats = Object.entries(player.materials).filter(([_, q]) => q > 0);
+    const mats = Object.entries(player.materials).filter(([k, q]) => q > 0 && matches(k));
     if (mats.length) {
       write(T('Materials:'));
       for (const [k, q] of mats) {
@@ -3865,8 +4067,10 @@ function showInventory() {
         const fresh = (left != null) ? ' ' + T('(rots in {0} turn{1})', left, left === 1 ? '' : 's') : '';
         write(`  · ${itemDisplay(k)} ×${q}${fresh}`, inventoryColorClass(k) || 'gold');
       }
+    } else if (f) {
+      // Quiet — no materials match. Avoid "no materials" line spam.
     }
-    write(T('Load: {0}/{1}', Math.round(computeWeight()*10)/10, computeMaxCapacity()), 'system');
+    if (!f) write(T('Load: {0}/{1}', Math.round(computeWeight()*10)/10, computeMaxCapacity()), 'system');
   }, '── end of inventory ──');
 }
 
@@ -4105,21 +4309,36 @@ function gather(verb, arg) {
   publishAction('gather', { verb, item: res.id, qty: yield_qty, location: player.location });
 }
 
-function showRecipes() {
-  writeBlock('=== Recipes ===', () => {
+function showRecipes(filter) {
+  // Engine v0.50.2 — Tier B10: optional filter argument. `recipes iron` shows
+  // only recipes whose id, display, or input/output items match.
+  const f = (filter || '').trim().toLowerCase();
+  const matches = (rid, r) => {
+    if (!f) return true;
+    if (rid.toLowerCase().includes(f)) return true;
+    if (String(r.display || '').toLowerCase().includes(f)) return true;
+    for (const io of (r.inputs || [])) if (String(io.item || '').toLowerCase().includes(f)) return true;
+    for (const io of (r.outputs || [])) if (String(io.item || '').toLowerCase().includes(f)) return true;
+    return false;
+  };
+  writeBlock('=== Recipes' + (f ? ` (filter: "${f}")` : '') + ' ===', () => {
     const known = [...player.skills].map(s => STORY.skills[s]);
     const recipeIds = new Set();
     for (const sk of known) for (const r of (sk.unlocks?.recipes || [])) recipeIds.add(r);
     if (recipeIds.size === 0) { write('No recipes available. Learn a crafting skill first.'); return; }
+    let shown = 0;
     write('Available recipes:', 'system');
     for (const rid of recipeIds) {
       const r = STORY.recipes[rid];
+      if (!r || !matches(rid, r)) continue;
       const ins = r.inputs.map(io => `${io.qty} ${itemDisplay(io.item)}`).join(' + ');
       const outs = r.outputs.map(io => `${io.qty} ${itemDisplay(io.item)}`).join(' + ');
       const fire = r.requires_fire ? '  🔥 (needs fire)' : '';
       write(`  ${rid}  —  ${r.display}: ${ins} → ${outs}${fire}`);
+      shown++;
     }
-    write('Type "craft <recipe_id>" to craft. Each craft awards ' + STORY.meta.sparks_per_craft + ' sparks.', 'system');
+    if (f && shown === 0) write(`(no recipes match "${f}")`, 'muted');
+    if (!f) write('Type "craft <recipe_id>" to craft. Each craft awards ' + STORY.meta.sparks_per_craft + ' sparks.', 'system');
   }, '── end of recipes ──');
 }
 
@@ -6219,6 +6438,101 @@ function _relTime(epochSec) {
   if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
   return `${Math.floor(diff/86400)}d ago`;
 }
+// Engine v0.50.2 — Tier B8: characters dialog (UI for the existing
+// `characters` CLI command). Listing, switching, forgetting, importing nsec,
+// new character. Triggered from the story picker's "👤 Characters" button.
+function showCharactersDialog() {
+  const list = loadRecentChars();
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:520px;width:100%;max-height:90vh;overflow:auto;padding:22px;';
+  const activeNsec = (typeof nsec !== 'undefined' ? nsec : '');
+  const activeName = (typeof player !== 'undefined' && player?.name) || '?';
+  const activeNpub = (typeof npubShort === 'string' ? npubShort : '?');
+  let listHtml = '';
+  if (list.length === 0) {
+    listHtml = '<div style="color:#9c9388;font-size:13px;padding:12px;text-align:center;">No saved characters on this browser yet.</div>';
+  } else {
+    listHtml = list.map((e, i) => {
+      const isActive = e.nsec === activeNsec;
+      return `<div style="padding:10px 12px;background:${isActive ? '#2a3528' : '#23201c'};border:1px solid ${isActive ? '#4a6a3a' : '#3a352e'};border-radius:4px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="flex:1;">
+          <div style="font-weight:bold;color:${isActive ? '#6dc28d' : '#e8e6e3'};">${escapeHtml(e.name || '?')}${isActive ? ' <span style="font-size:11px;font-weight:normal;">(active)</span>' : ''}</div>
+          <div style="font-size:11px;color:#9c9388;">${escapeHtml(e.npub_short || '?')} · last used ${_relTime(e.last_used_at)}</div>
+        </div>
+        <div style="display:flex;gap:4px;">
+          ${isActive ? '' : `<button data-act="switch" data-idx="${i}" style="background:#c79b3a;border:none;color:#1a1408;border-radius:3px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer;">Switch</button>`}
+          ${isActive ? '' : `<button data-act="forget" data-idx="${i}" style="background:#3a352e;border:1px solid #6a4a3a;color:#c66;border-radius:3px;padding:4px 8px;font:inherit;font-size:12px;cursor:pointer;">Forget</button>`}
+        </div>
+      </div>`;
+    }).join('');
+  }
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-size:18px;font-weight:bold;">Characters on this browser</div>
+      <button id="ch-close" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;">×</button>
+    </div>
+    <div style="color:#9c9388;font-size:13px;margin-bottom:14px;">Each character is a separate Nostr identity (nsec). Switching reloads the page; your current character is saved automatically. Character state lives on the relays — switching browsers later, just <em>import &lt;nsec&gt;</em> to bring them back.</div>
+    <div style="background:#0c0e10;border:1px solid #3a352e;border-radius:4px;padding:10px;margin-bottom:14px;font-size:12px;">
+      <div style="color:#9c9388;margin-bottom:4px;">Currently active</div>
+      <div style="color:#6dc28d;font-weight:bold;">${escapeHtml(activeName)} <span style="color:#9c9388;font-weight:normal;">${escapeHtml(activeNpub)}</span></div>
+    </div>
+    <div style="margin-bottom:10px;">${listHtml}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+      <button id="ch-import" title="Import a character by nsec key — restores their state from relays." style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;">+ Import nsec…</button>
+      <button id="ch-new" title="Start a fresh character. Wipes the current one — make sure you've saved their nsec via 'soul' first." style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;">+ New character</button>
+    </div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  function close() { overlay.remove(); }
+  panel.querySelector('#ch-close').onclick = close;
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  panel.querySelectorAll('button[data-act]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const act = btn.dataset.act;
+      const idx = parseInt(btn.dataset.idx, 10);
+      const target = list[idx];
+      if (!target) return;
+      if (act === 'switch') {
+        if (!confirm(`Switch to ${target.name}? Your current character is saved automatically. The page will reload.`)) return;
+        try {
+          recordRecentChar();
+          localStorage.setItem(STORAGE_NSEC, target.nsec);
+          localStorage.setItem(STORAGE_NSEC_CREATED, String(Date.now()));
+          localStorage.removeItem(STORAGE_STATE);
+          setTimeout(() => location.reload(), 200);
+        } catch (e) { alert('Switch failed: ' + (e?.message || e)); }
+      } else if (act === 'forget') {
+        if (!confirm(`Forget "${target.name}" from this browser? Their state stays on the relays — you can re-import via nsec later.`)) return;
+        list.splice(idx, 1);
+        saveRecentChars(list);
+        close();
+        showCharactersDialog();
+      }
+    });
+  });
+  panel.querySelector('#ch-import').onclick = () => {
+    const v = prompt('Paste an nsec to import this character:\n(format: nsec1...)');
+    if (!v) return;
+    try {
+      // Validate the nsec is well-formed before reload
+      nip19.decode(v.trim());
+      if (!confirm('Import this character? The page will reload, and your CURRENT character will remain saved on this browser.')) return;
+      recordRecentChar();
+      localStorage.setItem(STORAGE_NSEC, v.trim());
+      localStorage.setItem(STORAGE_NSEC_CREATED, String(Date.now()));
+      localStorage.removeItem(STORAGE_STATE);
+      setTimeout(() => location.reload(), 200);
+    } catch (e) { alert('Invalid nsec: ' + (e?.message || e)); }
+  };
+  panel.querySelector('#ch-new').onclick = () => {
+    close();
+    newCharacter();
+  };
+}
+
 function charactersCommand(argRaw) {
   const arg = (argRaw || '').trim();
   const list = loadRecentChars();
@@ -7047,7 +7361,11 @@ function shortRoomName(rid) {
   return last.charAt(0).toUpperCase() + last.slice(1);
 }
 
-function showMap() {
+function showMap(targetEl) {
+  // Engine v0.50.2 — Tier B9: optional targetEl. When provided, the map's
+  // wrap element is appended to it instead of the main terminal output.
+  // Enables the zoomable mapview modal.
+  const __outTarget = targetEl || out;
   const rooms = player.rooms;
   const layerOf = id => (rooms[id]?.layer || 'surface');
   const visited = [...player.visited].filter(id => rooms[id]);
@@ -7243,7 +7561,7 @@ function showMap() {
     pre.textContent = renderLayerGrid(L, positions);
     wrap.appendChild(pre);
   }
-  out.appendChild(wrap);
+  __outTarget.appendChild(wrap);
 
   const undiscovered = [];
   for (const room of player.visited) {
@@ -7257,9 +7575,119 @@ function showMap() {
     hint.className = 'line system';
     hint.style.opacity = '0.7';
     hint.textContent = `Unexplored exits: ${undiscovered.join(', ')}`;
-    out.appendChild(hint);
+    __outTarget.appendChild(hint);
   }
-  out.scrollTop = out.scrollHeight;
+  if (__outTarget === out) out.scrollTop = out.scrollHeight;
+}
+
+// Engine v0.50.2 — Tier B9: zoomable, pannable map modal.
+// Wheel = zoom (Ctrl-wheel desktop, pinch on touch). Drag to pan. Esc to close.
+function showMapModal() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99999;display:flex;flex-direction:column;align-items:stretch;font-family:inherit;';
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#1a1815;border-bottom:1px solid #3a352e;color:#e8e6e3;font-size:13px;';
+  header.innerHTML = `
+    <div>🗺 Map view <span style="color:#9c9388;font-size:11px;margin-left:8px;">scroll-wheel zoom · drag to pan · double-click to reset · Esc to close</span></div>
+    <div>
+      <button id="mv-zoom-out" title="Zoom out" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:3px;padding:3px 9px;cursor:pointer;font:inherit;font-size:12px;margin-right:4px;">−</button>
+      <span id="mv-zoom-pct" style="font-size:11px;color:#9c9388;margin:0 4px;">100%</span>
+      <button id="mv-zoom-in" title="Zoom in" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:3px;padding:3px 9px;cursor:pointer;font:inherit;font-size:12px;margin-right:8px;">+</button>
+      <button id="mv-close" style="background:#c79b3a;border:none;color:#1a1408;border-radius:3px;padding:4px 12px;cursor:pointer;font:inherit;font-weight:600;font-size:12px;">Close</button>
+    </div>
+  `;
+  overlay.appendChild(header);
+  const viewport = document.createElement('div');
+  viewport.style.cssText = 'flex:1;overflow:hidden;position:relative;background:#0c0e10;cursor:grab;';
+  const stage = document.createElement('div');
+  stage.style.cssText = 'position:absolute;left:50%;top:50%;transform-origin:0 0;transform:translate(-50%,-50%) scale(1);transition:transform 0.05s linear;color:#e8e6e3;';
+  stage.style.padding = '20px';
+  // Render map into stage
+  try { showMap(stage); }
+  catch (e) {
+    const err = document.createElement('div');
+    err.style.cssText = 'color:#c66;padding:20px;';
+    err.textContent = 'Map render failed: ' + (e?.message || e);
+    stage.appendChild(err);
+  }
+  viewport.appendChild(stage);
+  overlay.appendChild(viewport);
+  document.body.appendChild(overlay);
+
+  const stateMV = { scale: 1, dx: 0, dy: 0 };
+  const minScale = 0.4, maxScale = 4;
+  function applyTransform() {
+    stage.style.transform = `translate(calc(-50% + ${stateMV.dx}px), calc(-50% + ${stateMV.dy}px)) scale(${stateMV.scale})`;
+    const pct = header.querySelector('#mv-zoom-pct');
+    if (pct) pct.textContent = Math.round(stateMV.scale * 100) + '%';
+  }
+  function setScale(s, originX, originY) {
+    const newScale = Math.min(maxScale, Math.max(minScale, s));
+    if (newScale === stateMV.scale) return;
+    if (originX != null && originY != null) {
+      const rect = viewport.getBoundingClientRect();
+      const cx = originX - rect.left - rect.width / 2;
+      const cy = originY - rect.top - rect.height / 2;
+      const k = newScale / stateMV.scale;
+      stateMV.dx = cx - (cx - stateMV.dx) * k;
+      stateMV.dy = cy - (cy - stateMV.dy) * k;
+    }
+    stateMV.scale = newScale;
+    applyTransform();
+  }
+  // Wheel zoom (Ctrl on desktop, naked on touch trackpad pinch)
+  viewport.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setScale(stateMV.scale * delta, e.clientX, e.clientY);
+  }, { passive: false });
+  // Drag to pan
+  let dragging = false, sx = 0, sy = 0, idx0 = 0, idy0 = 0;
+  viewport.addEventListener('mousedown', (e) => {
+    if (e.target.tagName === 'BUTTON') return;
+    dragging = true; sx = e.clientX; sy = e.clientY; idx0 = stateMV.dx; idy0 = stateMV.dy;
+    viewport.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    stateMV.dx = idx0 + (e.clientX - sx);
+    stateMV.dy = idy0 + (e.clientY - sy);
+    applyTransform();
+  });
+  window.addEventListener('mouseup', () => { dragging = false; viewport.style.cursor = 'grab'; });
+  // Touch: 1-finger pan, 2-finger pinch
+  let pinchDist = 0;
+  viewport.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) { dragging = true; sx = e.touches[0].clientX; sy = e.touches[0].clientY; idx0 = stateMV.dx; idy0 = stateMV.dy; }
+    else if (e.touches.length === 2) {
+      pinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    }
+  });
+  viewport.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1 && dragging) {
+      stateMV.dx = idx0 + (e.touches[0].clientX - sx);
+      stateMV.dy = idy0 + (e.touches[0].clientY - sy);
+      applyTransform();
+    } else if (e.touches.length === 2) {
+      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      if (pinchDist > 0) {
+        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        setScale(stateMV.scale * (d / pinchDist), cx, cy);
+      }
+      pinchDist = d;
+    }
+  }, { passive: false });
+  viewport.addEventListener('touchend', () => { dragging = false; pinchDist = 0; });
+  viewport.addEventListener('dblclick', () => { stateMV.scale = 1; stateMV.dx = 0; stateMV.dy = 0; applyTransform(); });
+  // Buttons
+  header.querySelector('#mv-zoom-in').onclick = () => setScale(stateMV.scale * 1.2);
+  header.querySelector('#mv-zoom-out').onclick = () => setScale(stateMV.scale / 1.2);
+  function close() { overlay.remove(); document.removeEventListener('keydown', escHandler); }
+  function escHandler(e) { if (e.key === 'Escape') close(); }
+  header.querySelector('#mv-close').onclick = close;
+  document.addEventListener('keydown', escHandler);
 }
 
 const TUTORIAL_HINTS = {
@@ -7553,14 +7981,14 @@ function handleCommand(input) {
     case 'take': case 'get':     take(arg); break;
     case 'drop':                 drop(arg); break;
     case 'bury':                 bury(argRaw); break;
-    case 'inv': case 'inventory': case 'i': showInventory(); consumesTurn = false; break;
+    case 'inv': case 'inventory': case 'i': showInventory(argRaw); consumesTurn = false; break;
     case 'status':               showStatus(); consumesTurn = false; break;
     case 'skills': case 'sk':    showSkills(); consumesTurn = false; break;
     case 'skilltree': case 'tree': case 'st':  showSkillTree(); consumesTurn = false; break;
     case 'theme':                themeCommand(arg); consumesTurn = false; break;
     case 'fontsize': case 'font': fontsizeCommand(arg); consumesTurn = false; break;
     case 'learn':                learn(arg); break;
-    case 'recipes': case 'rec':  showRecipes(); consumesTurn = false; break;
+    case 'recipes': case 'rec':  showRecipes(argRaw); consumesTurn = false; break;
     case 'craft':                craft(arg); break;
     case 'market': case 'mkt':   showMarket(argRaw); consumesTurn = false; break;
     case 'sell':                 sell(argRaw); break;
@@ -7672,7 +8100,9 @@ function handleCommand(input) {
       showMap();
       write('');
       write('Legend:  *=you · 📦=chest · ⚠=wolves · 🔥=fire · ↑↓=stairs (up/down) · ┊=in/out · ╎=through wall', 'echo');
+      write('(Type "mapview" / "bigmap" for a fullscreen, zoomable map.)', 'echo');
     }, '── end of map ──'); consumesTurn = false; break;
+    case 'mapview': case 'bigmap': case 'mv': showMapModal(); consumesTurn = false; break;
     case 'recap': case 'last':   showRecap(); consumesTurn = false; break;
     case 'endings':              showEndings(); consumesTurn = false; break;
     case 'restart':              restartCommand(); consumesTurn = false; break;
