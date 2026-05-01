@@ -221,7 +221,7 @@
       <div class="feed" id="worldFeed"><div class="empty" data-i18n="other players' actions appear here">other players' actions appear here</div></div>
     </section>
     <section style="opacity:0.6;font-size:11px;text-align:center;border-top:1px solid var(--border);padding-top:12px;color:var(--muted);">
-      awb_🇨🇭 · 2026
+      awb_<svg viewBox="0 0 32 32" width="11" height="11" style="vertical-align:-1px;display:inline-block;border-radius:1px;"><rect width="32" height="32" fill="#d8232a"/><rect x="13" y="6" width="6" height="20" fill="#fff"/><rect x="6" y="13" width="20" height="6" fill="#fff"/></svg> · 2026
     </section>
   </aside>
 </div>
@@ -6544,10 +6544,14 @@ const out = document.getElementById('output');
 function write(text='', cls='') {
   const div = document.createElement('div');
   div.className = 'line ' + cls;
-  // If the line contains an <img ...> tag (item icons embed one), render as HTML.
-  // Other content (no <img) goes through textContent for safety. itemDisplay()
-  // escapes all dynamic text it incorporates, so this remains XSS-safe.
-  if (typeof text === 'string' && /<img\s/.test(text)) {
+  // 6.0 fix: render as HTML when the text contains either an <img ...> tag
+  // (item icons embed one) OR HTML entities (item names go through
+  // escapeHtml() — so a display like "captain's log" arrives here as
+  // "captain&#39;s log"). Previously only the <img> case was detected, so
+  // emoji-glyph items with apostrophes showed `&#39;` literally via
+  // textContent. Other content (no <img, no entities) still goes through
+  // textContent for safety. The echo path also escapes user input below.
+  if (typeof text === 'string' && (/<(?:img|svg)\s/.test(text) || /&(?:amp|lt|gt|quot|#\d+);/.test(text))) {
     div.innerHTML = text;
   } else {
     div.textContent = text;
@@ -11115,7 +11119,10 @@ function help() {
 function handleCommand(input) {
   const raw = input.trim();
   if (!raw) return;
-  write('> ' + raw, 'echo');
+  // 6.0: escape user input on echo so a typed "<img onerror=...>" can't XSS
+  // via the new entity-detecting write() path. Escaped input renders correctly
+  // via the same entity path (e.g. typed apostrophe shows as ').
+  write('> ' + escapeHtml(raw), 'echo');
   // 5.4: any typed command marks the player as "activated" — they're a real
   // player, not a tab-opener / tire-kicker. The boot-time inactive cleanup
   // and the in-session idle timer both check this flag.
@@ -11307,7 +11314,7 @@ cmdInput.addEventListener('keydown', e => {
 });
 
 write(`=== Taleforge — ${t(STORY.meta.title)} — ${ENGINE_VERSION_LABEL} ===`, 'title');
-write(`awb_🇨🇭 · 2026`, 'system');
+write(`awb_<svg viewBox="0 0 32 32" width="11" height="11" style="vertical-align:-1px;display:inline-block;border-radius:1px;"><rect width="32" height="32" fill="#d8232a"/><rect x="13" y="6" width="6" height="20" fill="#fff"/><rect x="6" y="13" width="20" height="6" fill="#fff"/></svg> · 2026`, 'system');
 write('');
 
 if (isNewCharacter) {
