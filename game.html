@@ -53,6 +53,44 @@
     0%, 100% { opacity: 1; }
     50%      { opacity: 0.5; }
   }
+  /* v0.40: post-ending modal — a story has been completed and the player is
+     deciding what to do next. Blocks input until they pick. */
+  #ending-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(8, 10, 16, 0.92); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+    animation: tf-fade-in 0.4s ease-out;
+  }
+  @keyframes tf-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  #ending-overlay .ending-card {
+    max-width: 560px; width: 100%;
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 8px;
+    box-shadow: 0 8px 40px rgba(240, 181, 74, 0.25), 0 0 0 1px var(--accent) inset;
+    padding: 28px 24px;
+    color: var(--text);
+  }
+  #ending-overlay .ending-tag { color: var(--accent); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }
+  #ending-overlay h2 { color: var(--accent); margin: 4px 0 14px; font-size: 22px; }
+  #ending-overlay .ending-title { color: var(--muted); font-style: italic; margin-bottom: 16px; }
+  #ending-overlay .ending-stats { background: var(--panel-2); padding: 12px 14px; border-radius: 4px; border-left: 3px solid var(--accent); margin: 14px 0; font-size: 13px; line-height: 1.55; }
+  #ending-overlay .ending-stats .row { display: flex; justify-content: space-between; }
+  #ending-overlay .ending-legacy { color: var(--gold); margin: 12px 0; font-size: 13px; }
+  #ending-overlay .ending-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+  #ending-overlay button {
+    width: 100%; padding: 12px 14px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    font: inherit; font-size: 14px; cursor: pointer; text-align: left;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  #ending-overlay button:hover { background: var(--panel); border-color: var(--accent); }
+  #ending-overlay button.primary { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  #ending-overlay button .sub { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; font-weight: normal; }
+  @media (max-width: 760px) {
+    #ending-overlay .ending-card { padding: 18px 14px; }
+    #ending-overlay h2 { font-size: 18px; }
+  }
 
   /* v0.37: notification toasts. Bottom-right stack, soft slide-in, click to
      dismiss, auto-fade after 5 s. Used for incoming DMs, gifts, world-event
@@ -4822,7 +4860,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.39';
+const ENGINE_VERSION_LABEL = 'v0.41';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -4925,6 +4963,55 @@ async function loadExtraStoriesIntoBuiltin() {
       // and the user can still import via the file picker.
     }
   }
+}
+
+// v0.41 engine update detection: fetch the manifest (cache-bust) and read
+// engine_version. Compare to the running ENGINE_VERSION_LABEL. Differ →
+// surface a non-blocking notice + toast prompting reload. Author bumps the
+// version field in manifest.json on every engine deploy. The browser's
+// service worker may still be serving the old game.html, so a soft reload
+// (location.reload()) usually fetches the new build; a Cmd/Ctrl-Shift-R
+// hard reload is the fallback if the SW is stubborn. We use sessionStorage
+// to suppress repeat notifications within the same tab session — the
+// reminder lands once per session, not every 10 min.
+const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
+async function checkForEngineUpdate({ silentIfSame = true } = {}) {
+  try {
+    const res = await fetch('./manifest.json', { cache: 'no-cache' });
+    if (!res.ok) return;
+    const manifest = await res.json();
+    const remote = manifest?.engine_version;
+    if (!remote || typeof remote !== 'string') return;
+    const local = ENGINE_VERSION_LABEL;
+    if (remote === local) {
+      if (!silentIfSame) write(`[Engine is on the latest: ${local}.]`, 'system');
+      return;
+    }
+    // Suppress within-session repeats — only narrate + toast once per tab.
+    const dismissed = sessionStorage.getItem(ENGINE_UPDATE_DISMISS_KEY);
+    if (dismissed === remote) return;
+    sessionStorage.setItem(ENGINE_UPDATE_DISMISS_KEY, remote);
+    write('');
+    write(`[Engine update available: ${remote} (you have ${local}). Type \`reload engine\` to fetch the new build.]`, 'spark');
+    try {
+      showToast(`Engine ${remote} is out — reload to update`, 'engine', {
+        celebrate: false,
+        tag: 'Update available',
+        subtitle: `You have ${local}. Click here or type "reload engine".`
+      });
+      // Make this specific toast tap-to-reload via a small follow-up wire.
+      const stack = document.getElementById('toast-stack');
+      const last = stack?.lastElementChild;
+      if (last) last.addEventListener('click', () => { try { reloadEngine(); } catch {} }, { once: true });
+    } catch {}
+  } catch { /* silent */ }
+}
+function reloadEngine() {
+  write('Reloading engine — your character state is saved on Nostr and locally.', 'system');
+  // Brief delay so the message renders before the page tears down.
+  setTimeout(() => {
+    try { location.reload(); } catch {}
+  }, 600);
 }
 
 // 6.0 update notification: silently fetch the active story's URL and compare
@@ -5661,7 +5748,20 @@ const player = {
   recent_kills: [],            // 5.11: last 10 entries [{ entity, turn }] — used to verify bounty claims
   bounty_claims: new Set(),    // 5.11: bounty ids the player has already claimed locally (prevents double-claim)
   world_events_progress: {},   // 5.12: { event_id: { active_day, kills:{}, items_seen:[], visited:[], completed:bool, expired:bool, completion_day } }
-  world_events_seen: new Set() // 5.12: event ids first-announced to this character
+  world_events_seen: new Set(), // 5.12: event ids first-announced to this character
+  // v0.40: per-character cross-run progression. endings_reached is a set
+  // of `${storyId}:${endingTag}` strings (e.g. "saltbound-v1:RESCUE"). Survives
+  // restart-this-story. legacy_gold / legacy_sparks are the carry-over
+  // currencies — a small fraction of the run's earned wealth survives each
+  // ending and pads the next run's starting amounts. Gives meta-progression
+  // without breaking individual-story balance.
+  endings_reached: new Set(),
+  legacy_gold: 0,
+  legacy_sparks: 0,
+  // v0.40: locked = the character has reached an ending and is awaiting the
+  // restart-or-pick decision. Most game commands refuse with a polite hint
+  // while this is true. Cleared on restart-story / switch-story.
+  ending_locked: null   // null | { story_id, story_title, tag, completed_at }
 };
 // v0.36: terminal-DOM index where the last `hunt` opened a fight. `recap`
 // slices the terminal output from this point and filters for combat/spark
@@ -6679,7 +6779,12 @@ function serializeState() {
     world_events_progress: JSON.parse(JSON.stringify(player.world_events_progress || {})),
     world_events_seen: [...(player.world_events_seen || [])],
     freshness: Object.fromEntries(Object.entries(player.freshness || {}).map(([k, batches]) => [k, batches.map(b => ({ turn: b.turn, qty: b.qty }))])),
-    rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }]))
+    rooms_state: Object.fromEntries(Object.entries(player.rooms).map(([k, r]) => [k, { items: [...(r.items || [])] }])),
+    // v0.40: cross-run progression
+    endings_reached: [...(player.endings_reached || [])],
+    legacy_gold: player.legacy_gold || 0,
+    legacy_sparks: player.legacy_sparks || 0,
+    ending_locked: player.ending_locked || null
   };
 }
 function applyState(s) {
@@ -6750,6 +6855,18 @@ function applyState(s) {
     for (const [rid, rs] of Object.entries(s.rooms_state)) {
       if (player.rooms[rid] && rs.items) player.rooms[rid].items = [...rs.items];
     }
+  }
+  // v0.40: cross-run progression. endings_reached + legacy survive
+  // restart-this-story; ending_locked is the post-ending lock state.
+  player.endings_reached = new Set(s.endings_reached || []);
+  player.legacy_gold = s.legacy_gold || 0;
+  player.legacy_sparks = s.legacy_sparks || 0;
+  player.ending_locked = s.ending_locked || null;
+  // If the player was lock-state when they last logged out, re-show the
+  // overlay so they can choose to restart or pick another story rather than
+  // being dropped back into a frozen world.
+  if (player.ending_locked) {
+    requestAnimationFrame(() => { try { showEndingOverlay(player.ending_locked); } catch {} });
   }
 }
 let __saveLocalWarned = false;
@@ -8285,6 +8402,217 @@ function syncAutoAcceptQuests() {
   }
 }
 
+// v0.40: list every ending this character has reached, across all stories.
+// Records the (story, tag) pair plus the legacy carry-over the character
+// still holds. Achievements that survive across runs.
+function showEndings() {
+  const set = player.endings_reached || new Set();
+  if (set.size === 0) {
+    write('No endings reached yet. Story endings unlock when you finish one.', 'system');
+    write(`Legacy carry-over so far: ${player.legacy_gold || 0} gold, ${player.legacy_sparks || 0} sparks.`, 'system');
+    return;
+  }
+  writeBlock('=== Endings reached ===', () => {
+    // Group by story id.
+    const byStory = new Map();
+    for (const key of set) {
+      const [sid, tag] = key.split(':');
+      if (!byStory.has(sid)) byStory.set(sid, []);
+      byStory.get(sid).push(tag);
+    }
+    for (const [sid, tags] of byStory) {
+      write(`  ${sid}`, 'system');
+      for (const t of tags) write(`    ★ ${t}`, 'success');
+    }
+    write('');
+    write(`Legacy carry-over: ${player.legacy_gold || 0} gold, ${player.legacy_sparks || 0} sparks.`, 'spark');
+    write(`(Applied as starting padding on every fresh run of any story.)`, 'system');
+  }, '── end of endings ──');
+}
+
+// v0.40: standalone summary of the carry-over wallet.
+function showLegacy() {
+  write('-- Legacy carry-over --', 'system');
+  write(`  Gold: ${player.legacy_gold || 0}`, 'gold');
+  write(`  Sparks: ${player.legacy_sparks || 0}`, 'spark');
+  write(`  Endings reached: ${(player.endings_reached || new Set()).size}`, 'system');
+  write(`Earned by completing story endings. Pads the start of every fresh run.`, 'system');
+}
+
+// v0.40: explicit `restart` command. Asks for confirmation if the player
+// hasn't reached an ending (avoids accidental wipe), or fires straight
+// through if they have (post-ending UX is "of course you want to restart").
+function restartCommand() {
+  if (player.ending_locked) {
+    restartCurrentStory();
+    return;
+  }
+  if (combatBlock('restart')) return;
+  const ok = confirm('Restart this story?\n\nThis WIPES per-run state for this character — inventory, equipment, location, life, gold, sparks, quests, riddles, fires.\nKept: name, achievements, login streak, endings reached, legacy carry-over.\nYou\'ll spawn at the starting location with story-default + legacy gold/sparks.');
+  if (!ok) { write('Cancelled.', 'system'); return; }
+  restartCurrentStory();
+}
+
+// v0.40: story ending flow. Triggered when a turnInQuest fires whose
+// completion_message carries a `>>> ENDING: TAG <<<` line. Records the
+// (story, tag) pair on the character, awards legacy carry-over, locks
+// further play behind the overlay until the player chooses restart-or-pick.
+function triggerStoryEnding(tag) {
+  const storyId = STORY?.meta?.id || 'unknown';
+  const storyTitle = (typeof STORY?.meta?.title === 'string') ? STORY.meta.title : (STORY?.meta?.title?.en || storyId);
+  const key = `${storyId}:${tag}`;
+  if (!player.endings_reached) player.endings_reached = new Set();
+  const firstTime = !player.endings_reached.has(key);
+  player.endings_reached.add(key);
+  // Convert a fraction of the run's earned wealth into legacy currency. The
+  // player keeps a slice as starting padding for the next run (the "why
+  // bother starting over" answer). 10% gold and 5% sparks of the lifetime
+  // earned in this run, plus a fixed +50 per first-time ending.
+  const goldRollover = Math.floor((player.gold || 0) * 0.10);
+  const sparksRollover = Math.floor((player.sparks || 0) * 0.05);
+  const firstTimeBonus = firstTime ? 50 : 10;
+  player.legacy_gold = (player.legacy_gold || 0) + goldRollover + firstTimeBonus;
+  player.legacy_sparks = (player.legacy_sparks || 0) + sparksRollover;
+  // Achievement-style record. Awarded once per (story, ending).
+  player.ending_locked = {
+    story_id: storyId,
+    story_title: storyTitle,
+    tag,
+    first_time: firstTime,
+    completed_at: Date.now(),
+    gold_at_end: player.gold || 0,
+    sparks_at_end: player.sparks || 0,
+    rooms_explored: (player.visited && typeof player.visited.size === 'number') ? player.visited.size : 0,
+    kills: Object.values(player.stats?.kills || {}).reduce((a, b) => a + b, 0),
+    skills_learned: (player.skills && typeof player.skills.size === 'number') ? player.skills.size : 0,
+    days_alive: Math.floor((player.turn || 0) / (STORY.meta.turns_per_day || 96)),
+    legacy_gold_awarded: goldRollover + firstTimeBonus,
+    legacy_sparks_awarded: sparksRollover
+  };
+  publishAction('ending', { story: storyId, tag, first_time: firstTime });
+  saveLocal();
+  maybePublishState(true);
+  // Delay the overlay 1.2s so the player gets to read the closing prose first.
+  setTimeout(() => { try { showEndingOverlay(player.ending_locked); } catch {} }, 1200);
+}
+
+// v0.40: post-ending modal. Surfaces:
+//  · the ending tag + story title + first-time vs repeat
+//  · a stats wrap-up of the run (rooms, kills, skills, days, gold/sparks)
+//  · the legacy carry-over awarded
+//  · three actions: restart this story, pick a different story, dismiss
+function showEndingOverlay(info) {
+  if (!info) return;
+  // Avoid double-mounting if the player triggered ending twice somehow.
+  const existing = document.getElementById('ending-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'ending-overlay';
+  const card = document.createElement('div');
+  card.className = 'ending-card';
+  const tagEl = document.createElement('div'); tagEl.className = 'ending-tag';
+  tagEl.textContent = `Ending — ${info.tag}` + (info.first_time ? ' · first time!' : ' · revisited');
+  const h = document.createElement('h2'); h.textContent = info.story_title;
+  const sub = document.createElement('div'); sub.className = 'ending-title';
+  sub.textContent = info.first_time ? 'A new chapter closes for this character.' : 'You\'ve walked this road before.';
+  const stats = document.createElement('div'); stats.className = 'ending-stats';
+  const rows = [
+    ['Days alive', String(info.days_alive)],
+    ['Rooms explored', String(info.rooms_explored)],
+    ['Kills', String(info.kills)],
+    ['Skills learned', String(info.skills_learned)],
+    ['Gold at end', String(info.gold_at_end)],
+    ['Sparks at end', String(info.sparks_at_end)]
+  ];
+  for (const [k, v] of rows) {
+    const r = document.createElement('div'); r.className = 'row';
+    r.innerHTML = `<span style="color:var(--muted);">${k}</span><span>${v}</span>`;
+    stats.appendChild(r);
+  }
+  const legacy = document.createElement('div'); legacy.className = 'ending-legacy';
+  legacy.innerHTML = `★ Legacy awarded to your character: <strong>+${info.legacy_gold_awarded}</strong> legacy gold, <strong>+${info.legacy_sparks_awarded}</strong> legacy sparks.<br><span style="color:var(--muted);">Total carried forward — gold: ${player.legacy_gold || 0}, sparks: ${player.legacy_sparks || 0}.</span>`;
+  const actions = document.createElement('div'); actions.className = 'ending-actions';
+  const btnRestart = document.createElement('button'); btnRestart.className = 'primary';
+  btnRestart.innerHTML = `↻ Start a new run of "${info.story_title}"<span class="sub">Resets inventory, location, life, sparks, gold, quests, riddles. Keeps name, achievements, login streak, endings reached, legacy carry-over.</span>`;
+  btnRestart.addEventListener('click', () => { try { overlay.remove(); } catch {} restartCurrentStory(); });
+  const btnPick = document.createElement('button');
+  btnPick.innerHTML = `≡ Pick a different story<span class="sub">Open the story picker. Your character keeps everything; the lock applies only to this story until you restart it.</span>`;
+  btnPick.addEventListener('click', () => {
+    try { overlay.remove(); } catch {}
+    // Story switch — keep the lock so the player can't accidentally land
+    // back here mid-game; clearing happens on actual story-switch.
+    try { showStoryPicker(STORY?.meta?.id || null); } catch {}
+  });
+  const btnDismiss = document.createElement('button');
+  btnDismiss.innerHTML = `× Stay and re-read<span class="sub">Close this dialog. Most commands will refuse with a hint until you restart or switch.</span>`;
+  btnDismiss.addEventListener('click', () => { try { overlay.remove(); } catch {} });
+  actions.append(btnRestart, btnPick, btnDismiss);
+  card.append(tagEl, h, sub, stats, legacy, actions);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
+
+// v0.40: restart this story. Wipes per-run state but keeps cross-run fields.
+// Per-run wipe: location → starting_location, life → max, inventory empty,
+// materials empty, equipment empty, gold/sparks reset to story base + legacy
+// padding, quests cleared (auto_accepts re-seed via syncAutoAcceptQuests on
+// next tick), riddles_solved cleared, fires/chests/combat cleared.
+// Kept: name, nsec, achievements, login streak, endings_reached, legacy,
+// renown (a character-level reputation), tutorial_seen.
+function restartCurrentStory() {
+  const meta = STORY?.meta || {};
+  // Wipe per-run state.
+  player.inventory = [];
+  player.materials = {};
+  player.equipment = {};
+  player.skills = new Set(meta.starting_skills || []);
+  player.riddles_solved = new Set();
+  player.fires = new Map();
+  player.chests = new Map();
+  player.quests = {};
+  player.edges = new Map();
+  player.flags = new Set();
+  player.companion = null;
+  player.events_fired = new Set();
+  player.location = meta.starting_location;
+  player.visited = new Set([meta.starting_location]);
+  player.life = meta.starting_life || meta.life_max || 100;
+  player.life_max = meta.life_max || 100;
+  // Per-run gold/sparks: story default + legacy carry-over (does NOT zero
+  // out legacy; legacy is the running total, applied to every fresh run).
+  player.gold = (meta.starting_gold || 0) + (player.legacy_gold || 0);
+  player.sparks = (meta.starting_sparks || 0) + (player.legacy_sparks || 0);
+  player.turn = 0;
+  player.weather_day = 0;
+  player.daily_quest_active = null;
+  player.daily_quest_day = 0;
+  player.combat_target = null;
+  player.combat_id = null;
+  player.transformed = null;
+  player.dialog_session = null;
+  player.world_events_progress = {};
+  player.world_events_seen = new Set();
+  player.freshness = {};
+  // Reset room-level item state to whatever the story declares.
+  for (const [rid, r] of Object.entries(STORY.rooms || {})) {
+    if (player.rooms[rid]) player.rooms[rid].items = [...(r.items || [])];
+  }
+  // Stats: keep cross-run achievements + lifetime totals; reset per-run only.
+  if (!player.stats) player.stats = { kills: {}, gold_earned: 0, sparks_earned: 0, deaths: 0, quests_completed: 0, crafts: 0, riddles_solved: 0, crafts_per_recipe: {} };
+  // Don't reset stats — they're lifetime per character. Just keep moving.
+  // Clear the lock + show a fresh banner.
+  player.ending_locked = null;
+  out.innerHTML = '';
+  write(`=== A new run of ${t(meta.title) || meta.id || 'this story'} ===`, 'title');
+  if (player.legacy_gold || player.legacy_sparks) {
+    write(`★ Legacy carry-over applied: +${player.legacy_gold} gold, +${player.legacy_sparks} sparks.`, 'spark');
+  }
+  describeRoom();
+  refreshSidebar();
+  saveLocal();
+  maybePublishState(true);
+}
+
 let __dying = false;
 function handleDeath(cause) {
   if (__dying) return;  // already in progress — guard against re-entry
@@ -8456,6 +8784,30 @@ function combatBlock(action) {
   const allowed = ['attack','flee','look','l','status','stats','inv','inventory','i','help','?','clear','eat','use','map','m'];
   if (allowed.includes(action)) return false;
   write(`The ${player.combat_target.display} blocks the path. Attack or flee.`, 'combat');
+  return true;
+}
+// v0.40: post-ending lock. Most commands refuse with a hint while the
+// player is sitting on a finished ending. They can still look around,
+// re-read the story stats, and trigger the overlay back up — but movement,
+// combat, crafting, etc. are all blocked. Cleared by restartCurrentStory()
+// or by switching to a different story.
+function endingBlock(action) {
+  if (!player.ending_locked) return false;
+  // The lock is story-specific. If the player switched to a different
+  // story while locked, clear the lock — they're playing fresh content now.
+  if (player.ending_locked.story_id !== STORY?.meta?.id) {
+    player.ending_locked = null;
+    return false;
+  }
+  // Always-allowed commands so the player isn't trapped without a way out.
+  const allowed = new Set([
+    'look','l','help','?','clear','status','stats','inv','inventory','i',
+    'achievements','ach','soul','characters','switch','stories','rename','lang','tutorial',
+    'feed','recap','last','quests','q','endings','restart','legacy','map','m','bestiary'
+  ]);
+  if (allowed.has(action)) return false;
+  write(`>>> You\'ve completed this story (${player.ending_locked.tag}). Most actions are paused until you restart or switch.`, 'error');
+  write(`Type "restart" to begin a new run, "stories" to pick a different world, or "endings" to see your record.`, 'system');
   return true;
 }
 
@@ -9916,6 +10268,15 @@ function turnInQuest(qid) {
   for (const ri of (r.items || [])) reward_parts.push(`${ri.qty} ${itemDisplay(ri.item)}`);
   if (reward_parts.length) write(`Rewards: ${reward_parts.join(', ')}`, 'spark');
   publishAction('quest_complete', { quest: qid });
+  // v0.40: scan completion_message for `>>> ENDING: TAG <<<` markers. When
+  // present, this quest IS the story's ending — record it on the character
+  // and lock further play behind the post-ending overlay.
+  const completionRaw = typeof q.completion_message === 'string' ? q.completion_message : (q.completion_message?.en || '');
+  const endMatch = /^>>>\s*ENDING:\s*([A-Za-z0-9_\-]+)\s*<<<$/m.exec(completionRaw);
+  if (endMatch) {
+    const tag = endMatch[1].toUpperCase();
+    triggerStoryEnding(tag);
+  }
 }
 // ============================================================
 //  SCRIPTED EVENTS
@@ -12430,7 +12791,8 @@ function helpImpl(filterQ) {
     T('Cooperation:     give <item> to <name> [message]'),
     T('                 gifts / offers · claim <id> · decline <id>'),
     T('                 heal <name>  (uses one healing salve from your inventory)'),
-    T('Identity:        soul (show your nsec) · import <nsec> · new character (fresh start)'),
+    T('Identity:        soul (show your nsec) · import <nsec> · new character (fresh start) · restart (this story only)'),
+    T('Run history:     endings  (list endings reached) · legacy  (carry-over wallet)'),
     T('                 rename <new_name>  (change your visible name)'),
     T('                 characters  (recently used on this browser; switch with "characters <#>")'),
     T('Worlds:          switch story · stories  (list/switch story files)'),
@@ -12440,6 +12802,7 @@ function helpImpl(filterQ) {
     T('Tutorial:        tutorial  (beginner\'s guide)  ·  tutorial topics / topic <name>  (replay one)  ·  tutorial off  (silence hints)'),
     T('Feedback:        bug / report  (open a bug-report dialog)'),
     T('Updates:         reload story  (fetch the latest version of the active story without losing progress)'),
+    T('                 reload engine  (fetch the latest engine build — page reload, your character is safe)'),
     T('Misc:            clear · help · help <topic>  (filter by keyword, e.g. "help combat" / "help market")')
   ];
   // v0.35: routed through writeBlock() so the same scroll-to-top + sentinel
@@ -12496,6 +12859,11 @@ function handleCommand(input) {
   if (DIR_INPUT_ALIASES[cmd]) cmd = DIR_INPUT_ALIASES[cmd];
   // Translate DE command verbs on input (jagen → hunt, helfen → assist, etc.)
   if (COMMAND_ALIASES[cmd]) cmd = COMMAND_ALIASES[cmd];
+  // v0.40: post-ending lock. Refuse most commands while the player has a
+  // finished ending pending a restart-or-pick decision. Movement, combat,
+  // crafting, etc. are all blocked; informational + identity commands plus
+  // the explicit `restart` / `endings` / `stories` exits remain open.
+  if (endingBlock(cmd)) return;
   const dirAlias = { n:'north', s:'south', e:'east', w:'west', u:'up', d:'down',
                      ...DIR_INPUT_ALIASES };
 
@@ -12560,11 +12928,27 @@ function handleCommand(input) {
     case 'read':                 readItem(arg); break;
     case 'examine': case 'inspect': case 'x':  examineItem(arg); consumesTurn = false; break;
     case 'reload': case 'update':
-      if (arg === 'story' || arg === '' || arg === undefined) { reloadStory(); consumesTurn = false; }
-      else write(`Reload what? Try "reload story".`, 'error');
+      if (arg === 'story') { reloadStory(); consumesTurn = false; }
+      else if (arg === 'engine') { reloadEngine(); consumesTurn = false; }
+      else if (arg === '' || arg === undefined) {
+        // v0.41: bare "reload" / "update" — prefer engine if a newer one is
+        // available, else fall through to story.
+        try { checkForEngineUpdate({ silentIfSame: true }); } catch {}
+        reloadStory();
+        consumesTurn = false;
+      } else {
+        write(`Reload what? Try "reload story" or "reload engine".`, 'error');
+      }
       break;
     case 'tame':                 tameAttempt(); break;
-    case 'feed':                 feedCompanion(); break;
+    case 'feed':
+      // v0.39 + v0.41 reconciliation: `feed` originally fed a companion.
+      // The chat-feed filter (v0.39) added `feed <channel>` semantics.
+      // Route by arg: a known channel name → showFeed(); anything else
+      // (including no arg) → feedCompanion (legacy behaviour).
+      if (arg && (arg in FEED_CHANNELS)) { showFeed(argRaw); consumesTurn = false; }
+      else { feedCompanion(); }
+      break;
     case 'companion': case 'pet':showCompanion(); consumesTurn = false; break;
     case 'dismiss':              dismissCompanion(); break;
     case 'stats':                showStats(); consumesTurn = false; break;
@@ -12635,7 +13019,10 @@ function handleCommand(input) {
       write('Legend:  *=you · 📦=chest · ⚠=wolves · 🔥=fire · ↑↓=stairs (up/down) · ┊=in/out · ╎=through wall', 'echo');
     }, '── end of map ──'); consumesTurn = false; break;
     case 'recap': case 'last':   showRecap(); consumesTurn = false; break;
-    case 'feed':                 showFeed(argRaw); consumesTurn = false; break;
+    // v0.40: cross-run progression commands.
+    case 'endings':              showEndings(); consumesTurn = false; break;
+    case 'restart':              restartCommand(); consumesTurn = false; break;
+    case 'legacy':               showLegacy(); consumesTurn = false; break;
     case 'help': case '?':       help(argRaw); consumesTurn = false; break;
     case 'tutorial': case 'guide': tutorialCommand(argRaw); consumesTurn = false; break;
     case 'clear':                out.innerHTML = ''; consumesTurn = false; break;
@@ -12737,7 +13124,7 @@ const STATIC_VERBS = [
   'who','give','gifts','offers','claim','decline','heal','soul','import','rename','characters',
   'switch','stories','relay','lang','tutorial','bug','report','reload','clear','help','map',
   'go','n','s','e','w','u','d','in','out','north','south','east','west','up','down',
-  'donate','support','recap','last','complete','finish','feed'
+  'donate','support','recap','last','complete','finish','feed','endings','restart','legacy'
 ];
 // v0.36: tiny Levenshtein for fuzzy "did you mean" suggestions. Caps the
 // matrix at ~30×30 since verbs are short — perfectly fine for runtime use.
@@ -12898,6 +13285,11 @@ write('');
 // latest version. Bundled stories skipped (no remote URL to compare against).
 setTimeout(() => { try { checkForStoryUpdate({ silentIfSame: true }); } catch {} }, 8000);
 setInterval(() => { try { checkForStoryUpdate({ silentIfSame: true }); } catch {} }, 10 * 60 * 1000);
+// v0.41: same cadence for engine update detection — 8s after boot, every
+// 10 min after that, plus a check on tab focus. Manifest is small (a few
+// hundred bytes) so the network cost is negligible.
+setTimeout(() => { try { checkForEngineUpdate({ silentIfSame: true }); } catch {} }, 8000);
+setInterval(() => { try { checkForEngineUpdate({ silentIfSame: true }); } catch {} }, 10 * 60 * 1000);
 // Also: check the moment the tab regains focus, but throttled so a player
 // idly toggling tabs doesn't hammer the relay/CDN. 60-second floor between
 // visibility-triggered checks.
@@ -12908,6 +13300,7 @@ document.addEventListener('visibilitychange', () => {
   if (now - __lastVisCheck < 60_000) return;
   __lastVisCheck = now;
   try { checkForStoryUpdate({ silentIfSame: true }); } catch {}
+  try { checkForEngineUpdate({ silentIfSame: true }); } catch {}
 });
 
 if (isNewCharacter) {
