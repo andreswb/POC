@@ -5,7 +5,7 @@
     "title": "The Whispering Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.15.0",
+    "version": "1.16.0",
     "created_at": "2026-04-28T00:00:00Z",
     "language": "en",
     "tone": "eerie, sensory, hopeful undertones; never explain too much; favor sound and texture over exposition",
@@ -2015,9 +2015,19 @@
       "description": "A small bound book in the hermit's hand. Rough paper, careful ink. Notes on tides, on moons, on which fern unfurls when.",
       "read_text": "On the year as the forest keeps it.\n\nFirst the snowdrop, then the windflower, then the ferns unfold by the third warm day. The deer come down to the clearing the morning after the last frost; they will not come down sooner, and they will not wait longer.\n\nThe canyon dries earliest. The frozen lake breaks last. The hermit's glade keeps its dew until midday year-round; this is not weather, this is the glade.\n\nOn the question at the peak.\n\nIt is asked of every visitor. The wind chooses the words; the visitor chooses the answer. There is no wrong answer that is also honest. There is no honest answer that is also small.\n\nOn the silver herb.\n\nIt grows where the moss makes a perfect circle. The circle was not made by the herb; the herb finds the circle. Do not pull more than one in a season. The forest counts.\n\n— H.",
       "on_read": [
-        {"type": "set_flag", "flag": "read_almanac"},
-        {"type": "spark_award", "qty": 8},
-        {"type": "narrate", "text": ">>> The hermit's hand is small and exact. You close the book and the glade feels half a degree warmer.", "cls": "spark"}
+        {
+          "type": "set_flag",
+          "flag": "read_almanac"
+        },
+        {
+          "type": "spark_award",
+          "qty": 8
+        },
+        {
+          "type": "narrate",
+          "text": ">>> The hermit's hand is small and exact. You close the book and the glade feels half a degree warmer.",
+          "cls": "spark"
+        }
       ],
       "value": 0,
       "weight": 0.2,
@@ -2035,9 +2045,19 @@
       "description": "A leather-bound work-book on the smith's bench. Names of customers, weights of iron, debts written and crossed.",
       "read_text": "Greenmeadow Forge — accounts, third quarter.\n\nE. paid the dagger debt with two cords of split pine; squared.\nM. owes the wheel-iron until the lambs sell. Honest.\nThe stranger from the canyon paid in cut silver. I did not ask where she got it. I did not ask twice.\n\nA note for whoever takes this forge after me.\n\nIron will tell you when it is ready. You do not need to listen — you need to stop talking. The colour of true heat is the colour the colour of straw, then the colour of a sunset reflected in a kettle. After that you have lost the iron.\n\nTrue work is half holding still. The other half is patience for the holding.\n\n— L., the village smith.",
       "on_read": [
-        {"type": "set_flag", "flag": "read_ledger"},
-        {"type": "spark_award", "qty": 6},
-        {"type": "narrate", "text": ">>> Iron and ledger and patience. You set the book down where you found it.", "cls": "spark"}
+        {
+          "type": "set_flag",
+          "flag": "read_ledger"
+        },
+        {
+          "type": "spark_award",
+          "qty": 6
+        },
+        {
+          "type": "narrate",
+          "text": ">>> Iron and ledger and patience. You set the book down where you found it.",
+          "cls": "spark"
+        }
       ],
       "value": 0,
       "weight": 0.3,
@@ -2055,9 +2075,19 @@
       "description": "A weather-stained field journal kept by the lake. Snare counts, weather marks, brief notes in a tracker's hand.",
       "read_text": "Frozen Lake — winter notes.\n\nThe ice wolves are not the forest's wolves. They do not hunt in packs and they do not howl. They walk to where you will be in three minutes, not where you are. Set the snare three minutes ahead.\n\nFur from one ice wolf is worth four common pelts in the village; six in Greycliffs.\n\nThe lake speaks at night. It is not the lake. It is the air pulling under the ice, looking for an exit. Some travellers think it is a voice. The voice is theirs.\n\nIf you see the white shape that walks on two legs, do not raise a weapon. Stand still. It is older than this lake. Some seasons it nods. Some seasons it does not. It has never crossed the shore-line in my forty winters here.\n\n— T., trapper.",
       "on_read": [
-        {"type": "set_flag", "flag": "read_trapper_journal"},
-        {"type": "spark_award", "qty": 10},
-        {"type": "narrate", "text": ">>> The trapper writes the way she works: short, exact, no extra step.", "cls": "spark"}
+        {
+          "type": "set_flag",
+          "flag": "read_trapper_journal"
+        },
+        {
+          "type": "spark_award",
+          "qty": 10
+        },
+        {
+          "type": "narrate",
+          "text": ">>> The trapper writes the way she works: short, exact, no extra step.",
+          "cls": "spark"
+        }
       ],
       "value": 0,
       "weight": 0.2,
@@ -2147,10 +2177,22 @@
             "Welcome to the cart. Buying, selling, or just listening today?"
           ],
           "choices": [
-            {"label": "What's the news on the road?", "goto": "rumors"},
-            {"label": "What's been moving in the forest?", "goto": "forest_news"},
-            {"label": "Tell me about the hamlets.", "goto": "hamlets"},
-            {"label": "Goodbye.", "end": true}
+            {
+              "label": "What's the news on the road?",
+              "goto": "rumors"
+            },
+            {
+              "label": "What's been moving in the forest?",
+              "goto": "forest_news"
+            },
+            {
+              "label": "Tell me about the hamlets.",
+              "goto": "hamlets"
+            },
+            {
+              "label": "Goodbye.",
+              "end": true
+            }
           ]
         },
         "rumors": {
@@ -2159,7 +2201,10 @@
             "And the hermit has not been to market in a moon. Some take that as a sign. I take it as the hermit being the hermit."
           ],
           "choices": [
-            {"label": "Back.", "goto": "default"}
+            {
+              "label": "Back.",
+              "goto": "default"
+            }
           ]
         },
         "forest_news": {
@@ -2168,10 +2213,16 @@
             "Something out by the frozen lake is making the trapper short with strangers. That's not like her."
           ],
           "effects": [
-            {"type": "set_flag", "flag": "merchant_warned_lake"}
+            {
+              "type": "set_flag",
+              "flag": "merchant_warned_lake"
+            }
           ],
           "choices": [
-            {"label": "Back.", "goto": "default"}
+            {
+              "label": "Back.",
+              "goto": "default"
+            }
           ]
         },
         "hamlets": {
@@ -2180,7 +2231,10 @@
             "And the village here — well. You've seen the village."
           ],
           "choices": [
-            {"label": "Back.", "goto": "default"}
+            {
+              "label": "Back.",
+              "goto": "default"
+            }
           ]
         }
       }
@@ -2467,10 +2521,22 @@
             "Sit, if you like. The fern is dry and the kettle remembers."
           ],
           "choices": [
-            {"label": "Tell me about the forest.", "goto": "forest_lore"},
-            {"label": "Tell me about the peak.", "goto": "peak_lore"},
-            {"label": "Why do you live alone here?", "goto": "hermit_self"},
-            {"label": "Goodbye.", "end": true}
+            {
+              "label": "Tell me about the forest.",
+              "goto": "forest_lore"
+            },
+            {
+              "label": "Tell me about the peak.",
+              "goto": "peak_lore"
+            },
+            {
+              "label": "Why do you live alone here?",
+              "goto": "hermit_self"
+            },
+            {
+              "label": "Goodbye.",
+              "end": true
+            }
           ]
         },
         "forest_lore": {
@@ -2479,7 +2545,10 @@
             "Walk softly. Take what you need. Leave what you do not. The forest is a long memory; it forgets nothing and forgives most things."
           ],
           "choices": [
-            {"label": "Back.", "goto": "default"}
+            {
+              "label": "Back.",
+              "goto": "default"
+            }
           ]
         },
         "peak_lore": {
@@ -2488,10 +2557,16 @@
             "Some who come back will not say what was asked. Some say only their answer. A few — the rare few — say nothing at all and seem the better for it."
           ],
           "effects": [
-            {"type": "set_flag", "flag": "hermit_warned_peak"}
+            {
+              "type": "set_flag",
+              "flag": "hermit_warned_peak"
+            }
           ],
           "choices": [
-            {"label": "Back.", "goto": "default"}
+            {
+              "label": "Back.",
+              "goto": "default"
+            }
           ]
         },
         "hermit_self": {
@@ -2500,7 +2575,10 @@
             "The glade is what I have now. It is enough. Sometimes more."
           ],
           "choices": [
-            {"label": "Back.", "goto": "default"}
+            {
+              "label": "Back.",
+              "goto": "default"
+            }
           ]
         }
       }
@@ -2555,10 +2633,22 @@
             "Ah. A face that's not the wind. Sit by the lean-to a moment if you've a mind to talk."
           ],
           "choices": [
-            {"label": "Tell me about the ice wolves.", "goto": "ice_wolves"},
-            {"label": "Tell me about the lake at night.", "goto": "lake_night"},
-            {"label": "Have you seen anything strange lately?", "goto": "strange"},
-            {"label": "Goodbye.", "end": true}
+            {
+              "label": "Tell me about the ice wolves.",
+              "goto": "ice_wolves"
+            },
+            {
+              "label": "Tell me about the lake at night.",
+              "goto": "lake_night"
+            },
+            {
+              "label": "Have you seen anything strange lately?",
+              "goto": "strange"
+            },
+            {
+              "label": "Goodbye.",
+              "end": true
+            }
           ]
         },
         "ice_wolves": {
@@ -2567,10 +2657,16 @@
             "Set the snare three minutes ahead, and walk slow. They watch slow."
           ],
           "effects": [
-            {"type": "set_flag", "flag": "trapper_taught_icewolves"}
+            {
+              "type": "set_flag",
+              "flag": "trapper_taught_icewolves"
+            }
           ],
           "choices": [
-            {"label": "Back.", "goto": "default"}
+            {
+              "label": "Back.",
+              "goto": "default"
+            }
           ]
         },
         "lake_night": {
@@ -2579,7 +2675,10 @@
             "It is. But the voice is theirs, not the lake's. Carry your own quiet here, you'll be all right."
           ],
           "choices": [
-            {"label": "Back.", "goto": "default"}
+            {
+              "label": "Back.",
+              "goto": "default"
+            }
           ]
         },
         "strange": {
@@ -2588,10 +2687,16 @@
             "It hasn't crossed the shore in forty winters. If it does — you'll know. And there'll be no need to ask me again."
           ],
           "effects": [
-            {"type": "set_flag", "flag": "trapper_warned_white_shape"}
+            {
+              "type": "set_flag",
+              "flag": "trapper_warned_white_shape"
+            }
           ],
           "choices": [
-            {"label": "Back.", "goto": "default"}
+            {
+              "label": "Back.",
+              "goto": "default"
+            }
           ]
         }
       }
@@ -2605,7 +2710,7 @@
         "candle",
         "a candle"
       ],
-      "reward_sparks": 50,
+      "reward_sparks": 30,
       "on_solve_message": "The voice murmurs in approval. The walls glow brighter.",
       "repeatable": false
     },
@@ -2616,7 +2721,7 @@
         "river",
         "a river"
       ],
-      "reward_sparks": 60,
+      "reward_sparks": 40,
       "on_solve_message": "The pool flares with a soft green light.",
       "repeatable": false
     },
@@ -2627,7 +2732,7 @@
         "echo",
         "an echo"
       ],
-      "reward_sparks": 70,
+      "reward_sparks": 50,
       "on_solve_message": "The wind picks up. The columns hum once with your answer and let it go.",
       "repeatable": false
     },
@@ -2638,7 +2743,7 @@
         "breath",
         "a breath"
       ],
-      "reward_sparks": 80,
+      "reward_sparks": 50,
       "reward_items": [
         {
           "item": "broken_sword",
@@ -2654,7 +2759,7 @@
       "answers": [
         "silence"
       ],
-      "reward_sparks": 90,
+      "reward_sparks": 60,
       "on_solve_message": "The marsh goes still. Even the birds hold for a moment. The reeds bow once toward you.",
       "repeatable": false
     },
@@ -2665,7 +2770,7 @@
         "tomorrow",
         "the future"
       ],
-      "reward_sparks": 100,
+      "reward_sparks": 70,
       "on_solve_message": "The wind on the peak holds for a long second, then lets out a long warm sigh.",
       "repeatable": false
     },
@@ -2676,7 +2781,7 @@
         "a coin",
         "coin"
       ],
-      "reward_sparks": 80,
+      "reward_sparks": 60,
       "on_solve_message": "A wave breaks below. Salt-light glints across the rock at your feet.",
       "repeatable": false
     },
@@ -2688,7 +2793,7 @@
         "steel",
         "metal"
       ],
-      "reward_sparks": 120,
+      "reward_sparks": 80,
       "reward_items": [
         {
           "item": "iron_ingot",
@@ -2706,7 +2811,7 @@
         "steps",
         "footprints"
       ],
-      "reward_sparks": 130,
+      "reward_sparks": 90,
       "on_solve_message": "The grove sighs. Light shifts between the oaks. The moss at your feet has spelled out something kind, and is already forgetting it.",
       "repeatable": false
     },
@@ -2721,7 +2826,7 @@
         "beacon",
         "a beacon"
       ],
-      "reward_sparks": 110,
+      "reward_sparks": 70,
       "on_solve_message": "Far below, a wave breaks. The empty lantern frame hums for a long moment, and a pale glow stirs once where a flame used to be.",
       "repeatable": false
     },
@@ -2735,7 +2840,7 @@
         "the ice",
         "the frost"
       ],
-      "reward_sparks": 80,
+      "reward_sparks": 60,
       "on_solve_message": "Beneath the ice, something brightens. A frost crystal floats up and clinks against the surface.",
       "reward_items": [
         {
