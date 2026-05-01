@@ -5,7 +5,7 @@
     "title": "The Hollow Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.2.1",
+    "version": "1.2.2",
     "created_at": "2026-04-30T00:00:00Z",
     "language": "en",
     "languages": [
@@ -1171,7 +1171,13 @@
     "lost_sister_journal": {
       "display": "the lost sister's journal",
       "article": "a",
-      "description": "A small leather book in a girl's hand. Last entry: 'I will go to the graveyard tonight. I will not let the Count have her too.'",
+      "description": "A small leather book in a girl's hand. The last entry is unfinished.",
+      "read_text": "3 December.\nMother sleeps poorly. The watchman walked past three times after midnight; I counted his lantern. Marta says the watchman is a good man. He is, but the village is not. Something is wrong here that nobody will say out loud.\n\n11 December.\nHilde did not come back. The trench is fresh and there is no name on it yet. The priest says she 'wandered'. Hilde never wandered in her life.\n\n19 December.\nThe Count has invited me to climb. Marta found the note pinned to my door. He writes very neatly. He invites me by name. We are not those kind of people. I should not be on his list.\n\n26 December.\nThey took Marta tonight. I do not know which of them — the wolves or him. The watchman walked past four times. He counted his rounds; I counted them too. He never went up the path.\n\n27 December.\nI will go to the graveyard tonight. I will not let the Count have her too. If I do not come back, do not look for me at the lake.\n\n— Lise",
+      "on_read": [
+        {"type": "set_flag", "flag": "read_journal"},
+        {"type": "spark_award", "qty": 8},
+        {"type": "narrate", "text": ">>> A child's hand, kept careful even as it broke. You close the journal and listen to the wind in the chapel rafters.", "cls": "spark"}
+      ],
       "value": 0,
       "weight": 0.2,
       "tags": ["lore", "trinket"],

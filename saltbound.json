@@ -5,7 +5,7 @@
     "title": "Saltbound",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.0.4",
+    "version": "1.0.5",
     "created_at": "2026-05-01T00:00:00Z",
     "language": "en",
     "languages": ["en"],
@@ -832,7 +832,13 @@
     "captains_log": {
       "display": "captain's log",
       "article": "a",
-      "description": "The brig Helena, out of Valparaíso, bound Sydney. Salt-bloated, but legible at the edges. Last entry, dated 14 March 1850: 'we were not blown here. The island wanted us. The chart shows nothing. The chart is wrong. — Capt. Auer'",
+      "description": "The brig Helena, out of Valparaíso, bound Sydney. Salt-bloated, but legible at the edges. Last entry, dated 14 March 1850.",
+      "read_text": "14 February 1850.\nThree weeks out of Valparaíso. Fair weather, fair wind. The mate's gout is the worst of our complaints. We are making good time on a southwesterly bearing.\n\n22 February.\nCourse adjusted thirty points southerly per the merchant's request. The chart is light on detail this far out — we trust dead-reckoning and the lookout. Sails are good; men are well.\n\n01 March.\nA bird the lookout cannot name has followed us three days running. Pale, larger than a gull, silent. The men are uneasy. I tell them gulls are gulls. They look at the bird, and not at me.\n\n09 March.\nLast sight of any land twelve days behind us. The chart shows open water for two hundred miles in every direction. The lookout sees something on the horizon at dusk that is not there at dawn. The mate believes him.\n\n13 March.\nA black line on the southern horizon at noon. By the third bell it is closer; by the fourth it is reef. We change course; the reef is also there to the east. We change again; the reef is to the north. The chart still shows open water.\n\n14 March.\nWe were not blown here. The island wanted us. The chart shows nothing. The chart is wrong. The men have started seeing the bird again. I have given the order to make for the southerly inlet at first light. May God hold this ship together until then.\n\n— Capt. M. Auer",
+      "on_read": [
+        {"type": "set_flag", "flag": "read_captains_log"},
+        {"type": "spark_award", "qty": 10},
+        {"type": "narrate", "text": ">>> The captain's hand gets steadier on the page as the entries get worse. As if he was making peace with what he could see.", "cls": "spark"}
+      ],
       "value": 0,
       "weight": 0.3,
       "tags": ["lore"],
