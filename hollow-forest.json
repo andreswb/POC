@@ -5,7 +5,7 @@
     "title": "The Hollow Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.3.0",
+    "version": "1.4.0",
     "created_at": "2026-04-30T00:00:00Z",
     "language": "en",
     "languages": [
@@ -121,6 +121,12 @@
     },
     "world_event_pool": [
       "blood_moon"
+    ],
+    "daily_quest_pool": [
+      "daily_dawn_revenants",
+      "daily_three_pelts",
+      "daily_silver_dust",
+      "daily_holy_water_run"
     ]
   },
   "rooms": {
@@ -3081,6 +3087,54 @@
       ],
       "rewards": {"gold": 40, "sparks": 20, "items": [{"item": "brewed_restorative", "qty": 2}]},
       "completion_message": "The priest reads the last entry, then closes the book gently. He does not look up for some time. 'Thank you. There was something I had not let myself know.'"
+    },
+    "daily_dawn_revenants": {
+      "title": "Dawn Revenants",
+      "description": "End two revenants before sunset. The trench is fresh again.",
+      "giver": null,
+      "auto_accept": true,
+      "recurrence": "daily",
+      "objectives": [
+        {"type": "kill", "entity": "revenant", "qty": 2}
+      ],
+      "rewards": {"gold": 18, "sparks": 8, "items": []},
+      "completion_message": "The trench is quieter for a day. The watchman nods once when you pass."
+    },
+    "daily_three_pelts": {
+      "title": "Three Pelts",
+      "description": "The hunter wants three wolf pelts before dusk. She doesn't ask where they come from.",
+      "giver": null,
+      "auto_accept": true,
+      "recurrence": "daily",
+      "objectives": [
+        {"type": "have_item", "item": "wolf_pelt", "qty": 3}
+      ],
+      "rewards": {"gold": 30, "sparks": 6, "items": []},
+      "completion_message": "She weighs them, nods once, and pays without small talk."
+    },
+    "daily_silver_dust": {
+      "title": "Silver Dust Run",
+      "description": "Bring the smith four pinches of silver dust before the forge cools.",
+      "giver": null,
+      "auto_accept": true,
+      "recurrence": "daily",
+      "objectives": [
+        {"type": "have_item", "item": "silver_dust", "qty": 4}
+      ],
+      "rewards": {"gold": 24, "sparks": 5, "items": []},
+      "completion_message": "The smith sweeps it into a tin and grunts approval. The forge runs hot tonight."
+    },
+    "daily_holy_water_run": {
+      "title": "Holy Water Run",
+      "description": "Bring the chapel three vials of holy water before the next mass.",
+      "giver": null,
+      "auto_accept": true,
+      "recurrence": "daily",
+      "objectives": [
+        {"type": "have_item", "item": "holy_water", "qty": 3}
+      ],
+      "rewards": {"gold": 18, "sparks": 4, "items": []},
+      "completion_message": "The priest accepts them with both hands. 'Bless you. Tomorrow there will be more sick.'"
     }
   },
   "events": {
@@ -3149,26 +3203,43 @@
   "world_events": {
     "blood_moon": {
       "title": "Blood Moon",
-      "description": "The moon is full and red over the lake. Werewolves rage tonight; the Count is twice as patient.",
+      "description": "The moon is full and red over the lake. The forest is hungry tonight. Werewolves rage. The crypt-shades stir. The Count is twice as patient. Survive the three watches.",
       "recurrence": {
         "every_days": 6
       },
       "trigger_day_offset": 2,
       "duration_days": 1,
+      "stages": [
+        {
+          "title": "First Watch — the wolves run",
+          "objective": {"type": "kill", "entity": "werewolf", "qty": 2},
+          "narration": ">>> The first wolves break cover at the village edge. The watchman's lantern is still."
+        },
+        {
+          "title": "Second Watch — the dead walk",
+          "objective": {"type": "kill", "entity": "revenant", "qty": 2},
+          "narration": ">>> The trench at the back of the graveyard is empty. The earth is loose. They are coming up."
+        },
+        {
+          "title": "Third Watch — the shades",
+          "objective": {"type": "kill", "entity": "shade", "qty": 1},
+          "narration": ">>> The crypt grate rattles, and what comes through is not a wolf, and not the dead, and not the Count. It is older."
+        }
+      ],
       "objective": {
         "type": "kill",
         "entity": "werewolf",
         "qty": 2
       },
       "rewards": {
-        "gold": 60,
-        "sparks": 20,
-        "renown": 5
+        "gold": 120,
+        "sparks": 50,
+        "renown": 12
       },
       "narration": {
-        "on_start": "[A red moon climbs over the lake. The forest exhales. Werewolves move tonight, and not as wolves do.]",
-        "on_complete": ">>> The pack grows quiet around you. The moon dims a shade. The village will whisper of you again.",
-        "on_expire": "[The moon pales toward dawn. Whatever passed, passed without you.]"
+        "on_start": "[A red moon climbs over the lake. The forest exhales. Three watches tonight — wolves, dead, shades. Survive each.]",
+        "on_complete": ">>> Dawn breaks. The pack is quiet, the trench is filled, the crypt is cold. The village will whisper of you again — and now they will know your name.",
+        "on_expire": "[The moon pales toward dawn. Whatever passed, passed without you. The watchman shakes his head when you come up.]"
       }
     }
   }

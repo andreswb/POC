@@ -5,7 +5,7 @@
     "title": "The Whispering Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.14.4",
+    "version": "1.15.0",
     "created_at": "2026-04-28T00:00:00Z",
     "language": "en",
     "tone": "eerie, sensory, hopeful undertones; never explain too much; favor sound and texture over exposition",
@@ -51,7 +51,92 @@
     "world_event_pool": [
       "wolf_invasion",
       "merchants_caravan"
-    ]
+    ],
+    "character_profiles": {
+      "wanderer": {
+        "display": "Wanderer (default)",
+        "summary": "You walked here from somewhere. The road behind you is gone. The road ahead is new every morning. You're not strong, not quick, not clever — just steady, and steady is enough most days.",
+        "attributes": {
+          "str": 10,
+          "agi": 10,
+          "int": 10
+        },
+        "tags": [
+          "mortal"
+        ]
+      },
+      "forest_kin": {
+        "display": "Forest Kin",
+        "summary": "Born under the cedars. You learned to walk by the sound of crows. The wood doesn't surprise you, and you don't surprise it.",
+        "attributes": {
+          "str": 9,
+          "agi": 13,
+          "int": 11
+        },
+        "evasion_bonus": 0.1,
+        "starting_skills_extra": [
+          "foraging"
+        ],
+        "tags": [
+          "mortal",
+          "forest"
+        ]
+      },
+      "valley_smith": {
+        "display": "Valley Smith",
+        "summary": "Calloused hands. Broad shoulders. You came from the lowland village where everyone owes someone a horseshoe. You hit hard and tire slow.",
+        "attributes": {
+          "str": 14,
+          "agi": 8,
+          "int": 9
+        },
+        "attack_bonus": 2,
+        "starting_skills_extra": [
+          "smithing"
+        ],
+        "starting_inventory_extra": [
+          "broken_sword"
+        ],
+        "tags": [
+          "mortal",
+          "warrior"
+        ]
+      },
+      "huntress": {
+        "display": "Huntress",
+        "summary": "Quiet boots, cold patience, the kind of eyes that count without seeming to look. Pelts pay for bread. Sometimes a kept pelt pays for memory.",
+        "attributes": {
+          "str": 11,
+          "agi": 12,
+          "int": 10
+        },
+        "attack_bonus": 3,
+        "starting_inventory_extra": [
+          "rusty_dagger"
+        ],
+        "tags": [
+          "mortal",
+          "hunter"
+        ]
+      },
+      "riverside_orphan": {
+        "display": "Riverside Orphan",
+        "summary": "You grew up at the camp where the river bends. Old fish-traders raised you between the boats. You can read water the way some read books.",
+        "attributes": {
+          "str": 8,
+          "agi": 12,
+          "int": 12
+        },
+        "evasion_bonus": 0.05,
+        "starting_skills_extra": [
+          "foraging",
+          "fishing"
+        ],
+        "tags": [
+          "mortal"
+        ]
+      }
+    }
   },
   "rooms": {
     "forest_clearing": {
@@ -494,7 +579,9 @@
         "north": "forest_clearing",
         "down": "moss_grotto"
       },
-      "items": [],
+      "items": [
+        "blacksmiths_ledger"
+      ],
       "npcs": [
         "weathered_merchant",
         "village_blacksmith"
@@ -567,7 +654,9 @@
         "east": "forest_clearing",
         "in": "sacred_grove"
       },
-      "items": [],
+      "items": [
+        "hermits_almanac"
+      ],
       "npcs": [
         "hermit"
       ],
@@ -944,7 +1033,9 @@
         "down": "ice_caves",
         "west": "frozen_north"
       },
-      "items": [],
+      "items": [
+        "trappers_journal"
+      ],
       "npcs": [
         "hunter_trapper"
       ],
@@ -1917,6 +2008,65 @@
         "attack_bonus": 5,
         "damage_type": "pierce"
       }
+    },
+    "hermits_almanac": {
+      "display": "the hermit's almanac",
+      "article": "a",
+      "description": "A small bound book in the hermit's hand. Rough paper, careful ink. Notes on tides, on moons, on which fern unfurls when.",
+      "read_text": "On the year as the forest keeps it.\n\nFirst the snowdrop, then the windflower, then the ferns unfold by the third warm day. The deer come down to the clearing the morning after the last frost; they will not come down sooner, and they will not wait longer.\n\nThe canyon dries earliest. The frozen lake breaks last. The hermit's glade keeps its dew until midday year-round; this is not weather, this is the glade.\n\nOn the question at the peak.\n\nIt is asked of every visitor. The wind chooses the words; the visitor chooses the answer. There is no wrong answer that is also honest. There is no honest answer that is also small.\n\nOn the silver herb.\n\nIt grows where the moss makes a perfect circle. The circle was not made by the herb; the herb finds the circle. Do not pull more than one in a season. The forest counts.\n\n— H.",
+      "on_read": [
+        {"type": "set_flag", "flag": "read_almanac"},
+        {"type": "spark_award", "qty": 8},
+        {"type": "narrate", "text": ">>> The hermit's hand is small and exact. You close the book and the glade feels half a degree warmer.", "cls": "spark"}
+      ],
+      "value": 0,
+      "weight": 0.2,
+      "tags": [
+        "lore",
+        "trinket"
+      ],
+      "category": "good",
+      "stackable": false,
+      "image": "📖"
+    },
+    "blacksmiths_ledger": {
+      "display": "the blacksmith's ledger",
+      "article": "a",
+      "description": "A leather-bound work-book on the smith's bench. Names of customers, weights of iron, debts written and crossed.",
+      "read_text": "Greenmeadow Forge — accounts, third quarter.\n\nE. paid the dagger debt with two cords of split pine; squared.\nM. owes the wheel-iron until the lambs sell. Honest.\nThe stranger from the canyon paid in cut silver. I did not ask where she got it. I did not ask twice.\n\nA note for whoever takes this forge after me.\n\nIron will tell you when it is ready. You do not need to listen — you need to stop talking. The colour of true heat is the colour the colour of straw, then the colour of a sunset reflected in a kettle. After that you have lost the iron.\n\nTrue work is half holding still. The other half is patience for the holding.\n\n— L., the village smith.",
+      "on_read": [
+        {"type": "set_flag", "flag": "read_ledger"},
+        {"type": "spark_award", "qty": 6},
+        {"type": "narrate", "text": ">>> Iron and ledger and patience. You set the book down where you found it.", "cls": "spark"}
+      ],
+      "value": 0,
+      "weight": 0.3,
+      "tags": [
+        "lore",
+        "trinket"
+      ],
+      "category": "good",
+      "stackable": false,
+      "image": "📒"
+    },
+    "trappers_journal": {
+      "display": "the trapper's journal",
+      "article": "a",
+      "description": "A weather-stained field journal kept by the lake. Snare counts, weather marks, brief notes in a tracker's hand.",
+      "read_text": "Frozen Lake — winter notes.\n\nThe ice wolves are not the forest's wolves. They do not hunt in packs and they do not howl. They walk to where you will be in three minutes, not where you are. Set the snare three minutes ahead.\n\nFur from one ice wolf is worth four common pelts in the village; six in Greycliffs.\n\nThe lake speaks at night. It is not the lake. It is the air pulling under the ice, looking for an exit. Some travellers think it is a voice. The voice is theirs.\n\nIf you see the white shape that walks on two legs, do not raise a weapon. Stand still. It is older than this lake. Some seasons it nods. Some seasons it does not. It has never crossed the shore-line in my forty winters here.\n\n— T., trapper.",
+      "on_read": [
+        {"type": "set_flag", "flag": "read_trapper_journal"},
+        {"type": "spark_award", "qty": 10},
+        {"type": "narrate", "text": ">>> The trapper writes the way she works: short, exact, no extra step.", "cls": "spark"}
+      ],
+      "value": 0,
+      "weight": 0.2,
+      "tags": [
+        "lore"
+      ],
+      "category": "good",
+      "stackable": false,
+      "image": "📗"
     }
   },
   "npcs": {
@@ -1990,7 +2140,50 @@
             "A reputation like yours buys honest prices here. Look at what I have."
           ]
         }
-      ]
+      ],
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "Welcome to the cart. Buying, selling, or just listening today?"
+          ],
+          "choices": [
+            {"label": "What's the news on the road?", "goto": "rumors"},
+            {"label": "What's been moving in the forest?", "goto": "forest_news"},
+            {"label": "Tell me about the hamlets.", "goto": "hamlets"},
+            {"label": "Goodbye.", "end": true}
+          ]
+        },
+        "rumors": {
+          "lines": [
+            "A wolf-pack is denser north of the canyon than it should be for the season. Caravan from the east is two days late.",
+            "And the hermit has not been to market in a moon. Some take that as a sign. I take it as the hermit being the hermit."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "forest_news": {
+          "lines": [
+            "Game's running deep. Hunters say the deer come down later, the boar earlier.",
+            "Something out by the frozen lake is making the trapper short with strangers. That's not like her."
+          ],
+          "effects": [
+            {"type": "set_flag", "flag": "merchant_warned_lake"}
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "hamlets": {
+          "lines": [
+            "Greycliffs is small and proud. They make better arrows than they need. Riverside camp's louder, looser, the food's good.",
+            "And the village here — well. You've seen the village."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        }
+      }
     },
     "village_blacksmith": {
       "display": "the village blacksmith",
@@ -2267,7 +2460,50 @@
           "price_gold": 60,
           "qty": 1
         }
-      ]
+      ],
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "Sit, if you like. The fern is dry and the kettle remembers."
+          ],
+          "choices": [
+            {"label": "Tell me about the forest.", "goto": "forest_lore"},
+            {"label": "Tell me about the peak.", "goto": "peak_lore"},
+            {"label": "Why do you live alone here?", "goto": "hermit_self"},
+            {"label": "Goodbye.", "end": true}
+          ]
+        },
+        "forest_lore": {
+          "lines": [
+            "It is older than the village. Older than the road. Some of the trees you walked past today were here before any name was given them.",
+            "Walk softly. Take what you need. Leave what you do not. The forest is a long memory; it forgets nothing and forgives most things."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "peak_lore": {
+          "lines": [
+            "It asks a question. You will know the question when you stand there. The wind chooses the words.",
+            "Some who come back will not say what was asked. Some say only their answer. A few — the rare few — say nothing at all and seem the better for it."
+          ],
+          "effects": [
+            {"type": "set_flag", "flag": "hermit_warned_peak"}
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "hermit_self": {
+          "lines": [
+            "I had a village once. Then I had a road. Then I had this glade.",
+            "The glade is what I have now. It is enough. Sometimes more."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        }
+      }
     },
     "hunter_trapper": {
       "display": "the hunter-trapper",
@@ -2312,6 +2548,52 @@
       "hours": {
         "open": 7,
         "close": 19
+      },
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "Ah. A face that's not the wind. Sit by the lean-to a moment if you've a mind to talk."
+          ],
+          "choices": [
+            {"label": "Tell me about the ice wolves.", "goto": "ice_wolves"},
+            {"label": "Tell me about the lake at night.", "goto": "lake_night"},
+            {"label": "Have you seen anything strange lately?", "goto": "strange"},
+            {"label": "Goodbye.", "end": true}
+          ]
+        },
+        "ice_wolves": {
+          "lines": [
+            "They're not the same as the forest's wolves. Cold in the eyes. They walk to where you'll be, not where you are.",
+            "Set the snare three minutes ahead, and walk slow. They watch slow."
+          ],
+          "effects": [
+            {"type": "set_flag", "flag": "trapper_taught_icewolves"}
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "lake_night": {
+          "lines": [
+            "It speaks. Not the lake — the air, pulling under the ice. Some travellers think it's a voice.",
+            "It is. But the voice is theirs, not the lake's. Carry your own quiet here, you'll be all right."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "strange": {
+          "lines": [
+            "Aye. A white shape, two-legged, on the far shore. Three nights running last week.",
+            "It hasn't crossed the shore in forty winters. If it does — you'll know. And there'll be no need to ask me again."
+          ],
+          "effects": [
+            {"type": "set_flag", "flag": "trapper_warned_white_shape"}
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        }
       }
     }
   },

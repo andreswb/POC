@@ -9628,16 +9628,29 @@ function matchesNpcCondition(c) {
   return true;
 }
 
-// 6.0: `examine <item>` — non-effecting close inspection of an item. Symmetric
-// with `read` but never fires on_read effects, never consumes the item, and
-// surfaces stats (weight, value, slot, decay, tags, effects) alongside the
-// description. Useful for non-readable items (weapons, tools, food, etc.)
-// where the player wants more than the inventory blurb.
+// 6.0: `examine <item>` — non-effecting close inspection of an item OR
+// entity. Symmetric with `read` but never fires on_read effects, never
+// consumes the item, and surfaces stats (weight, value, slot, decay, tags,
+// effects) alongside the description. For entities, shows hp / damage range
+// / evasion / weaknesses / resistances / tone_hints / kill count. Tries
+// entity first (bestiary lookup) then falls back to item lookup so an arg
+// like "wolf" finds the werewolf entity not a half-eaten wolf-pelt.
 function examineItem(arg) {
   if (!arg || !String(arg).trim()) {
-    write('Examine what? Usage: examine <item>', 'error');
+    write('Examine what? Usage: examine <item|creature>', 'error');
     return;
   }
+  const q = String(arg).toLowerCase().trim();
+  // First: try entity by id or display name
+  for (const [eid, ent] of Object.entries(STORY.entities || {})) {
+    if (!ent) continue;
+    const disp = (typeof ent.display === 'string' ? ent.display : (ent.display?.en || '')).toLowerCase();
+    if (eid.toLowerCase() === q || disp === q || disp.includes(q) || disp.split(/\s+/).includes(q)) {
+      examineEntity(eid, ent);
+      return;
+    }
+  }
+  // Then: try item (inventory / materials / room.items)
   let itemId = null;
   const ii = findItemIn(player.inventory, arg);
   if (ii !== -1) itemId = player.inventory[ii];
@@ -9683,6 +9696,57 @@ function examineItem(arg) {
   // Hint about read for readable items
   if (it.read_text || (Array.isArray(it.on_read) && it.on_read.length > 0)) {
     write(`  (Try \`read ${itemId}\` for the full text.)`, 'system');
+  }
+}
+
+// 6.0: `examine <creature>` helper. Surfaces the bestiary stats inline so
+// the player doesn't have to tab away to a separate command. Includes their
+// kill count if any.
+function examineEntity(eid, ent) {
+  write(`You consider the ${t(ent.display)}:`, 'system');
+  if (ent.summary) {
+    for (const line of String(t(ent.summary)).split('\n')) write(`  ${line}`, '');
+  }
+  const stats = [];
+  if (typeof ent.hp === 'number') stats.push(`HP ${ent.hp}`);
+  if (Array.isArray(ent.attack_damage_range) && ent.attack_damage_range.length === 2) {
+    stats.push(`damage ${ent.attack_damage_range[0]}-${ent.attack_damage_range[1]}`);
+  }
+  if (typeof ent.evasion === 'number' && ent.evasion > 0) stats.push(`evasion ${Math.round(ent.evasion * 100)}%`);
+  if (Array.isArray(ent.weaknesses) && ent.weaknesses.length) stats.push(`weak: ${ent.weaknesses.join('/')}`);
+  if (Array.isArray(ent.resistances) && ent.resistances.length) stats.push(`resist: ${ent.resistances.join('/')}`);
+  if (Array.isArray(ent.tags) && ent.tags.length) stats.push(`tags: ${ent.tags.join(', ')}`);
+  if (stats.length) write(`  [${stats.join(' · ')}]`, 'system');
+  if (Array.isArray(ent.tone_hints) && ent.tone_hints.length) {
+    write(`  Feels: ${ent.tone_hints.join(', ')}`, 'system');
+  }
+  const killed = (player.stats?.kills_by_entity?.[eid]) || 0;
+  if (killed > 0) write(`  Killed: ${killed}.`, 'system');
+}
+
+// 6.0: `look <direction>` — peek into the next room without spending a turn
+// or moving. If the room has been visited before, show its summary; if not,
+// show only the direction-name + "you haven't been there yet" so unexplored
+// rooms aren't fully revealed via peeking.
+function lookDir(dir) {
+  const room = player.rooms[player.location];
+  const resolved = resolveExit(room.exits?.[dir]);
+  if (!resolved) { write(`Nothing visible to the ${dir}.`, 'error'); return; }
+  const target = resolved.target;
+  const nextRoom = STORY.rooms[target];
+  if (!nextRoom) { write(`Nothing visible to the ${dir}.`, 'error'); return; }
+  const seen = player.visited.has(target);
+  write(`Looking ${dir}: ${t(nextRoom.name)}${seen ? '' : '  (not yet visited)'}.`, 'system');
+  if (seen && nextRoom.summary) {
+    write(`  ${t(nextRoom.summary)}`, '');
+  } else if (!seen) {
+    write(`  You can't make out details from here. Walk ${dir} to enter.`, 'system');
+  }
+  // If the exit is gated and we know the gate, hint at it
+  const gate = resolved.gate;
+  if (gate && (gate.requires_flag || gate.requires_item)) {
+    if (gate.requires_item) write(`  (the way is gated — you'd need ${itemDisplay(gate.requires_item)})`, 'system');
+    else if (gate.requires_flag) write(`  (the way is gated)`, 'system');
   }
 }
 
@@ -11505,10 +11569,10 @@ function help() {
   const hasBestiary = !!(STORY.entities && Object.keys(STORY.entities).length > 0);
   const hasAmmo = Object.values(items).some(it => it?.effects?.requires_ammo);
   const lines = [
-    T('Movement:        n/s/e/w · u/d · in · out · go <dir> · look · map'),
+    T('Movement:        n/s/e/w · u/d · in · out · go <dir> · look · look <dir>  (peek without moving) · map'),
     T('Items:           take <x> · drop <x> · bury <x|qty x> · inv · status'),
     T('World:           talk <npc> · answer <text> · read <item>  (lore, letters, books)'),
-    T('                 examine / inspect / x <item>  (close inspection — stats, effects, descriptions)'),
+    T('                 examine / inspect / x <item|creature>  (close inspection — stats, effects, descriptions, kill counts)'),
     T('Skills:          skills · learn <skill>'),
     T('Gathering:       chop / forage / gather (needs skill)'),
     T('Crafting:        recipes · craft <recipe> · craft <qty> <recipe>  (batch; each craft awards sparks)'),
@@ -11605,7 +11669,13 @@ function handleCommand(input) {
 
   let consumesTurn = true;
   switch (cmd) {
-    case 'look': case 'l':       describeRoom(); consumesTurn = false; break;
+    case 'look': case 'l':
+      if (arg && (dirAlias[arg] || arg)) {
+        const d = dirAlias[arg] || arg;
+        const VALID = ['north','south','east','west','up','down','in','out'];
+        if (VALID.includes(d)) { lookDir(d); consumesTurn = false; break; }
+      }
+      describeRoom(); consumesTurn = false; break;
     case 'go': case 'move':      move(dirAlias[arg] || arg); break;
     case 'n': case 'north':      move('north'); break;
     case 's': case 'south':      move('south'); break;
