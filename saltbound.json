@@ -1322,7 +1322,7 @@
       "prompt": "I cross without crossing, return without returning, and I bring news without speaking. I never sleep but the moon rests on me. What am I?",
       "answers": ["wave", "the wave", "tide", "the tide", "ocean", "the ocean", "sea"],
       "reward_sparks": 35,
-      "on_solve_message": "The navigator nods, pleased. 'Right. The sea remembers what nobody writes down.' She hands you a map fragment from her satchel.",
+      "on_solve_message": "The navigator's ghost nods, pleased. 'Right. The sea remembers what nobody writes down.' A map fragment lies on the stone where her satchel would have been — solid, real, waiting for you.",
       "reward_items": [{"item": "map_fragment", "qty": 1}],
       "repeatable": false
     },
@@ -1331,7 +1331,7 @@
       "prompt": "I outlast the wave but not the stone, am forgotten by all but the wind, and I weigh nothing yet pull armies. What am I?",
       "answers": ["name", "a name", "memory", "song", "a song"],
       "reward_sparks": 50,
-      "on_solve_message": "The carvings shift, briefly settle, and steady. The elder turns and looks at you for the first time. 'You read closer than most. Take this — you have earned a piece of it.'",
+      "on_solve_message": "The carvings shift, briefly settle, and steady. The elder's spirit turns and looks at you for the first time. 'You read closer than most. Take this — you have earned a piece of it.'",
       "reward_items": [{"item": "map_fragment", "qty": 1}],
       "repeatable": false
     },

@@ -8057,7 +8057,11 @@ function gather(verb, arg) {
     res = candidates.find(r => player.skills.has(r.skill)) || candidates[0];
   }
   if (!player.skills.has(res.skill)) { write(T(tmpl.need, t(STORY.skills[res.skill].display)), 'error'); return; }
-  const cdKey = `${player.location}:${verb}`;
+  // 6.0 fix: cooldown key now includes the resource id, not just the verb.
+  // Previously `${location}:${verb}` meant two same-verb resources (e.g. mango
+  // and herb in mango_grove, both verb 'forage') shared one cooldown — picking
+  // one locked the other. Now each resource regenerates on its own timer.
+  const cdKey = `${player.location}:${res.id}`;
   const next = player.resource_cooldowns.get(cdKey) || 0;
   if (Date.now() < next) { write(T('Wait {0}s.', Math.ceil((next - Date.now()) / 1000)), 'error'); return; }
   if (!canCarry(res.id, res.yield_qty)) { write(T('Too heavy to carry the {0}.', itemDisplay(res.id)), 'error'); return; }
