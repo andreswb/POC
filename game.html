@@ -4860,7 +4860,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.42';
+const ENGINE_VERSION_LABEL = 'v0.43';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -12518,8 +12518,12 @@ function showMap() {
     const seenAnchorRooms = new Set();
     for (const id of ids) {
       if (seenAnchorRooms.has(id)) continue;
+      // v0.43: anchor on ANY cross-layer exit, not just up/down. Some
+      // stories use N/S/E/W to connect to a different-layer room (e.g.
+      // a volcano summit reached by walking north from a surface lava
+      // field). Without this, the overhead component became orphaned and
+      // stack-pushed to the right of the layer with no visual cue.
       for (const [dir, rawTarget] of Object.entries(rooms[id].exits || {})) {
-        if (!['up', 'down'].includes(dir)) continue;
         const r = resolveExit(rawTarget); if (!r) continue;
         const target = r.target;
         if (inLayer.has(target)) continue;
@@ -12638,16 +12642,27 @@ function showMap() {
       if (player.chests.has(room)) mark = '📦';
       else if (rooms[room].hazards?.wolves) mark = '⚠';
       else if (fireActive(room)) mark = '🔥';
-      // 5.8: inter-layer stairs marker if this room has up/down/in/out to another layer
+      // 5.8: inter-layer stairs marker if this room has any cross-layer exit.
+      // v0.43: extended to also mark N/S/E/W cross-layer exits so that a
+      // story which uses a horizontal direction to cross between layers
+      // (e.g. a volcano summit reached by walking north from surface) still
+      // shows a visible cue on the source room. The "up" symbol takes
+      // priority — it's the most common case and the most obviously
+      // "stair"-like — but if no vertical crossing exists, we fall through
+      // to N/S/E/W markers. Stops the room appearing as a dead end.
       let stair = '';
       for (const [dir, rawTarget] of Object.entries(rooms[room].exits || {})) {
         const r = resolveExit(rawTarget); if (!r) continue;
         if (!player.visited.has(r.target)) continue;
         if (layerOf(r.target) === L) continue;
-        if (dir === 'up') stair = '↑';
-        else if (dir === 'down') stair = '↓';
-        else if (dir === 'in') stair = '→';
-        else if (dir === 'out') stair = '←';
+        if (dir === 'up')   { stair = '↑'; break; }
+        if (dir === 'down') { stair = '↓'; break; }
+        if (dir === 'in')   { stair = '→'; break; }
+        if (dir === 'out')  { stair = '←'; break; }
+        if (dir === 'north' && !stair) stair = '⇡';
+        else if (dir === 'south' && !stair) stair = '⇣';
+        else if (dir === 'east'  && !stair) stair = '⇢';
+        else if (dir === 'west'  && !stair) stair = '⇠';
       }
       if (stair && mark === ' ') mark = stair;
       const sn = shortRoomName(room);

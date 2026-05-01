@@ -5,7 +5,7 @@
     "title": "Saltbound",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.2.1",
+    "version": "1.2.2",
     "created_at": "2026-05-01T00:00:00Z",
     "language": "en",
     "languages": ["en"],
@@ -433,7 +433,7 @@
       "tone_hints": ["hot", "sharp", "patient"],
       "exits": {
         "south": "hilltop_view",
-        "north": "summit"
+        "up": "summit"
       },
       "items": [],
       "npcs": [],
@@ -458,7 +458,7 @@
       ],
       "tone_hints": ["enormous", "hot", "windy"],
       "exits": {
-        "south": "lava_field"
+        "down": "lava_field"
       },
       "items": [],
       "npcs": [],
