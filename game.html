@@ -4803,7 +4803,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.37';
+const ENGINE_VERSION_LABEL = 'v0.38';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -8079,6 +8079,20 @@ function tickTurn() {
   }
   // Scripted on_turn events
   fireEvents('on_turn', {});
+  // v0.38: re-sync auto_accept quests + per-quest visited[] every tick (not
+  // just at boot). This catches three real failure modes reported in the
+  // wild — most visibly Saltbound's signal-fire ending failing to trigger:
+  //   (1) the quest didn't exist at the time the character was created and
+  //       the saved state was loaded before STORY had it (race-ish);
+  //   (2) ps.visited was seeded at boot but player.visited grew afterwards
+  //       AND the player's move() path skipped the per-quest push for some
+  //       reason (older saves had quests where ps.visited wasn't an array,
+  //       and the defensive guard short-circuited the push);
+  //   (3) intro_castaway completes mid-session, then the_signal which
+  //       requires it shouldn't auto-add until intro is done — but the
+  //       check at boot only fires once.
+  // The sync below is cheap and idempotent so it's safe to run per-turn.
+  syncAutoAcceptQuests();
   // 6.0: auto-complete null-giver quests once their objectives are met. With
   // a real giver the player must physically present items to the NPC, but
   // null-giver quests have no narrative reason to require an extra `turn in`
@@ -8087,6 +8101,51 @@ function tickTurn() {
   autoCompleteReadyQuests();
   if (player.life <= 0) handleDeath('starvation');
   refreshSidebar();
+}
+
+// v0.38: manual `complete <quest>` / `finish <quest>` for null-giver quests.
+// Escape-hatch when the auto-complete loop didn't fire for any reason. Also
+// usable without an arg — picks the first null-giver quest with all
+// objectives met. Surfaces a clear error when used wrong: missing quest,
+// not a null-giver quest, or objectives not yet met (which prints exactly
+// what's still missing). With this command the player always has a way
+// out of any auto-complete edge case without losing their save.
+function completeQuestCommand(argRaw) {
+  if (combatBlock('complete')) return;
+  // Always re-sync first so ps.visited reflects the latest player.visited.
+  // Cheap; idempotent. Mirrors what tickTurn does, so the player typing
+  // `complete` in the relevant room can't be defeated by stale state.
+  try { syncAutoAcceptQuests(); } catch {}
+  let qid = (argRaw || '').trim().toLowerCase();
+  if (!qid) {
+    // Auto-pick: first active null-giver, non-daily quest with all objectives met.
+    for (const [id, ps] of Object.entries(player.quests || {})) {
+      if (ps?.state !== 'active') continue;
+      const q = STORY.quests[id]; if (!q) continue;
+      if (q.giver) continue;
+      if (q.recurrence === 'daily') continue;
+      if (questComplete(id)) { qid = id; break; }
+    }
+    if (!qid) {
+      write('Usage: complete <quest_id>  (without an id, completes the first ready null-giver quest)', 'error');
+      write('No null-giver quest currently has all objectives met. Type "quests" to see progress.', 'system');
+      return;
+    }
+  }
+  const q = STORY.quests[qid];
+  const ps = player.quests[qid];
+  if (!q || !ps) { write(`No such quest "${qid}". Type "quests" to see what you have.`, 'error'); return; }
+  if (ps.state !== 'active') { write(`Quest "${qid}" is already ${ps.state}.`, 'error'); return; }
+  if (q.giver) { write(`"${qid}" needs to be turned in at ${STORY.npcs[q.giver]?.display || q.giver}. Use "turn in ${qid}".`, 'error'); return; }
+  if (!questComplete(qid)) {
+    write(`Objectives for "${qid}" are not yet met:`, 'error');
+    for (const p of questProgress(qid)) {
+      const mark = p.done ? '✓' : '·';
+      write(`  [${mark}] ${p.label}: ${Math.min(p.cur, p.target)}/${p.target}`, p.done ? 'success' : 'system');
+    }
+    return;
+  }
+  turnInQuest(qid);
 }
 
 function autoCompleteReadyQuests() {
@@ -8099,6 +8158,42 @@ function autoCompleteReadyQuests() {
     if (q.recurrence === 'daily') continue;  // daily quests stay manual for now
     if (!questComplete(qid)) continue;
     turnInQuest(qid);
+  }
+}
+
+// v0.38: defensive sync for auto_accept quests + per-quest visited[]. Runs
+// every tick. Adds any auto_accept quest that's not yet in player.quests
+// (covers fresh-load + post-completion-of-prereq cases) and back-fills
+// ps.visited with rooms from player.visited that the player has actually
+// reached but the per-quest record doesn't reflect (covers older save
+// formats and any path where move()'s push got skipped).
+function syncAutoAcceptQuests() {
+  if (typeof STORY === 'undefined' || !STORY.quests) return;
+  if (!player.quests) player.quests = {};
+  for (const [qid, q] of Object.entries(STORY.quests)) {
+    if (!q.auto_accept) continue;
+    if (!player.quests[qid]) {
+      // Only auto-accept if requires (if any) are satisfied. Daily quests
+      // are seeded by advanceDailyQuest so we skip them here.
+      if (q.recurrence === 'daily') continue;
+      const reqsMet = !q.requires || q.requires.every(r => player.quests[r]?.state === 'completed');
+      if (!reqsMet) continue;
+      player.quests[qid] = {
+        state: 'active',
+        kills: {},
+        visited: [...(player.visited || [])]
+      };
+    }
+  }
+  // Back-fill ps.visited for every active quest with the player's full
+  // visited set. Cheap; just unions arrays. Costs once per turn.
+  const allVisited = [...(player.visited || [])];
+  for (const ps of Object.values(player.quests)) {
+    if (!ps || ps.state !== 'active') continue;
+    if (!Array.isArray(ps.visited)) ps.visited = [];
+    for (const r of allVisited) {
+      if (!ps.visited.includes(r)) ps.visited.push(r);
+    }
   }
 }
 
@@ -8244,6 +8339,20 @@ function describeRoom() {
       write(T('>>> {0} is fighting a {1} here. Type "assist" to join.', name, ent?.display || s.entity_id), 'combat');
     }
   }
+  // v0.38: surface a hint when an active null-giver quest is fully complete
+  // here. Defensive: even if autoCompleteReadyQuests didn't fire (race or
+  // stale state), the player sees exactly which quest is ready and the
+  // exact command to push it through.
+  try {
+    for (const [qid, ps] of Object.entries(player.quests || {})) {
+      if (ps?.state !== 'active') continue;
+      const q = STORY.quests[qid]; if (!q) continue;
+      if (q.giver) continue;
+      if (q.recurrence === 'daily') continue;
+      if (!questComplete(qid)) continue;
+      write(T('>>> Ready to finish: {0}. Type "complete {1}" or "turn in {1}".', t(q.title), qid), 'spark');
+    }
+  } catch {}
   // 5.6: gated exits get a 🔒 marker until the requirement is met
   const exitLabels = Object.entries(room.exits).map(([dir, raw]) => {
     const r = resolveExit(raw);
@@ -12130,6 +12239,7 @@ function helpImpl(filterQ) {
     ...(hasTaming ? [T('Companion:       tame · feed · companion / pet · dismiss')] : []),
     T('Progress:        quests / q · stats · achievements'),
     T('                 accept <id> · turn in <id>'),
+    T('                 complete / finish [<id>]  (force-completes a null-giver quest if all objectives met — escape hatch)'),
     T('                 (daily quests auto-rotate at dawn — turn in before dawn or they expire)'),
     T('Storage:         place chest · chest · store [<n>] <x> · retrieve [<n>] <x>  (also "store all" / "retrieve all")'),
     ...(hasBestiary ? [T('Bestiary:        bestiary  (list creatures the story defines, with kill counts)')] : []),
@@ -12298,6 +12408,11 @@ function handleCommand(input) {
       else write('Usage: turn in <quest_id>', 'error');
       break;
     case 'turnin':               turnInQuest(arg); break;
+    // v0.38: explicit manual completion of a null-giver quest. Escape hatch
+    // for any auto-complete edge case where ps.visited / objectives didn't
+    // sync properly. Without arg, picks the first ready null-giver quest.
+    case 'complete':             completeQuestCommand(arg); break;
+    case 'finish':               completeQuestCommand(arg); break;
     case 'light':                if (arg === 'fire' || arg === '') lightFire(); else write(`Light what?`, 'error'); break;
     case 'rest':                 rest(); break;
     case 'sleep':                sleep(); break;
@@ -12452,7 +12567,7 @@ const STATIC_VERBS = [
   'who','give','gifts','offers','claim','decline','heal','soul','import','rename','characters',
   'switch','stories','relay','lang','tutorial','bug','report','reload','clear','help','map',
   'go','n','s','e','w','u','d','in','out','north','south','east','west','up','down',
-  'donate','support','recap','last'
+  'donate','support','recap','last','complete','finish'
 ];
 // v0.36: tiny Levenshtein for fuzzy "did you mean" suggestions. Caps the
 // matrix at ~30×30 since verbs are short — perfectly fine for runtime use.
