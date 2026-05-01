@@ -9588,6 +9588,64 @@ function matchesNpcCondition(c) {
   return true;
 }
 
+// 6.0: `examine <item>` — non-effecting close inspection of an item. Symmetric
+// with `read` but never fires on_read effects, never consumes the item, and
+// surfaces stats (weight, value, slot, decay, tags, effects) alongside the
+// description. Useful for non-readable items (weapons, tools, food, etc.)
+// where the player wants more than the inventory blurb.
+function examineItem(arg) {
+  if (!arg || !String(arg).trim()) {
+    write('Examine what? Usage: examine <item>', 'error');
+    return;
+  }
+  let itemId = null;
+  const ii = findItemIn(player.inventory, arg);
+  if (ii !== -1) itemId = player.inventory[ii];
+  else {
+    const matKey = findMaterialKey(arg);
+    if (matKey) itemId = matKey;
+    else {
+      const room = player.rooms[player.location];
+      const ri = findItemIn(room.items || [], arg);
+      if (ri !== -1) itemId = (room.items || [])[ri];
+    }
+  }
+  if (!itemId) { write(`There's no "${arg}" here you can examine.`, 'error'); return; }
+  const it = STORY.items[itemId];
+  if (!it) { write(`You can't examine that.`, 'error'); return; }
+  write(`You examine ${itemDisplay(itemId, true)}:`, 'system');
+  // Description (multi-line preserved)
+  const desc = it.description != null ? t(it.description) : null;
+  if (desc) {
+    for (const line of String(desc).split('\n')) write(`  ${line}`, '');
+  } else {
+    write(`  (no description on file)`, 'system');
+  }
+  // Stats line
+  const stats = [];
+  if (typeof it.weight === 'number') stats.push(`weight ${it.weight}`);
+  if (typeof it.value === 'number') stats.push(`value ${it.value}g`);
+  if (it.slot) stats.push(`slot: ${it.slot}`);
+  if (it.consumable_action) stats.push(`use: ${it.consumable_action}`);
+  if (typeof it.decay_turns === 'number') stats.push(`spoils in ${it.decay_turns} turns`);
+  if (Array.isArray(it.tags) && it.tags.length) stats.push(`tags: ${it.tags.join(', ')}`);
+  if (stats.length) write(`  [${stats.join(' · ')}]`, 'system');
+  // Effects (combat / consumable / ammo)
+  const ef = it.effects || {};
+  const efParts = [];
+  if (ef.attack_bonus != null) efParts.push(`+${ef.attack_bonus} attack`);
+  if (ef.defense_bonus != null) efParts.push(`+${ef.defense_bonus} defense`);
+  if (ef.evasion_bonus != null) efParts.push(`+${ef.evasion_bonus} evasion`);
+  if (ef.damage_type) efParts.push(`${ef.damage_type} damage`);
+  if (ef.restore_life != null) efParts.push(`restores ${ef.restore_life} life`);
+  if (ef.requires_ammo) efParts.push(`uses ${ef.requires_ammo} as ammo (${ef.ammo_per_shot || 1}/shot)`);
+  if (efParts.length) write(`  Effects: ${efParts.join(', ')}`, 'system');
+  // Hint about read for readable items
+  if (it.read_text || (Array.isArray(it.on_read) && it.on_read.length > 0)) {
+    write(`  (Try \`read ${itemId}\` for the full text.)`, 'system');
+  }
+}
+
 // 6.0 schema v0.25: `read` verb for lore items + magic books.
 //
 // Items can opt into deeper interaction via three new optional fields:
@@ -11364,6 +11422,7 @@ function help() {
     T('Movement:        n/s/e/w · u/d · in · out · go <dir> · look · map'),
     T('Items:           take <x> · drop <x> · bury <x|qty x> · inv · status'),
     T('World:           talk <npc> · answer <text> · read <item>  (lore, letters, books)'),
+    T('                 examine / inspect / x <item>  (close inspection — stats, effects, descriptions)'),
     T('Skills:          skills · learn <skill>'),
     T('Gathering:       chop / forage / gather (needs skill)'),
     T('Crafting:        recipes · craft <recipe> · craft <qty> <recipe>  (batch; each craft awards sparks)'),
@@ -11507,6 +11566,7 @@ function handleCommand(input) {
     case 'repair':               repair(arg); break;
     case 'bug': case 'report':   showBugReporter(); consumesTurn = false; break;
     case 'read':                 readItem(arg); break;
+    case 'examine': case 'inspect': case 'x':  examineItem(arg); consumesTurn = false; break;
     case 'reload': case 'update':
       if (arg === 'story' || arg === '' || arg === undefined) { reloadStory(); consumesTurn = false; }
       else write(`Reload what? Try "reload story".`, 'error');
