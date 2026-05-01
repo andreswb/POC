@@ -4860,7 +4860,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.41';
+const ENGINE_VERSION_LABEL = 'v0.42';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -5266,6 +5266,38 @@ function showStoryPicker(currentId = null) {
           live.textContent = `${n} traveler${n === 1 ? '' : 's'} in this world (last 30d)`;
         }
         row.append(titleSpan, sub, live);
+        // v0.42: genre tags + content warnings on each tile so players can
+        // skip stories that aren't right for them. Read from meta.tags
+        // (free-form strings) and meta.content_warnings (opt-in only —
+        // stories that don't declare these render no row).
+        const tags = Array.isArray(opt.story.meta?.tags) ? opt.story.meta.tags : [];
+        const cws = Array.isArray(opt.story.meta?.content_warnings) ? opt.story.meta.content_warnings : [];
+        if (tags.length) {
+          const tagRow = document.createElement('div');
+          tagRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;';
+          for (const tg of tags) {
+            const chip = document.createElement('span');
+            chip.textContent = tg;
+            chip.style.cssText = 'font-size:10px;padding:2px 7px;border-radius:9px;background:#2a3528;color:#a8c7a0;border:1px solid #4a6a3a;text-transform:lowercase;letter-spacing:0.02em;';
+            tagRow.appendChild(chip);
+          }
+          row.appendChild(tagRow);
+        }
+        if (cws.length) {
+          const cwRow = document.createElement('div');
+          cwRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center;';
+          const cwLbl = document.createElement('span');
+          cwLbl.textContent = '⚠ content:';
+          cwLbl.style.cssText = 'font-size:10px;color:#c08070;text-transform:uppercase;letter-spacing:0.04em;margin-right:2px;';
+          cwRow.appendChild(cwLbl);
+          for (const cw of cws) {
+            const chip = document.createElement('span');
+            chip.textContent = cw;
+            chip.style.cssText = 'font-size:10px;padding:2px 7px;border-radius:9px;background:#3a2520;color:#e0a890;border:1px solid #6a4a3a;text-transform:lowercase;letter-spacing:0.02em;';
+            cwRow.appendChild(chip);
+          }
+          row.appendChild(cwRow);
+        }
         if (opt.source === 'custom') {
           const del = document.createElement('span');
           del.textContent = 'remove';
@@ -7328,6 +7360,9 @@ async function drainOutbox(silent = false) {
   if (sent > 0) {
     markRelayUp();
     if (!silent) write(`[synced ${sent} queued event${sent === 1 ? '' : 's'}]`, 'system');
+    // v0.42: outbox-sync toast. Visible-from-the-corner-of-your-eye cue
+    // that connectivity is back and queued actions made it through.
+    try { showToast(`Synced ${sent} queued event${sent === 1 ? '' : 's'} — back online.`, 'sync'); } catch {}
   }
   refreshRelayLabel();
 }
@@ -10029,10 +10064,89 @@ function drink(arg) {
 
 const EQUIP_SLOTS = ['head','torso','feet','belt','neck','hand','back'];
 
+// v0.42: rank an effect bag by its in-combat usefulness. Higher = better
+// for the slot. Combines attack + defense + life/carry bonuses with simple
+// weights so the comparison gives the player a sensible "best for this slot"
+// pick. Used by both `quickEquipSlot` and the equipment-diff preview.
+function itemSlotScore(itemId) {
+  const ef = STORY.items[itemId]?.effects || {};
+  let s = 0;
+  s += (ef.attack_bonus || 0) * 3;
+  s += (ef.defense_bonus || 0) * 2;
+  s += (ef.life_max_bonus || 0) * 1.5;
+  s += (ef.carry_capacity_bonus || 0) * 0.4;
+  if (ef.evasion_bonus) s += ef.evasion_bonus * 30;
+  return s;
+}
+// v0.42: quick-equip — find the highest-scoring item in inventory whose
+// slot matches the requested slot name, and equip it. Returns the chosen
+// item id or null if nothing fits.
+function quickEquipSlot(slot) {
+  let bestId = null, bestScore = -Infinity;
+  for (const id of player.inventory) {
+    const it = STORY.items[id];
+    if (!it || it.slot !== slot) continue;
+    if (player.edges?.has(id)) continue; // skip durability-tracked uniques mid-fight; pick another instance instead
+    const s = itemSlotScore(id);
+    if (s > bestScore) { bestScore = s; bestId = id; }
+  }
+  // If nothing found and there are durability-tracked instances, fall back
+  // to those (above filter excluded them to prefer fresh stock first).
+  if (!bestId) {
+    for (const id of player.inventory) {
+      const it = STORY.items[id];
+      if (!it || it.slot !== slot) continue;
+      const s = itemSlotScore(id);
+      if (s > bestScore) { bestScore = s; bestId = id; }
+    }
+  }
+  return bestId;
+}
+// v0.42: equipment-diff helper — when swapping `oldId` → `newId` in `slot`,
+// summarise the net change in player-visible bonuses as a "+2 attack, +1
+// defense (was: leather hat)" suffix. Returns the suffix string (or '' if
+// no notable change). Comparison is stat-by-stat so a strict downgrade
+// surfaces with a "−" sign and the player can decide knowingly.
+function equipmentDiffSummary(oldId, newId) {
+  const oldEf = oldId ? (STORY.items[oldId]?.effects || {}) : {};
+  const newEf = newId ? (STORY.items[newId]?.effects || {}) : {};
+  const stats = [
+    ['attack_bonus', 'attack'],
+    ['defense_bonus', 'defense'],
+    ['life_max_bonus', 'max life'],
+    ['carry_capacity_bonus', 'carry'],
+    ['evasion_bonus', 'evasion']
+  ];
+  const parts = [];
+  for (const [key, label] of stats) {
+    const o = oldEf[key] || 0;
+    const n = newEf[key] || 0;
+    const d = n - o;
+    if (d === 0) continue;
+    const sign = d > 0 ? '+' : '';
+    const fmt = (key === 'evasion_bonus') ? `${sign}${(d * 100).toFixed(0)}%` : `${sign}${d}`;
+    parts.push(`${fmt} ${label}`);
+  }
+  if (!parts.length) return '';
+  return ` — ${parts.join(', ')}` + (oldId ? ` (was: ${STORY.items[oldId]?.display || oldId})` : '');
+}
 function wear(arg) {
   if (combatBlock('wear')) return;
   if (!arg) { write('Wear what?', 'error'); return; }
-  const idx = findItemIn(player.inventory, arg);
+  // v0.42: quick-equip via slot name. `wear hand` / `wield hand` /
+  // `wear head` etc. picks the highest-scoring matching item from
+  // inventory. Saves typing out a long item id mid-combat.
+  let resolved = arg;
+  if (EQUIP_SLOTS.includes(arg.toLowerCase())) {
+    const slot = arg.toLowerCase();
+    const best = quickEquipSlot(slot);
+    if (!best) {
+      write(`Nothing in your inventory fits the ${slot} slot.`, 'error');
+      return;
+    }
+    resolved = best;
+  }
+  const idx = findItemIn(player.inventory, resolved);
   if (idx === -1) { write(`You don't have "${arg}".`, 'error'); return; }
   const itemId = player.inventory[idx];
   const it = STORY.items[itemId];
@@ -10045,12 +10159,10 @@ function wear(arg) {
   }
   player.inventory.splice(idx, 1);
   player.equipment[it.slot] = itemId;
-  const bonusLife = it.effects?.life_max_bonus ?? 0;
-  const bonusCap  = it.effects?.carry_capacity_bonus ?? 0;
-  let bonusStr = '';
-  if (bonusLife) bonusStr += ` (+${bonusLife} max life)`;
-  if (bonusCap)  bonusStr += ` (+${bonusCap} carry)`;
-  write(`You put on ${itemDisplay(itemId, true)}.${bonusStr}`, 'success');
+  // v0.42: equipment-diff suffix — show the stat delta on every wear/swap
+  // so the player isn't guessing whether the new piece is actually better.
+  const diff = equipmentDiffSummary(existing, itemId);
+  write(`You put on ${itemDisplay(itemId, true)}.${diff}`, 'success');
   publishAction('wear', { item: itemId, slot: it.slot });
 }
 
@@ -11300,6 +11412,57 @@ function transformBlock(verb) {
     : 'They cross themselves and turn away. The bat is not a friend.';
   write(tag, 'error');
   return true;
+}
+
+// v0.42: `whoami` — personal scorecard. Different from `stats` (which is
+// engine-wide tallies) and from `profile` (which is character-class info).
+// This is the "your character at a glance" view: identity, location, run
+// length, lifetime achievements, endings, legacy wallet. Uses writeBlock
+// for the same scroll-to-top affordance as help/map.
+function showWhoAmI() {
+  const dp = dayPart();
+  const npub = (typeof nip19 !== 'undefined' && pk) ? nip19.npubEncode(pk) : '';
+  const npubShort = npub ? (npub.slice(0, 12) + '…' + npub.slice(-6)) : '(unknown)';
+  const profile = profileDef();
+  const totalK = Object.values(player.stats?.kills || {}).reduce((a, b) => a + b, 0);
+  const visited = (player.visited && typeof player.visited.size === 'number') ? player.visited.size : 0;
+  const endings = (player.endings_reached && typeof player.endings_reached.size === 'number') ? player.endings_reached.size : 0;
+  const ach = (player.achievements && typeof player.achievements.size === 'number') ? player.achievements.size : 0;
+  const skills = (player.skills && typeof player.skills.size === 'number') ? player.skills.size : 0;
+  const renown = player.renown || 0;
+  const stars = renownTier(renown);
+  writeBlock('=== Who am I ===', () => {
+    write(`Name: ${player.name || '—'}${playerTitle() ? ' ' + playerTitle() : ''}`, 'system');
+    write(`npub: ${npubShort}`, 'system');
+    if (profile) write(`Profile: ${t(profile.display)}`, 'system');
+    write('');
+    write(`Story:    ${t(STORY?.meta?.title) || STORY?.meta?.id || '—'}`, 'system');
+    write(`Location: ${t(player.rooms[player.location].name)}`, 'system');
+    write(`Day ${dp.day} · ${T(dp.period)} (${dp.hour}h) · ${T(player.weather || 'clear')}`, 'system');
+    write('');
+    write('-- This run --', 'system');
+    write(`  Life:        ${Math.floor(player.life)}/${computeMaxLife()}`, 'life');
+    write(`  Gold:        ${player.gold}`, 'gold');
+    write(`  Sparks:      ${player.sparks}`, 'spark');
+    write(`  Skills:      ${skills} learned`, 'system');
+    write(`  Rooms seen:  ${visited}`, 'system');
+    write(`  Kills:       ${totalK}`, 'system');
+    write('');
+    write('-- Lifetime (this character, all runs) --', 'system');
+    write(`  Login streak: ${player.login_streak || 0} day${player.login_streak === 1 ? '' : 's'}  ·  ${player.total_logins || 0} total logins`, 'system');
+    write(`  Achievements: ${ach}`, 'system');
+    write(`  Endings reached: ${endings}`, 'system');
+    write(`  Renown:       ${renown}  ${'★'.repeat(stars.stars) || '(unknown)'}  ${stars.label}`, 'system');
+    write(`  Crafts:       ${player.stats?.crafts || 0}`, 'system');
+    write(`  Riddles:      ${player.stats?.riddles_solved || 0}`, 'system');
+    write(`  Quests done:  ${player.stats?.quests_completed || 0}`, 'system');
+    write(`  Deaths:       ${player.stats?.deaths || 0}`, 'system');
+    write(`  Daily quests: ${player.daily_quests_completed || 0}`, 'system');
+    write('');
+    write('-- Legacy carry-over --', 'system');
+    write(`  Gold:   ${player.legacy_gold || 0}`, 'gold');
+    write(`  Sparks: ${player.legacy_sparks || 0}`, 'spark');
+  }, '── end of profile ──');
 }
 
 function showProfile() {
@@ -12792,7 +12955,7 @@ function helpImpl(filterQ) {
     T('                 gifts / offers · claim <id> · decline <id>'),
     T('                 heal <name>  (uses one healing salve from your inventory)'),
     T('Identity:        soul (show your nsec) · import <nsec> · new character (fresh start) · restart (this story only)'),
-    T('Run history:     endings  (list endings reached) · legacy  (carry-over wallet)'),
+    T('Run history:     endings  (list endings reached) · legacy  (carry-over wallet) · whoami / me  (personal scorecard)'),
     T('                 rename <new_name>  (change your visible name)'),
     T('                 characters  (recently used on this browser; switch with "characters <#>")'),
     T('Worlds:          switch story · stories  (list/switch story files)'),
@@ -12973,6 +13136,8 @@ function handleCommand(input) {
     case 'import':               importSoul(argRaw); consumesTurn = false; break;
     case 'characters': case 'chars': charactersCommand(argRaw); consumesTurn = false; break;
     case 'profile':              showProfile(); consumesTurn = false; break;
+    // v0.42: personal scorecard (different from stats / profile).
+    case 'whoami': case 'me':    showWhoAmI(); consumesTurn = false; break;
     case 'signature': case 'sig':
       (async () => {
         const r = await verifyStorySignature(STORY);
@@ -13124,7 +13289,7 @@ const STATIC_VERBS = [
   'who','give','gifts','offers','claim','decline','heal','soul','import','rename','characters',
   'switch','stories','relay','lang','tutorial','bug','report','reload','clear','help','map',
   'go','n','s','e','w','u','d','in','out','north','south','east','west','up','down',
-  'donate','support','recap','last','complete','finish','feed','endings','restart','legacy'
+  'donate','support','recap','last','complete','finish','feed','endings','restart','legacy','whoami','me'
 ];
 // v0.36: tiny Levenshtein for fuzzy "did you mean" suggestions. Caps the
 // matrix at ~30×30 since verbs are short — perfectly fine for runtime use.
