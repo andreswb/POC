@@ -80,6 +80,21 @@
   .toast.event  { border-left-color: var(--spark); }
   .toast.bounty { border-left-color: var(--gold); }
   .toast.heal   { border-left-color: var(--green); }
+  /* v0.39: celebration variant — bigger, longer-held, accent border + soft
+     glow. Used for achievement unlocks and renown tier-ups. */
+  .toast.celebrate {
+    border-left-width: 4px;
+    border-color: var(--accent);
+    box-shadow: 0 4px 20px rgba(240, 181, 74, 0.35), 0 0 0 1px var(--accent) inset;
+    animation: tf-toast-in 0.22s ease-out, tf-celebrate-glow 1.6s ease-in-out infinite alternate;
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+  .toast.celebrate .toast-tag { color: var(--accent); font-weight: 600; }
+  @keyframes tf-celebrate-glow {
+    from { box-shadow: 0 4px 20px rgba(240, 181, 74, 0.35), 0 0 0 1px var(--accent) inset; }
+    to   { box-shadow: 0 4px 28px rgba(240, 181, 74, 0.55), 0 0 0 1px var(--accent) inset; }
+  }
   @keyframes tf-toast-in {
     from { transform: translateX(20px); opacity: 0; }
     to   { transform: translateX(0); opacity: 1; }
@@ -250,6 +265,10 @@
     <section id="questTrackerSection" style="display:none;">
       <h3 data-i18n="Active quest">Active quest</h3>
       <div class="mat-list" id="questTracker"></div>
+    </section>
+    <section id="combatTrackerSection" style="display:none;">
+      <h3 data-i18n="In combat">In combat</h3>
+      <div class="mat-list" id="combatTracker"></div>
     </section>
     <section id="companionSection" style="display:none;">
       <h3 data-i18n="Companion">Companion</h3>
@@ -4803,7 +4822,7 @@ const PAID_STORIES_KEY = 'nstadv:paid_stories';  // 5.13: list of marketplace st
 // Currently routed to a shared cross-game inbox; subject is prefixed with
 // [TaleForge ...] so the author can filter from other apps' reports.
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.38';
+const ENGINE_VERSION_LABEL = 'v0.39';
 
 // 5.13: paid-story helpers (lightning honor system v1).
 // We trust the player when they click "I've paid". Real cryptographic
@@ -5549,8 +5568,28 @@ const pk = getPublicKey(sk);
 const npub = nip19.npubEncode(pk);
 const nsec = nip19.nsecEncode(sk);
 const npubShort = npub.slice(0, 12) + '…' + npub.slice(-6);
-document.getElementById('pubkey').textContent = npubShort;
-document.getElementById('pubkey').title = npub;
+const pubkeyEl = document.getElementById('pubkey');
+pubkeyEl.textContent = npubShort;
+pubkeyEl.title = npub + '  (click to copy)';
+// v0.39: tap-to-copy npub on click. Toast confirms. Mobile-friendly (the
+// sidebar npub was previously hover-title only, useless on touch).
+pubkeyEl.style.cursor = 'pointer';
+pubkeyEl.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(npub);
+    showToast('npub copied', 'identity');
+  } catch (e) {
+    // Clipboard API may fail on insecure origins / older mobile. Fall back
+    // to a selection-based copy via a temp textarea.
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = npub; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+      showToast('npub copied', 'identity');
+    } catch { showToast('Copy failed — long-press to select manually', 'identity'); }
+  }
+});
 
 const pool = new SimplePool();
 let relayUp = false;
@@ -6349,6 +6388,14 @@ function gainRenown(kind, qty) {
   const afterTier = renownTier(player.renown);
   if (afterTier.stars > beforeTier.stars) {
     write(T('>>> Your reputation grows: now {0} ({1}).', afterTier.label, '★'.repeat(afterTier.stars)), 'spark');
+    // v0.39: celebration banner for crossing a star threshold.
+    try {
+      showToast(`${afterTier.label} ${'★'.repeat(afterTier.stars)}`, 'renown', {
+        celebrate: true,
+        tag: 'Renown tier-up',
+        subtitle: `Merchants notice. NPCs greet you by reputation now.`
+      });
+    } catch {}
   }
 }
 // ============================================================
@@ -6823,20 +6870,34 @@ function write(text='', cls='') {
 // scan the prose stream to notice them. Auto-fades after 5 s; click to
 // dismiss early. The terminal-line write also still happens for full history.
 const TOAST_TTL = 5000;
-function showToast(text, kind = '') {
+const TOAST_CELEBRATE_TTL = 8000;  // v0.39: celebration banners hold longer
+function showToast(text, kind = '', opts = {}) {
   const stack = document.getElementById('toast-stack');
   if (!stack) return;
   const card = document.createElement('div');
-  card.className = 'toast' + (kind ? (' ' + kind) : '');
-  if (kind) {
+  const isCelebrate = !!opts.celebrate;
+  const cls = ['toast'];
+  if (kind) cls.push(kind);
+  if (isCelebrate) cls.push('celebrate');
+  card.className = cls.join(' ');
+  // Tag line. For celebrations the tag is the kind in caps; for normal
+  // toasts it's the kind lowercased (existing behavior).
+  const tagText = opts.tag || kind || '';
+  if (tagText) {
     const tag = document.createElement('div');
     tag.className = 'toast-tag';
-    tag.textContent = kind;
+    tag.textContent = isCelebrate ? tagText.toUpperCase() : tagText;
     card.appendChild(tag);
   }
   const body = document.createElement('div');
   body.textContent = String(text);
   card.appendChild(body);
+  if (opts.subtitle) {
+    const sub = document.createElement('div');
+    sub.style.cssText = 'font-size:12px;color:var(--muted);margin-top:4px;';
+    sub.textContent = opts.subtitle;
+    card.appendChild(sub);
+  }
   function dismiss() {
     if (!card.parentNode) return;
     card.classList.add('fading');
@@ -6844,7 +6905,7 @@ function showToast(text, kind = '') {
   }
   card.addEventListener('click', dismiss);
   stack.appendChild(card);
-  setTimeout(dismiss, TOAST_TTL);
+  setTimeout(dismiss, isCelebrate ? TOAST_CELEBRATE_TTL : TOAST_TTL);
   // Cap stack at 5 — drop the oldest if more pile up.
   while (stack.children.length > 5) {
     try { stack.children[0].remove(); } catch { break; }
@@ -6962,6 +7023,33 @@ function refreshSidebar() {
         row.innerHTML = `<span style="color:var(--muted);">[${mark}] ${escapeHtml(p.label)}</span><span class="qty" style="color:var(--accent);">${bar} ${cur}/${p.target}</span>`;
         trackerEl.appendChild(row);
       }
+    }
+  }
+  // v0.39: combat HP bar. Visible when player.combat_target is set so the
+  // fight's state is glance-able without re-reading narration. Hidden
+  // otherwise.
+  const combatSec = document.getElementById('combatTrackerSection');
+  const combatEl = document.getElementById('combatTracker');
+  if (combatSec && combatEl) {
+    if (player.combat_target) {
+      const ct = player.combat_target;
+      const ent = STORY.entities[ct.id] || ct;
+      const maxHp = Math.max(1, ent.hp || ct.hp || 1);
+      const cur = Math.max(0, ct.hp);
+      const filled = Math.min(12, Math.round((cur / maxHp) * 12));
+      const bar = '▓'.repeat(filled) + '░'.repeat(12 - filled);
+      const ratio = cur / maxHp;
+      const color = ratio > 0.66 ? 'var(--green)' : (ratio > 0.33 ? 'var(--accent)' : 'var(--red)');
+      combatEl.innerHTML = '';
+      const r1 = document.createElement('div'); r1.className = 'row';
+      r1.innerHTML = `<span style="color:var(--red);">${escapeHtml(ent.display || ct.id)}</span><span class="qty" style="color:${color};">${cur}/${maxHp}</span>`;
+      combatEl.appendChild(r1);
+      const r2 = document.createElement('div'); r2.className = 'row';
+      r2.innerHTML = `<span style="color:${color};font-family:monospace;letter-spacing:1px;">${bar}</span>`;
+      combatEl.appendChild(r2);
+      combatSec.style.display = '';
+    } else {
+      combatSec.style.display = 'none';
     }
   }
   // Companion (only visible when one is bound)
@@ -9045,6 +9133,58 @@ function answer(text) {
 }
 
 // --- combat & survival ---
+// v0.39: filter the terminal scrollback by channel. The world feed,
+// whispers, DMs, and combat narration all interleave in one stream;
+// scanning for "what did they say" on mobile is hard. `feed <type>`
+// extracts the matching lines from up to the last 500 entries and
+// displays them in a clean block.
+const FEED_CHANNELS = {
+  dm:        { label: 'DMs',           classes: ['whisper'], match: /\[dm from /i },
+  whisper:   { label: 'whispers',      classes: ['whisper'], match: null },
+  combat:    { label: 'combat',        classes: ['combat'],  match: null },
+  events:    { label: 'world events',  classes: ['spark', 'system'], match: />>>|world events|stir runs/i },
+  npcs:      { label: 'NPC speech',    classes: ['npc'],     match: null },
+  rooms:     { label: 'room descriptions', classes: ['room-name','room-desc'], match: null },
+  items:     { label: 'item / loot',   classes: ['items','gold'], match: null },
+  all:       { label: 'all narration', classes: null,        match: null }   // print everything except echo
+};
+function showFeed(typeRaw) {
+  const type = (typeRaw || '').trim().toLowerCase();
+  if (!type || type === 'help' || type === '?') {
+    write('Channels:', 'system');
+    for (const [k, v] of Object.entries(FEED_CHANNELS)) write(`  feed ${k}  —  ${v.label}`, 'system');
+    return;
+  }
+  const ch = FEED_CHANNELS[type];
+  if (!ch) {
+    write(`Unknown channel "${type}". Try "feed" without an arg to see options.`, 'error');
+    return;
+  }
+  const scanFrom = Math.max(0, out.children.length - 500);
+  const matches = [];
+  for (let i = scanFrom; i < out.children.length; i++) {
+    const node = out.children[i]; if (!node) continue;
+    const cls = node.className || '';
+    if (/\becho\b/.test(cls)) continue; // skip player input echo
+    const text = node.textContent || '';
+    if (ch.classes) {
+      const ok = ch.classes.some(c => cls.includes(' ' + c) || cls.endsWith(c));
+      if (!ok) continue;
+    }
+    if (ch.match && !ch.match.test(text)) continue;
+    matches.push({ text, cls: cls.replace(/^line\s+/, '').trim() });
+  }
+  if (matches.length === 0) {
+    write(`No recent ${ch.label} to show. (Scanned the last 500 lines.)`, 'system');
+    return;
+  }
+  // Cap to last 50 entries within the channel — mobile-friendly chunk.
+  const tail = matches.slice(-50);
+  writeBlock(`=== Feed · ${ch.label} (${tail.length}${matches.length > tail.length ? ` of ${matches.length}` : ''}) ===`, () => {
+    for (const m of tail) write(m.text, m.cls);
+  }, '── end of feed ──');
+}
+
 // v0.36: replay the most recent fight's narration. Slices out.children from
 // lastFightStartIdx, filters for combat-class lines (attack hits, dodges,
 // crits, kills, flee, parry, charge messages), and prints a summary. Useful
@@ -10539,6 +10679,15 @@ function checkAchievements() {
       write('');
       write(`🏆  Achievement unlocked: ${def.name}`, 'spark');
       write(`    ${def.desc}`, 'system');
+      // v0.39: celebration banner alongside the terminal narration so it's
+      // visible above the prompt even on long-scroll mobile sessions.
+      try {
+        showToast(`🏆 ${def.name}`, 'achievement', {
+          celebrate: true,
+          tag: 'Achievement',
+          subtitle: def.desc
+        });
+      } catch {}
     }
   }
 }
@@ -10840,6 +10989,25 @@ function showSoul() {
   write('Your soul (nsec — your character\'s only key):', 'spark');
   write(`  ${nsec}`, 'spark');
   write('Save this. Without it, this character cannot be recovered.', 'system');
+  // v0.39: also try to copy automatically so mobile players don't have to
+  // long-press-select. Shows a confirmation toast either way. Failures
+  // gracefully degrade — the nsec is still printed for manual copy.
+  (async () => {
+    try {
+      await navigator.clipboard.writeText(nsec);
+      showToast('nsec copied to clipboard. Save it somewhere safe.', 'identity');
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = nsec; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove();
+        showToast('nsec copied to clipboard. Save it somewhere safe.', 'identity');
+      } catch {
+        showToast('Auto-copy failed — long-press the nsec line to select.', 'identity');
+      }
+    }
+  })();
 }
 
 function importSoul(arg) {
@@ -12253,6 +12421,7 @@ function helpImpl(filterQ) {
       T('                 buy <#> · market · listings'),
     ] : []),
     T('Drops:           corpses · loot <#>'),
+    T('Channels:        feed <type>  (dm · whisper · combat · events · npcs · rooms · items · all — recent only)'),
     T('Network:         whisper <text>  (broadcast to your room)'),
     T('                 dm <name|npub> <text>  · messages / inbox'),
     T('                 pin <text>  · notices / board (settlement bulletin)'),
@@ -12466,6 +12635,7 @@ function handleCommand(input) {
       write('Legend:  *=you · 📦=chest · ⚠=wolves · 🔥=fire · ↑↓=stairs (up/down) · ┊=in/out · ╎=through wall', 'echo');
     }, '── end of map ──'); consumesTurn = false; break;
     case 'recap': case 'last':   showRecap(); consumesTurn = false; break;
+    case 'feed':                 showFeed(argRaw); consumesTurn = false; break;
     case 'help': case '?':       help(argRaw); consumesTurn = false; break;
     case 'tutorial': case 'guide': tutorialCommand(argRaw); consumesTurn = false; break;
     case 'clear':                out.innerHTML = ''; consumesTurn = false; break;
@@ -12567,7 +12737,7 @@ const STATIC_VERBS = [
   'who','give','gifts','offers','claim','decline','heal','soul','import','rename','characters',
   'switch','stories','relay','lang','tutorial','bug','report','reload','clear','help','map',
   'go','n','s','e','w','u','d','in','out','north','south','east','west','up','down',
-  'donate','support','recap','last','complete','finish'
+  'donate','support','recap','last','complete','finish','feed'
 ];
 // v0.36: tiny Levenshtein for fuzzy "did you mean" suggestions. Caps the
 // matrix at ~30×30 since verbs are short — perfectly fine for runtime use.
