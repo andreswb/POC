@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <title>Taleforge</title>
 <style>
   :root {
@@ -79,7 +79,14 @@
     -webkit-text-size-adjust: 100%; }
 
   
+  /* v0.57 B2: responsive sidebar widths.
+     - Wide (>1400px): 420px sidebar, lets the equipment paper-doll + endings widget breathe.
+     - Default (760-1400px): 380px sidebar.
+     - Narrow (<760px): collapses to a single column via the @media block below. */
   #layout { display: grid; grid-template-columns: 1fr 380px; height: 100vh; }
+  @media (min-width: 1400px) {
+    #layout { grid-template-columns: 1fr 420px; }
+  }
   #terminal-wrap { display: flex; flex-direction: column; border-right: 1px solid var(--border); height: 100vh; min-width: 0; }
   #output { flex: 1; overflow-y: auto; padding: 16px 20px; line-height: 1.55; }
   #prompt-row { display: flex; align-items: center; border-top: 1px solid var(--border);
@@ -249,9 +256,14 @@
   @media (max-width: 760px) {
     body { font-size: 13px; }
     #layout { grid-template-columns: 1fr; }
-    #terminal-wrap { border-right: none; height: 100vh; }
-    #output { padding: 12px 14px; line-height: 1.5; }
-    #prompt-row { padding: 8px 12px; }
+    /* v0.57 B1: soft-keyboard handling.
+       - Use 100dvh (dynamic viewport height) instead of 100vh so iOS Safari's
+         shrinking visual viewport doesn't bury #prompt-row behind the keyboard.
+       - position: sticky with safe-area inset keeps the input row visible
+         when the keyboard pops; overscroll-behavior contains rubber-banding. */
+    #terminal-wrap { border-right: none; height: 100dvh; }
+    #output { padding: 12px 14px; line-height: 1.5; overscroll-behavior: contain; }
+    #prompt-row { padding: 8px 12px; position: sticky; bottom: 0; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
 
     #mobile-header {
       display: flex; align-items: center; gap: 10px;

@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.56.1';
+const ENGINE_VERSION_LABEL = 'v0.57';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.57':   'Settings hub modal (gear of theme/font/lang + actions). First-time onboarding intro before the picker. Ending screenshot share (📷 generates a 1200×630 PNG). Mobile keyboard polish (sticky prompt row, dvh, safe-area). Wide-screen sidebar layout (≥1400px). New `thanks <story>` author appreciation gesture (kind-30446). Categorized help modal with sectioned tabs + search. `quests all` cross-story view. Cross-device achievements sync (extends kind-30433). Builder Cmd+K command palette across rooms/items/npcs/quests/etc.',
   'v0.56.1': 'Bug board upgraded to a modal with one-click ★ upvote (NIP-25 reactions). Builder Export now nudges if Playtest check finds critical issues.',
   'v0.56':   '`endings all` cross-story view with completion %. Story-version changelog detection (meta.changelog field). Picker filters now collapsible (auto-collapse after 5 opens). Public bug board on Nostr (kind-30445) with `bugs` command. Builder gained ✨ rewrite presets (darker/tighten/sensory/poetic/…) and a ▶ playtest checklist.',
   'v0.55.1': 'Age-gate fires at picker click time (visible immediately, not after the overlay closes). Stored acks now expire after 30 days; raising a story\'s minimum_age also re-prompts. New `forgetage` command clears stored acks for testing. Copyright bumped to 2026.',
@@ -1287,6 +1288,60 @@ async function showBugBoard() {
   }
 }
 
+// Engine v0.57 — Tier B3: author appreciation gesture.
+// `thanks <story_id>` (or `thanks` for the active story) publishes a
+// kind-30446 event that says "I enjoyed this." It carries the story id +
+// author pubkey so authors can scan their own appreciation feed. Replaceable
+// per (player, story) — repeated thanks overwrites instead of duplicating.
+async function thanksAuthor(argRaw) {
+  const targetId = (argRaw && argRaw.trim()) || (STORY?.meta?.id || '');
+  if (!targetId) {
+    write('thanks <story_id> — say thanks to the author of a story you enjoyed.', 'info');
+    return;
+  }
+  let targetStory = null;
+  try {
+    if (STORY?.meta?.id === targetId) targetStory = STORY;
+    else if (typeof loadStoryFromManifest === 'function') {
+      try { targetStory = await loadStoryFromManifest(targetId); } catch {}
+    }
+  } catch {}
+  const title = targetStory?.meta?.title || targetId;
+  const authorPub = targetStory?.meta?.signature?.author_pubkey
+    || targetStory?.meta?.author_pubkey
+    || targetStory?.meta?.author_npub
+    || '';
+  if (typeof sk === 'undefined' || !sk) {
+    write(`No identity yet. Once you start a character, type \`thanks ${targetId}\` again.`, 'info');
+    return;
+  }
+  try {
+    const tags = [
+      ['t', 'taleforge-thanks'],
+      ['d', `thanks:${targetId}`],
+      ['story', targetId],
+      ['title', title.slice(0, 80)]
+    ];
+    if (authorPub && /^[0-9a-f]{64}$/i.test(authorPub)) tags.push(['p', authorPub]);
+    const evt = finalizeEvent({
+      kind: KIND_THANKS,
+      created_at: Math.floor(Date.now() / 1000),
+      tags,
+      content: JSON.stringify({
+        v: 1,
+        story_id: targetId,
+        title,
+        engine: ENGINE_VERSION_LABEL,
+        time: new Date().toISOString()
+      })
+    }, sk);
+    tryPublish(evt);
+    write(`💛 Thanks sent to the author of "${title}". They'll see it in their appreciation feed.`, 'success');
+  } catch (e) {
+    write(`Could not publish thanks: ${e?.message || 'unknown error'}`, 'error');
+  }
+}
+
 function forgetAgeAcksCommand() {
   let removed = 0;
   try {
@@ -1384,12 +1439,55 @@ function setBootStatus(msg) {
   } catch {}
 }
 
+// Engine v0.57 — Tier A4: first-time engine onboarding.
+// Shown once per browser before the picker. ~60-second skim of what
+// Taleforge is. Skippable. Stored under FIRST_RUN_KEY.
+const FIRST_RUN_KEY = 'taleforge:first_run_seen';
+function showFirstRunIntro() {
+  return new Promise(resolve => {
+    if (localStorage.getItem(FIRST_RUN_KEY) === '1') { resolve(); return; }
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:#0c0e10;z-index:99998;display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit;color:#e8e6e3;';
+    const panel = document.createElement('div');
+    panel.style.cssText = 'max-width:560px;width:100%;background:#1a1815;border:1px solid #c79b3a;border-radius:8px;padding:28px;';
+    panel.innerHTML = `
+      <div style="font-size:11px;color:#c79b3a;text-transform:uppercase;letter-spacing:0.12em;font-weight:600;margin-bottom:6px;">Welcome to Taleforge</div>
+      <h2 style="font-size:24px;color:#f0b54a;margin:0 0 14px;">Stories you play, not stories you watch.</h2>
+      <div style="font-size:14px;line-height:1.55;color:#bcb4a8;margin-bottom:18px;">
+        Taleforge runs text adventures in your browser. You'll pick a world, name a character, and walk a story by typing what you do — <code style="color:#bcb4a8;">north</code>, <code>take torch</code>, <code>talk witch</code>. The world reacts. Other players are real (other browsers, signed by their own keys). Stories have endings; some have many.
+      </div>
+      <div style="background:#23201c;border-left:3px solid #c79b3a;padding:10px 14px;border-radius:4px;margin-bottom:18px;font-size:13px;line-height:1.5;color:#bcb4a8;">
+        <strong style="color:#e8e6e3;">A few things to know:</strong>
+        <ul style="margin:8px 0 0;padding-left:22px;">
+          <li>Your character is yours. The private key (nsec) lives on this browser. <code>soul</code> shows it; <code>backup</code> writes a file.</li>
+          <li>Type <code>help</code> any time. Type <code>tutorial</code> to see hints again.</li>
+          <li><code>switch story</code> to change worlds. <code>endings</code> to see what you've reached.</li>
+          <li>Stuck? Try <code>look</code>, <code>map</code>, <code>quests</code>. The terminal won't bite.</li>
+        </ul>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="fr-skip" style="background:#3a352e;border:none;color:#9c9388;border-radius:4px;padding:8px 14px;font:inherit;font-size:12px;cursor:pointer;">Skip — let me at it</button>
+        <button id="fr-go" style="background:#c79b3a;border:none;color:#1a1408;border-radius:4px;padding:8px 18px;font:inherit;font-weight:600;font-size:13px;cursor:pointer;">▶ Pick a story</button>
+      </div>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    function close() { try { localStorage.setItem(FIRST_RUN_KEY, '1'); } catch {} overlay.remove(); resolve(); }
+    panel.querySelector('#fr-go').onclick = close;
+    panel.querySelector('#fr-skip').onclick = close;
+    overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  });
+}
+
 async function resolveActiveStory() {
   setBootStatus('Fetching story manifest…');
   await loadExtraStoriesIntoBuiltin();
   setBootStatus('Resolving active story…');
   let id = null;
   try { id = localStorage.getItem(ACTIVE_STORY_KEY); } catch {}
+  // Tier A4: first-run intro before the picker — only shows for brand-new
+  // browsers (no active story stored yet).
+  if (!id) { try { await showFirstRunIntro(); } catch {} }
   let s = id ? loadStoryById(id) : null;
   if (s && !hasAgeAck(s)) {
     const ok = await showAgeGateModal(s);
@@ -1514,6 +1612,7 @@ const KIND_BOUNTY_CLAIM = 30438;
 const KIND_STORY_LISTING= 30441;
 const KIND_PROGRESSION  = 30433;  // Tier C9 — encrypted cross-device endings sync
 const KIND_BUG_REPORT   = 30445;  // Tier C9 (round 2) — public bug-report board
+const KIND_THANKS       = 30446;  // Engine v0.57 — Tier B3 author appreciation gesture
 const TOPIC_LISTINGS    = 'nta:story-listings';
 const TOPIC = 'story:' + STORY.meta.id;
 const FIRE_DURATION_TURNS = 20;
@@ -3964,13 +4063,36 @@ function recordGlobalEnding(storyId, tag) {
 // dialog), fetchAndMergeProgression() pulls the latest event and merges
 // into local — so the picker shows their past endings even on a clean
 // browser. Replaceable kind, single d-tag, so storage stays bounded.
+//
+// Engine v0.57 — also bundle the player's achievements set so a fresh
+// browser shows the same earned-badge total. Achievements are scoped to a
+// single story (since they're declared in STORY), so we key them by
+// story_id. The `achievements` field is { [story_id]: [aid, …] }.
+const GLOBAL_ACHIEVEMENTS_KEY = 'taleforge:achievements_global';
+function loadGlobalAchievements() {
+  try { return JSON.parse(localStorage.getItem(GLOBAL_ACHIEVEMENTS_KEY) || '{}') || {}; }
+  catch { return {}; }
+}
+function recordGlobalAchievements() {
+  try {
+    const storyId = STORY?.meta?.id;
+    if (!storyId) return;
+    const all = loadGlobalAchievements();
+    const earned = [...(player.achievements || new Set())];
+    all[storyId] = Array.from(new Set([...(all[storyId] || []), ...earned]));
+    localStorage.setItem(GLOBAL_ACHIEVEMENTS_KEY, JSON.stringify(all));
+  } catch {}
+}
 async function publishProgression() {
   try {
     if (typeof sk === 'undefined' || !sk) return;
+    // Snapshot achievements to the cross-story store before publishing.
+    try { recordGlobalAchievements(); } catch {}
     const payload = {
-      v: 1,
+      v: 2,  // bumped: now includes achievements
       generated_at: Date.now(),
-      endings: loadGlobalEndings()
+      endings: loadGlobalEndings(),
+      achievements: loadGlobalAchievements()
     };
     const ciphertext = await nip04.encrypt(sk, pk, JSON.stringify(payload));
     const evt = finalizeEvent({
@@ -4009,6 +4131,31 @@ async function fetchAndMergeProgression(timeoutMs = 4000) {
             if (added > 0) {
               try { localStorage.setItem(GLOBAL_ENDINGS_KEY, JSON.stringify(local)); } catch {}
               try { write(`[synced ${added} cross-device ending${added === 1 ? '' : 's'} from your other devices]`, 'spark'); } catch {}
+            }
+            // Engine v0.57 — also merge achievements (payload v≥2).
+            const remoteAch = payload?.achievements || {};
+            if (remoteAch && typeof remoteAch === 'object') {
+              const localAch = loadGlobalAchievements();
+              let achAdded = 0;
+              for (const [storyId, aids] of Object.entries(remoteAch)) {
+                if (!localAch[storyId]) localAch[storyId] = [];
+                for (const aid of (aids || [])) {
+                  if (!localAch[storyId].includes(aid)) { localAch[storyId].push(aid); achAdded++; }
+                }
+              }
+              if (achAdded > 0) {
+                try { localStorage.setItem(GLOBAL_ACHIEVEMENTS_KEY, JSON.stringify(localAch)); } catch {}
+                // If the active story matches one of the merged sets,
+                // splice the new achievement IDs into the live player so
+                // the sidebar count and `achievements` command reflect it.
+                try {
+                  const sid = STORY?.meta?.id;
+                  if (sid && remoteAch[sid] && player?.achievements) {
+                    for (const aid of remoteAch[sid]) player.achievements.add(aid);
+                  }
+                } catch {}
+                try { write(`[synced ${achAdded} cross-device achievement${achAdded === 1 ? '' : 's'} from your other devices]`, 'spark'); } catch {}
+              }
             }
           } catch (e) { /* malformed or wrong key — ignore */ }
           finish();
@@ -4096,10 +4243,130 @@ function showEndingOverlay(info) {
   const btnDismiss = document.createElement('button');
   btnDismiss.innerHTML = `× Stay and re-read<span class="sub">Close this dialog. Most commands will refuse with a hint until you restart or switch.</span>`;
   btnDismiss.addEventListener('click', () => { try { overlay.remove(); } catch {} });
-  actions.append(btnRestart, btnPick, btnDismiss);
+  // Engine v0.57 — Tier A3: shareable ending screenshot.
+  // Renders the ending card to a PNG via canvas + offers download / clipboard.
+  // Pure SVG-based composition so it works without any image library.
+  const btnShare = document.createElement('button');
+  btnShare.innerHTML = `📷 Share screenshot<span class="sub">Generate a PNG of this ending card with stats — drop on Twitter / Bluesky / wherever you brag.</span>`;
+  btnShare.addEventListener('click', () => { try { showEndingShareModal(info); } catch (e) { alert('Share failed: ' + (e?.message || e)); } });
+  actions.append(btnRestart, btnPick, btnShare, btnDismiss);
   card.append(tagEl, h, sub, stats, legacy, actions);
   overlay.appendChild(card);
   document.body.appendChild(overlay);
+}
+
+// Render the ending info as a shareable PNG. Strategy: build an SVG with
+// text layout that matches the in-app card vibe, serialize, draw to canvas,
+// export PNG. No external libraries.
+function endingToSvg(info) {
+  const W = 1200, H = 630;  // Twitter card aspect ratio
+  const tag = info.tag || '?';
+  const title = info.story_title || '?';
+  const days = info.days_alive ?? 0;
+  const rooms = info.rooms_explored ?? 0;
+  const kills = info.kills ?? 0;
+  const skills = info.skills_learned ?? 0;
+  const gold = info.gold_at_end ?? 0;
+  const sparks = info.sparks_at_end ?? 0;
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#0c0e10"/>
+        <stop offset="100%" stop-color="#1a1815"/>
+      </linearGradient>
+    </defs>
+    <rect width="${W}" height="${H}" fill="url(#bg)"/>
+    <rect x="40" y="40" width="${W-80}" height="${H-80}" fill="#1a1815" stroke="#c79b3a" stroke-width="2" rx="12"/>
+    <text x="80" y="120" font-family="ui-monospace,monospace" font-size="18" fill="#c79b3a" letter-spacing="6" font-weight="600">ENDING REACHED</text>
+    <text x="80" y="200" font-family="ui-monospace,monospace" font-size="68" fill="#f0b54a" font-weight="700">★ ${esc(tag)}</text>
+    <text x="80" y="270" font-family="ui-monospace,monospace" font-size="32" fill="#bcb4a8">${esc(title)}</text>
+    <text x="80" y="312" font-family="ui-monospace,monospace" font-size="18" fill="#9c9388" font-style="italic">${info.first_time ? 'A new chapter closes for this character.' : 'You have walked this road before.'}</text>
+    <g font-family="ui-monospace,monospace" font-size="22" fill="#bcb4a8">
+      <text x="80" y="400">Days alive</text>      <text x="380" y="400" fill="#e8e6e3" text-anchor="end">${days}</text>
+      <text x="430" y="400">Rooms explored</text> <text x="780" y="400" fill="#e8e6e3" text-anchor="end">${rooms}</text>
+      <text x="830" y="400">Kills</text>           <text x="1120" y="400" fill="#e8e6e3" text-anchor="end">${kills}</text>
+      <text x="80" y="450">Skills learned</text>  <text x="380" y="450" fill="#e8e6e3" text-anchor="end">${skills}</text>
+      <text x="430" y="450">Gold</text>            <text x="780" y="450" fill="#e8c468" text-anchor="end">${gold}</text>
+      <text x="830" y="450">Sparks</text>          <text x="1120" y="450" fill="#c896e0" text-anchor="end">${sparks}</text>
+    </g>
+    <text x="80" y="560" font-family="ui-monospace,monospace" font-size="14" fill="#7a7367" letter-spacing="2">TALEFORGE.PAGES.DEV  ·  ${esc(ENGINE_VERSION_LABEL)}</text>
+  </svg>`;
+}
+
+async function endingToPng(info) {
+  const svg = endingToSvg(info);
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200; canvas.height = 630;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    return await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function showEndingShareModal(info) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:#1a1815;border:1px solid #c79b3a;border-radius:8px;max-width:680px;width:100%;max-height:90vh;overflow:auto;padding:22px;';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:18px;font-weight:bold;">📷 Share your ending</div>
+      <button id="esh-close" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;">×</button>
+    </div>
+    <div id="esh-preview" style="background:#0c0e10;border:1px solid #3a352e;border-radius:6px;overflow:hidden;margin-bottom:14px;">
+      <div style="padding:24px;text-align:center;color:#9c9388;font-size:13px;">Rendering…</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+      <button id="esh-copy" style="padding:8px 14px;background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;font:inherit;font-size:13px;cursor:pointer;">Copy to clipboard</button>
+      <button id="esh-download" style="padding:8px 14px;background:#c79b3a;border:none;color:#1a1408;border-radius:4px;font:inherit;font-weight:600;font-size:13px;cursor:pointer;">⬇ Download PNG</button>
+    </div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  panel.querySelector('#esh-close').onclick = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  let pngBlob = null;
+  try {
+    pngBlob = await endingToPng(info);
+    const url = URL.createObjectURL(pngBlob);
+    const preview = panel.querySelector('#esh-preview');
+    preview.innerHTML = `<img src="${url}" style="width:100%;display:block;" alt="ending screenshot">`;
+  } catch (e) {
+    panel.querySelector('#esh-preview').innerHTML = `<div style="padding:24px;color:#c66;font-size:13px;">Render failed: ${escapeHtml(e?.message || String(e))}</div>`;
+    return;
+  }
+  const fname = `taleforge-${(info.story_id || 'story').replace(/[^a-z0-9]+/gi,'_')}-${(info.tag || 'ending').toLowerCase()}.png`;
+  panel.querySelector('#esh-download').onclick = () => {
+    if (!pngBlob) return;
+    const url = URL.createObjectURL(pngBlob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  panel.querySelector('#esh-copy').onclick = async () => {
+    if (!pngBlob) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+      const btn = panel.querySelector('#esh-copy');
+      btn.textContent = '✓ Copied'; setTimeout(() => { btn.textContent = 'Copy to clipboard'; }, 1500);
+    } catch (e) {
+      alert('Clipboard write failed (browser may not support image clipboard). Use Download instead.\n\n' + (e?.message || ''));
+    }
+  };
 }
 
 function restartCurrentStory() {
@@ -4689,6 +4956,104 @@ const TIME_OF_DAY_PERIODS = ['dawn','morning','noon','afternoon','dusk','evening
 function applyTimeOfDayTint(period) {
   for (const p of TIME_OF_DAY_PERIODS) document.body.classList.remove('tod-' + p);
   if (TIME_OF_DAY_PERIODS.includes(period)) document.body.classList.add('tod-' + period);
+}
+
+// Engine v0.57 — Tier A1: settings hub modal.
+// Centralizes theme / font-size / language / story-changelog visibility.
+// Replaces the scattered `theme` / `fontsize` / `lang` commands with a
+// single discoverable surface (those commands keep working too).
+function showSettingsModal() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:480px;width:100%;max-height:90vh;overflow:auto;padding:22px;';
+  const curTheme = loadTheme();
+  const curFont = loadFontSize();
+  const curLang = currentLang();
+  const storyLangs = (STORY.meta?.languages && Array.isArray(STORY.meta.languages)) ? STORY.meta.languages : [STORY.meta?.language || 'en'];
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:18px;font-weight:bold;">⚙ Settings</div>
+      <button id="set-close" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;">×</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;font-size:13px;">
+
+      <div>
+        <div style="font-size:12px;color:#9c9388;margin-bottom:4px;">Theme</div>
+        <div id="set-theme" style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${THEMES.map(t => `<button data-theme="${t}" style="padding:6px 12px;background:${t === curTheme ? '#c79b3a' : '#23201c'};color:${t === curTheme ? '#1a1408' : '#e8e6e3'};border:1px solid ${t === curTheme ? '#c79b3a' : '#3a352e'};border-radius:4px;font:inherit;font-size:12px;cursor:pointer;">${t}</button>`).join('')}
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:12px;color:#9c9388;margin-bottom:4px;">Font size</div>
+        <div id="set-font" style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${FONTSIZES.map(f => `<button data-font="${f}" style="padding:6px 12px;background:${f === curFont ? '#c79b3a' : '#23201c'};color:${f === curFont ? '#1a1408' : '#e8e6e3'};border:1px solid ${f === curFont ? '#c79b3a' : '#3a352e'};border-radius:4px;font:inherit;font-size:12px;cursor:pointer;">${f}</button>`).join('')}
+        </div>
+      </div>
+
+      ${storyLangs.length > 1 ? `
+      <div>
+        <div style="font-size:12px;color:#9c9388;margin-bottom:4px;">Language (this story)</div>
+        <div id="set-lang" style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${storyLangs.map(l => `<button data-lang="${l}" style="padding:6px 12px;background:${l === curLang ? '#c79b3a' : '#23201c'};color:${l === curLang ? '#1a1408' : '#e8e6e3'};border:1px solid ${l === curLang ? '#c79b3a' : '#3a352e'};border-radius:4px;font:inherit;font-size:12px;cursor:pointer;">${l}</button>`).join('')}
+        </div>
+      </div>
+      ` : `
+      <div>
+        <div style="font-size:12px;color:#9c9388;margin-bottom:4px;">Language</div>
+        <div style="font-size:12px;color:#7a7367;">This story is single-language (${escapeHtml(storyLangs[0] || 'en')}).</div>
+      </div>
+      `}
+
+      <div>
+        <div style="font-size:12px;color:#9c9388;margin-bottom:4px;">Audio (coming soon)</div>
+        <div style="font-size:12px;color:#7a7367;">Ambient + event sounds will be available in a future engine release. Toggle will appear here.</div>
+      </div>
+
+      <div>
+        <div style="font-size:12px;color:#9c9388;margin-bottom:6px;">Engine</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <button id="set-whatsnew" style="padding:6px 10px;background:#23201c;color:#bcb4a8;border:1px solid #3a352e;border-radius:4px;font:inherit;font-size:11px;cursor:pointer;">📜 What's new</button>
+          <button id="set-reload" style="padding:6px 10px;background:#23201c;color:#bcb4a8;border:1px solid #3a352e;border-radius:4px;font:inherit;font-size:11px;cursor:pointer;">↻ Reload engine</button>
+          <button id="set-forget-age" style="padding:6px 10px;background:#23201c;color:#bcb4a8;border:1px solid #3a352e;border-radius:4px;font:inherit;font-size:11px;cursor:pointer;">⚠ Reset age-gates</button>
+          <button id="set-bug" style="padding:6px 10px;background:#23201c;color:#bcb4a8;border:1px solid #3a352e;border-radius:4px;font:inherit;font-size:11px;cursor:pointer;">🐛 Report bug</button>
+        </div>
+      </div>
+
+      <div style="font-size:11px;color:#7a7367;border-top:1px solid #3a352e;padding-top:10px;">
+        Engine ${escapeHtml(ENGINE_VERSION_LABEL)} · ${escapeHtml(STORY.meta?.title || STORY.meta?.id || '?')} v${escapeHtml(STORY.meta?.version || '?')}
+      </div>
+    </div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  panel.querySelector('#set-close').onclick = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.remove(); });
+
+  panel.querySelectorAll('#set-theme button').forEach(b => {
+    b.onclick = () => { applyTheme(b.dataset.theme); overlay.remove(); showSettingsModal(); };
+  });
+  panel.querySelectorAll('#set-font button').forEach(b => {
+    b.onclick = () => { applyFontSize(b.dataset.font); overlay.remove(); showSettingsModal(); };
+  });
+  panel.querySelectorAll('#set-lang button').forEach(b => {
+    b.onclick = () => {
+      try {
+        player.language = b.dataset.lang;
+        resolveStoryProse();
+        applyDomI18n();
+        describeRoom();
+        refreshSidebar();
+      } catch {}
+      overlay.remove();
+    };
+  });
+  panel.querySelector('#set-whatsnew').onclick = () => { overlay.remove(); showWhatsNewCommand(); };
+  panel.querySelector('#set-reload').onclick = () => { overlay.remove(); reloadEngine(); };
+  panel.querySelector('#set-forget-age').onclick = () => { overlay.remove(); forgetAgeAcksCommand(); };
+  panel.querySelector('#set-bug').onclick = () => { overlay.remove(); showBugReporter(); };
 }
 
 function showSkillTree() {
@@ -5773,7 +6138,76 @@ function questComplete(qid) {
   if (!ps || ps.state !== 'active') return false;
   return questProgress(qid).every(p => p.done);
 }
-function showQuests() {
+function showQuests(arg) {
+  // Engine v0.57 — Tier polish: `quests all` cross-story view, mirrors
+  // `endings all`. Shows totals + per-story progress for every story on
+  // this browser, using the persisted player_quests record we already keep
+  // in localStorage per (story, character).
+  const showAll = (typeof arg === 'string') && arg.trim().toLowerCase() === 'all';
+  if (showAll) {
+    const allStories = (typeof listAllStoryOptions === 'function') ? listAllStoryOptions() : [];
+    writeBlock('=== Quests — all stories ===', () => {
+      let totalCompleted = 0, totalAvailable = 0;
+      const rows = [];
+      for (const opt of allStories) {
+        if (opt.source === 'marketplace') continue;
+        const allQuests = Object.entries(opt.story?.quests || {});
+        if (allQuests.length === 0) continue;
+        // Read each character's saved state for this story to find the
+        // best (highest completion count) progression.
+        let bestCompleted = new Set();
+        let bestActive = new Set();
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (!k || !k.startsWith(`nstadv:${opt.id}:state`)) continue;
+            const raw = localStorage.getItem(k);
+            if (!raw) continue;
+            try {
+              const parsed = JSON.parse(raw);
+              const qmap = parsed?.player?.quests || {};
+              const completed = new Set(), active = new Set();
+              for (const [qid, ps] of Object.entries(qmap)) {
+                if (ps?.state === 'completed') completed.add(qid);
+                else if (ps?.state === 'active') active.add(qid);
+              }
+              if (completed.size > bestCompleted.size) {
+                bestCompleted = completed;
+                bestActive = active;
+              }
+            } catch {}
+          }
+        } catch {}
+        // Also pull this run's progress for the active story.
+        if (opt.id === STORY?.meta?.id) {
+          for (const [qid, ps] of Object.entries(player?.quests || {})) {
+            if (ps?.state === 'completed') bestCompleted.add(qid);
+            else if (ps?.state === 'active') bestActive.add(qid);
+          }
+        }
+        totalCompleted += bestCompleted.size;
+        totalAvailable += allQuests.length;
+        const label = (typeof opt.story.meta?.title === 'string') ? opt.story.meta.title : (opt.story.meta?.title?.en || opt.id);
+        rows.push({ opt, label, allQuests, completed: bestCompleted, active: bestActive });
+      }
+      if (rows.length === 0) {
+        write('No stories on this browser declare quests yet.', 'muted');
+      } else {
+        rows.sort((a, b) => (b.completed.size / Math.max(1, b.allQuests.length)) - (a.completed.size / Math.max(1, a.allQuests.length)));
+        for (const { opt, label, allQuests, completed, active } of rows) {
+          const pct = Math.round((completed.size / allQuests.length) * 100);
+          const filled = Math.round(completed.size * 8 / allQuests.length);
+          const bar = '▓'.repeat(filled) + '░'.repeat(8 - filled);
+          const tone = (completed.size === allQuests.length) ? 'success' : 'system';
+          write(`  ${label}  ${bar}  ${completed.size}/${allQuests.length}  (${pct}%)${active.size ? `  · ${active.size} in progress` : ''}`, tone);
+        }
+        write('');
+        const totalPct = totalAvailable > 0 ? Math.round((totalCompleted / totalAvailable) * 100) : 0;
+        write(`Total: ${totalCompleted} / ${totalAvailable} quests (${totalPct}%)`, 'spark');
+      }
+    }, '── end of quests ──');
+    return;
+  }
   const active = [];
   const completed = [];
   for (const [qid, ps] of Object.entries(player.quests)) {
@@ -5783,6 +6217,7 @@ function showQuests() {
   }
   if (active.length === 0 && completed.length === 0) {
     write('No active quests. Talk to NPCs to find work.');
+    write('Type "quests all" for the cross-story view.', 'echo');
     return;
   }
   if (active.length) {
@@ -6541,10 +6976,12 @@ const ACHIEVEMENTS = {
 };
 function totalKills() { return Object.values(player.stats.kills).reduce((a, b) => a + b, 0); }
 function checkAchievements() {
+  let granted = false;
   for (const [aid, def] of Object.entries(ACHIEVEMENTS)) {
     if (player.achievements.has(aid)) continue;
     if (def.check()) {
       player.achievements.add(aid);
+      granted = true;
       write('');
       write(`🏆  Achievement unlocked: ${def.name}`, 'spark');
       write(`    ${def.desc}`, 'system');
@@ -6556,6 +6993,13 @@ function checkAchievements() {
         });
       } catch {}
     }
+  }
+  // Engine v0.57 — Tier polish: cross-device achievements sync.
+  // Persist + publish whenever a new achievement lands so other devices
+  // owned by this player see it next time they fetchAndMergeProgression.
+  if (granted) {
+    try { recordGlobalAchievements(); } catch {}
+    try { publishProgression(); } catch {}
   }
 }
 function showStats() {
@@ -8493,7 +8937,243 @@ function writeBlock(headerText, bodyFn, footerText = '── end ──') {
 
 function help(query) {
   const filterQ = (query || '').trim().toLowerCase();
+  // Engine v0.57 — Tier polish: when no query is given, prefer the new
+  // categorized help modal. `help <topic>` still uses the terminal filter
+  // for muscle-memory and for cmd-history workflows.
+  if (!filterQ) {
+    try { showHelpModal(); return; } catch (e) { /* fall through to text */ }
+  }
   return helpImpl(filterQ);
+}
+// Engine v0.57 — Tier polish: categorized help modal.
+// Replaces the wall-of-text `help` output with a tabbed/sectioned overlay
+// that groups commands by category. Keyboard-friendly (Esc closes, ↑/↓
+// scroll), with a search box that mirrors `help <topic>` for free-text
+// filtering across all categories.
+function showHelpModal() {
+  const skills = STORY?.skills || {};
+  const items = STORY?.items || {};
+  const npcs = STORY?.npcs || {};
+  const hasTransform = !!(skills.lycanthropy || skills.vampirism);
+  const hasSmithing = Object.values(npcs).some(n => Array.isArray(n.behaviors) && n.behaviors.includes('offers_smithing'));
+  const hasTaming = !!skills.taming || Object.values(skills).some(s => Array.isArray(s.tags) && s.tags.includes('taming'));
+  const hasWorldEvents = !!(STORY?.world_events && Object.keys(STORY.world_events).length > 0);
+  const hasMarketplace = Object.values(npcs).some(n => n.is_marketplace === true);
+  const hasBestiary = !!(STORY?.entities && Object.keys(STORY.entities).length > 0);
+  const hasAmmo = Object.values(items).some(it => it?.effects?.requires_ammo);
+
+  const sections = [
+    {
+      id: 'getting-around', title: 'Getting around', icon: '🧭',
+      lines: [
+        ['n / s / e / w · u / d · in · out', 'Move one room in that direction'],
+        ['go <dir>', 'Same as the shortcut, but spelled out'],
+        ['look', 'Re-print the current room'],
+        ['look <dir>', 'Peek through an exit without moving'],
+        ['map', 'Show the discovered map']
+      ]
+    },
+    {
+      id: 'survival', title: 'Survival & combat', icon: '⚔️',
+      lines: [
+        ['eat <x> · drink · light fire · sleep / rest', 'Stay alive'],
+        ['hunt · attack · flee', 'Engage / disengage'],
+        ['parry', 'Defensive stance — next blow has +60% dodge'],
+        ['charge', 'Hunting only · +50% damage on next attack, but enemy hits 1.5×; once per fight'],
+        ['retreat', 'Try to escape without parting damage; 70% base, +20% with Hunting'],
+        ['recap / last', 'Replay narration from your most recent fight'],
+        ['assist [<name>]', "Join another player's fight in the same room"],
+        ...(hasTransform ? [['transform [wolf|bat] · revert', 'Cursed forms — only if you carry the curse']] : []),
+        ...(hasAmmo ? [['(ammo)', 'Some ranged weapons consume ammo per shot — see item descriptions']] : [])
+      ]
+    },
+    {
+      id: 'items', title: 'Items & equipment', icon: '🎒',
+      lines: [
+        ['take <x> · drop <x> · bury <x|qty x>', 'Pick up / discard'],
+        ['inv · status', 'Inventory & vitals'],
+        ['examine / inspect / x <item|creature>', 'Close inspection — stats, effects, kill counts'],
+        ['read <item>', 'Lore, letters, books'],
+        ['wear / wield <x> · unwear <slot> · equipment / eq', 'Gear up'],
+        ...(hasSmithing ? [['sharpen <x> · repair <x>', 'At the village blacksmith']] : []),
+        ['place chest · chest · store / retrieve [<n>] <x>', 'Per-room storage (also "store all" / "retrieve all")']
+      ]
+    },
+    {
+      id: 'skills-craft', title: 'Skills & crafting', icon: '🛠️',
+      lines: [
+        ['skills · learn <skill>', 'Train new disciplines'],
+        ['skilltree / tree / st', 'Visual prereq view'],
+        ['chop / forage / gather / mine / fish', 'Gathering verbs (each needs a skill)'],
+        ['recipes · craft <recipe>', 'See & make things'],
+        ['craft <qty> <recipe>', 'Batch craft — each craft awards sparks']
+      ]
+    },
+    {
+      id: 'people', title: 'People & dialogue', icon: '👥',
+      lines: [
+        ['talk <npc>', 'Open dialogue'],
+        ['answer <text>', 'Reply when prompted (e.g. riddles)'],
+        ['who', 'Players nearby'],
+        ['rename <new_name>', 'Change your visible name'],
+        ...(hasTaming ? [['tame · feed · companion / pet · dismiss', 'Companion handling']] : []),
+        ['give <item> to <name> [message]', 'Hand an item to another player'],
+        ['gifts / offers · claim <id> · decline <id>', 'Manage incoming gifts'],
+        ['heal <name>', 'Uses one healing salve from your inventory']
+      ]
+    },
+    {
+      id: 'progression', title: 'Progression', icon: '🏅',
+      lines: [
+        ['quests / q', 'Active & accepted quests'],
+        ['quests all', 'All endings & quests reached across stories'],
+        ['stats · achievements', 'Your run-time numbers'],
+        ['accept <id> · turn in <id>', 'Quest controls'],
+        ['complete / finish [<id>]', 'Force-complete a null-giver quest if all objectives met (escape hatch)'],
+        ['(daily quests)', 'Auto-rotate at dawn — turn in before dawn or they expire'],
+        ['endings · legacy · whoami / me', 'Run history, carry-over wallet, scorecard']
+      ]
+    },
+    {
+      id: 'world', title: 'World & market', icon: '🌍',
+      lines: [
+        ...(hasBestiary ? [['bestiary', 'List creatures the story defines, with kill counts']] : []),
+        ...(hasWorldEvents ? [['news', 'Active world events + their progress']] : []),
+        ...(hasBestiary ? [['bounties · bounty post · bounty claim · bounty cancel', 'Cross-player bounty board']] : []),
+        ...(hasMarketplace ? [
+          ['sell <item> · sell <qty> <item>', 'Direct sale at base value (instant gold)'],
+          ['sell <item> <price> · sell <qty> <item> <price>', 'List on the player marketplace'],
+          ['buy <#> · market · listings', 'Browse / buy from other players']
+        ] : []),
+        ['corpses · loot <#>', 'Pick over the slain']
+      ]
+    },
+    {
+      id: 'social', title: 'Communication', icon: '💬',
+      lines: [
+        ['feed <type>', 'Chat / activity feed (dm · whisper · combat · events · npcs · rooms · items · all)'],
+        ['whisper <text>', 'Broadcast to your room'],
+        ['dm <name|npub> <text> · messages / inbox', 'Direct messages'],
+        ['pin <text> · notices / board', 'Settlement bulletin board'],
+        ['carve <text> · carvings / marks', 'Permanent room marks (all visitors see)']
+      ]
+    },
+    {
+      id: 'identity', title: 'Identity & worlds', icon: '🔑',
+      lines: [
+        ['soul', 'Show your nsec'],
+        ['import <nsec>', 'Bring an existing identity'],
+        ['new character', 'Fresh start (new identity, new save)'],
+        ['restart', 'Reset progress in this story only'],
+        ['characters', 'Recent characters on this browser ("characters <#>" to switch)'],
+        ['switch story · stories', 'Pick a different world'],
+        ['relay list · relay add · relay remove · relay reset', 'Configure Nostr relays'],
+        ['(offline)', 'Events queue automatically when offline, sync on reconnect']
+      ]
+    },
+    {
+      id: 'preferences', title: 'Preferences', icon: '⚙️',
+      lines: [
+        ['settings / options', 'Open the visual settings hub'],
+        ['lang [<code>]', 'Show or switch language (e.g. "lang de")'],
+        ['theme [<dark|light|sepia|contrast>]', 'Show or switch theme'],
+        ['fontsize [<small|medium|large>]', 'Show or switch font size'],
+        ['tutorial · tutorial topics · tutorial topic <name> · tutorial off', 'Onboarding hints (replay or silence)']
+      ]
+    },
+    {
+      id: 'feedback', title: 'Feedback & updates', icon: '📮',
+      lines: [
+        ['bug / report', 'File a bug — also publishes to the public board'],
+        ['bugs', 'Browse the public bug board'],
+        ['thanks [<story_id>]', 'Send appreciation to a story author'],
+        ['reload story', 'Fetch the latest version of the active story without losing progress'],
+        ['reload engine', 'Fetch the latest engine build (page reload — your character is safe)'],
+        ['whatsnew · changelog', 'See what changed recently'],
+        ['clear', 'Clear the terminal']
+      ]
+    }
+  ];
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:780px;width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px 10px;border-bottom:1px solid #2a2724;">
+      <div>
+        <div style="font-size:18px;font-weight:bold;">Help</div>
+        <div style="color:#9c9388;font-size:12px;margin-top:2px;">Browse by category, or search across all commands.</div>
+      </div>
+      <button id="hm-close" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;">×</button>
+    </div>
+    <div style="padding:10px 22px;border-bottom:1px solid #2a2724;">
+      <input id="hm-search" type="text" placeholder="Search… (e.g. craft, market, transform)" autocomplete="off" style="width:100%;background:#0c0e10;border:1px solid #3a352e;color:#e8e6e3;border-radius:4px;padding:8px 10px;font:inherit;font-size:13px;box-sizing:border-box;" />
+    </div>
+    <div style="flex:1;overflow:auto;display:flex;min-height:0;">
+      <nav id="hm-tabs" style="flex:0 0 200px;border-right:1px solid #2a2724;padding:8px 0;overflow:auto;background:#161310;"></nav>
+      <div id="hm-body" style="flex:1;overflow:auto;padding:14px 22px;"></div>
+    </div>
+    <div style="padding:10px 22px;border-top:1px solid #2a2724;font-size:11px;color:#7a7367;">Press <kbd style="background:#2a2724;padding:1px 6px;border-radius:3px;">Esc</kbd> to close · type <code style="color:#bcb4a8;">help &lt;topic&gt;</code> in the terminal for the same filter</div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  const tabsEl = panel.querySelector('#hm-tabs');
+  const bodyEl = panel.querySelector('#hm-body');
+  const searchEl = panel.querySelector('#hm-search');
+  let activeId = sections[0].id;
+
+  function renderTabs() {
+    tabsEl.innerHTML = '';
+    for (const sec of sections) {
+      const btn = document.createElement('button');
+      const active = sec.id === activeId;
+      btn.style.cssText = `display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:8px 16px;background:${active ? '#23201c' : 'transparent'};color:${active ? '#e8e6e3' : '#9c9388'};border:none;border-left:3px solid ${active ? '#c79b3a' : 'transparent'};cursor:pointer;font:inherit;font-size:13px;`;
+      btn.innerHTML = `<span style="font-size:14px;">${sec.icon}</span><span>${sec.title}</span>`;
+      btn.onclick = () => { activeId = sec.id; searchEl.value = ''; renderTabs(); renderBody(''); };
+      tabsEl.appendChild(btn);
+    }
+  }
+  function renderBody(filterQ) {
+    bodyEl.innerHTML = '';
+    const q = (filterQ || '').toLowerCase().trim();
+    let renderedAny = false;
+    const list = q ? sections : sections.filter(s => s.id === activeId);
+    for (const sec of list) {
+      const matches = sec.lines.filter(([cmd, desc]) => !q || (cmd + ' ' + desc).toLowerCase().includes(q));
+      if (matches.length === 0) continue;
+      renderedAny = true;
+      const head = document.createElement('div');
+      head.style.cssText = 'font-size:14px;font-weight:bold;color:#bcb4a8;margin:8px 0 6px;display:flex;align-items:center;gap:6px;';
+      head.innerHTML = `<span>${sec.icon}</span><span>${sec.title}</span>`;
+      bodyEl.appendChild(head);
+      const tbl = document.createElement('div');
+      tbl.style.cssText = 'display:grid;grid-template-columns:minmax(180px,38%) 1fr;gap:6px 14px;font-size:13px;line-height:1.45;margin-bottom:14px;';
+      for (const [cmd, desc] of matches) {
+        const c = document.createElement('div');
+        c.style.cssText = 'font-family:ui-monospace,monospace;color:#c79b3a;word-break:break-word;';
+        c.textContent = cmd;
+        const d = document.createElement('div');
+        d.style.cssText = 'color:#bcb4a8;';
+        d.textContent = desc;
+        tbl.appendChild(c); tbl.appendChild(d);
+      }
+      bodyEl.appendChild(tbl);
+    }
+    if (!renderedAny) {
+      bodyEl.innerHTML = `<div style="padding:20px;color:#9c9388;font-size:13px;text-align:center;">No commands match "${escapeHtml(q)}". Try a different word, or clear the search.</div>`;
+    }
+  }
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  panel.querySelector('#hm-close').onclick = close;
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onKey);
+  searchEl.addEventListener('input', () => renderBody(searchEl.value));
+  renderTabs();
+  renderBody('');
+  setTimeout(() => searchEl.focus(), 50);
 }
 function helpImpl(filterQ) {
   const skills = STORY.skills || {};
@@ -8562,6 +9242,7 @@ function helpImpl(filterQ) {
     T('Font size:       fontsize  (show)  ·  fontsize <small|medium|large>'),
     T('Tutorial:        tutorial  (beginner\'s guide)  ·  tutorial topics / topic <name>  (replay one)  ·  tutorial off  (silence hints)'),
     T('Feedback:        bug / report  (open a bug-report dialog)'),
+    T('                 thanks [<story_id>]  (send appreciation to the author of a story you enjoyed)'),
     T('Updates:         reload story  (fetch the latest version of the active story without losing progress)'),
     T('                 reload engine  (fetch the latest engine build — page reload, your character is safe)'),
     T('Misc:            clear · help · help <topic>  (filter by keyword, e.g. "help combat" / "help market")')
@@ -8638,6 +9319,7 @@ function handleCommand(input) {
     case 'skilltree': case 'tree': case 'st':  showSkillTree(); consumesTurn = false; break;
     case 'theme':                themeCommand(arg); consumesTurn = false; break;
     case 'fontsize': case 'font': fontsizeCommand(arg); consumesTurn = false; break;
+    case 'settings': case 'options': case 'preferences': showSettingsModal(); consumesTurn = false; break;
     case 'learn':                learn(arg); break;
     case 'recipes': case 'rec':  showRecipes(argRaw); consumesTurn = false; break;
     case 'craft':                craft(arg); break;
@@ -8670,6 +9352,7 @@ function handleCommand(input) {
     case 'repair':               repair(arg); break;
     case 'bug': case 'report':   showBugReporter(); consumesTurn = false; break;
     case 'bugs':                 showBugBoard(); consumesTurn = false; break;
+    case 'thanks': case 'thank':case 'tip': thanksAuthor(argRaw); consumesTurn = false; break;
     case 'read':                 readItem(arg); break;
     case 'examine': case 'inspect': case 'x':  examineItem(arg); consumesTurn = false; break;
     case 'reload': case 'update':
@@ -8692,7 +9375,7 @@ function handleCommand(input) {
     case 'dismiss':              dismissCompanion(); break;
     case 'stats':                showStats(); consumesTurn = false; break;
     case 'achievements': case 'ach': showAchievements(); consumesTurn = false; break;
-    case 'quests': case 'q':     showQuests(); consumesTurn = false; break;
+    case 'quests': case 'q':     showQuests(argRaw); consumesTurn = false; break;
     case 'accept':               acceptQuest(arg); break;
     case 'turn':
       if (parts[1] === 'in' && parts[2]) turnInQuest(parts[2].toLowerCase());
