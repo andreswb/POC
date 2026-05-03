@@ -145,6 +145,25 @@
   .tf-link-npc  { color: #b48ad6; }
   .tf-link-npc:hover  { background: rgba(180, 138, 214, 0.12); text-decoration-color: #b48ad6; }
   .tf-link-action { color: var(--accent, #c79b3a); font-weight: 600; }
+  /* Engine v0.60 — Tier B4: focus-visible ring on tf-links so keyboard
+     users see the active target when navigating with Alt+L + ArrowKeys. */
+  .tf-link:focus-visible {
+    outline: 2px solid var(--accent, #c79b3a);
+    outline-offset: 2px;
+    background: rgba(199, 155, 58, 0.18);
+  }
+  /* Engine v0.60 — Tier B2: inventory change flash.
+     Brief green pulse on rows whose count went up since the last refresh.
+     Uses a CSS-only animation; the class is added/removed by refreshSidebar. */
+  @keyframes tf-flash-in {
+    0%   { background: rgba(109, 194, 141, 0.55); transform: translateX(-2px); }
+    35%  { background: rgba(109, 194, 141, 0.40); transform: translateX(0); }
+    100% { background: transparent; }
+  }
+  .tf-flash-in {
+    animation: tf-flash-in 1100ms ease-out;
+    border-radius: 3px;
+  }
   /* Engine v0.59 — Tier B2: notification panel slide-in. */
   @keyframes tf-slide-right {
     from { transform: translateX(20%); opacity: 0; }

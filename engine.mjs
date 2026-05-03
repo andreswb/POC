@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.59';
+const ENGINE_VERSION_LABEL = 'v0.60';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.60':   'Polish sweep: tour now waits for the sidebar to populate (rAF chain, no more flicker) and skips while a higher-priority overlay is up (A5). Inventory rows flash green when a count goes up — instant visual feedback on pickups (B2). Full keyboard nav across inline tf-links: Alt+L jumps from the input to the most-recent link, ArrowUp/Down moves between links, Enter/Space activates, Esc returns to the input — focus-visible ring shows the active target (B4). Bell-badge filter: only celebrate / warn / error / achievement / milestone / low-life toasts bump the unread count; routine info toasts feed the panel silently (B5). Settings deep-link URLs: ?theme= / ?font= / ?lang= apply at boot, persist to localStorage, and are stripped from the visible URL after applying (B6). Image lazy-loading: NPC portraits, action-sheet glyphs, and item icons now carry loading="lazy" + decoding="async" so first-paint stays fast on image-heavy stories (B8).',
   'v0.59':   'Click-everything pass: room items, NPCs, exits, and turn-in hints in the terminal are now clickable links that route through handleCommand (A1). Sidebar quest tracker gained "→ Turn in" / "→ Complete" / "→ Open" inline buttons (A3). Equipment paper-doll redesigned as a visual modal with SVG silhouette + per-slot rows + click-to-swap candidate picker — and the long-standing torso/back doubled-dot bug is fixed: each slot now has its own row (A4). Onboarding tooltip tour on first boot, replayable with the new "tour" command (B1). Notification bell in the mobile header opens a slide-in toast-history panel (last 30 toasts) — also reachable via "notifications" / "notif" (B2). Mobile bottom-tab nav: phones now show a fixed 5-button bar (Map / Status / Items / Quests / Help) above the safe-area inset (B3).',
   'v0.58':   'Tappable adventure: dialogue choices now render as clickable buttons under the NPC line (S1) — keyboard path still works. NPC portraits + speech bubbles in the talk view when an NPC declares an image (A2). Sidebar inventory becomes interactive: new "Carried" section, plus tap any equipment / carried / materials row to open an action sheet (eat, drink, wear, wield, read, examine, sell, drop) (A1). Action sheet routes through the existing handleCommand dispatcher so behaviour matches typing exactly.',
   'v0.57':   'Settings hub modal (gear of theme/font/lang + actions). First-time onboarding intro before the picker. Ending screenshot share (📷 generates a 1200×630 PNG). Mobile keyboard polish (sticky prompt row, dvh, safe-area). Wide-screen sidebar layout (≥1400px). New `thanks <story>` author appreciation gesture (kind-30446). Categorized help modal with sectioned tabs + search. `quests all` cross-story view. Cross-device achievements sync (extends kind-30433). Builder Cmd+K command palette across rooms/items/npcs/quests/etc.',
@@ -1491,8 +1492,35 @@ const TOUR_KEY = 'taleforge:tour_seen';
 function maybeShowOnboardingTour() {
   try {
     if (localStorage.getItem(TOUR_KEY) === '1') return;
-    // Don't fire on first paint — give the sidebar time to populate.
-    setTimeout(() => { try { runOnboardingTour(); } catch {} }, 1500);
+    // Engine v0.60 — Tier A5: smarter trigger. Wait until the sidebar has
+    // a real `#life` value (means refreshSidebar() has run at least once)
+    // and there's no blocking overlay (picker, age-gate, first-run intro)
+    // currently visible. Re-checks on each animation frame, with a 12 s
+    // hard cap so we never block forever.
+    const start = performance.now();
+    function ready() {
+      if (performance.now() - start > 12000) return true;  // give up gracefully
+      const lifeEl = document.getElementById('life');
+      if (!lifeEl || !lifeEl.textContent || lifeEl.textContent === '100/100' && (player?.turn || 0) === 0 && Date.now() - (window.__tfBootStartedAt || Date.now()) < 800) return false;
+      // Don't fire while a higher-priority overlay owns the screen.
+      const blockers = ['#picker-overlay', '.age-gate-overlay', '#first-run-overlay', '.eq-anchor', '.tour-spot'];
+      for (const sel of blockers) {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) return false;
+      }
+      // Also: skip if the player is already mid-conversation or in combat.
+      if (player?.dialog_session) return false;
+      if (player?.combat_target) return false;
+      return true;
+    }
+    function tick() {
+      if (ready()) {
+        try { runOnboardingTour(); } catch {}
+        return;
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
   } catch {}
 }
 function runOnboardingTour() {
@@ -2558,12 +2586,31 @@ out.addEventListener('click', (e) => {
   if (cmd) handleCommand(cmd);
 });
 out.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter' && e.key !== ' ') return;
-  const link = e.target.closest('[data-cmd]');
-  if (!link) return;
-  e.preventDefault();
-  const cmd = link.getAttribute('data-cmd');
-  if (cmd) handleCommand(cmd);
+  // Engine v0.60 — Tier B4: full Tab/Shift-Tab/Esc nav across tf-links.
+  if (e.key === 'Enter' || e.key === ' ') {
+    const link = e.target.closest('[data-cmd]');
+    if (!link) return;
+    e.preventDefault();
+    const cmd = link.getAttribute('data-cmd');
+    if (cmd) handleCommand(cmd);
+    return;
+  }
+  // Esc returns focus to the input.
+  if (e.key === 'Escape') {
+    const input = document.getElementById('cmd');
+    if (input) { e.preventDefault(); input.focus(); }
+    return;
+  }
+  // Arrow up/down moves between adjacent tf-links inside the output.
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const cur = e.target.closest('[data-cmd]');
+    if (!cur) return;
+    const links = Array.from(out.querySelectorAll('[data-cmd]'));
+    const i = links.indexOf(cur);
+    if (i === -1) return;
+    const next = e.key === 'ArrowDown' ? links[i + 1] : links[i - 1];
+    if (next) { e.preventDefault(); next.focus(); next.scrollIntoView({ block: 'nearest' }); }
+  }
 });
 // Engine v0.50.2 — Tier B9: optional capture target. When __writeCapture is
 // non-null, write() pushes lines onto it instead of the DOM. Used by the
@@ -2631,7 +2678,7 @@ function showItemActionSheet(itemId, ctx = {}) {
   head.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid #2a2724;';
   const glyph = document.createElement('div');
   if (isImageUrl(it.image)) {
-    glyph.innerHTML = `<img src="${it.image}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;background:#0c0e10;">`;
+    glyph.innerHTML = `<img src="${it.image}" alt="" loading="lazy" decoding="async" style="width:40px;height:40px;object-fit:cover;border-radius:6px;background:#0c0e10;">`;
   } else if (isShortGlyph(it.image)) {
     glyph.style.cssText = 'font-size:30px;width:40px;text-align:center;';
     glyph.textContent = it.image;
@@ -2726,18 +2773,33 @@ let toastUnreadCount = 0;
 function showToast(text, kind = '', opts = {}) {
   // Always record the entry, even if the toast stack DOM isn't present
   // (so headless code paths still feed history).
+  // Engine v0.60 — Tier B5: severity-aware bell badge. Three tiers:
+  //   1. `silent: true`     → record in history, NO badge bump.
+  //   2. celebrate / warn / error / achievement / milestone → BADGE bump.
+  //   3. plain info / system → silent by default unless caller opts in.
+  // The panel shows everything regardless; only the unread count is gated.
   const entry = {
     ts: Date.now(),
     text: String(text),
     kind: kind || '',
     tag: opts.tag || kind || '',
     subtitle: opts.subtitle || '',
-    celebrate: !!opts.celebrate
+    celebrate: !!opts.celebrate,
+    silent: !!opts.silent
   };
   toastHistory.push(entry);
   if (toastHistory.length > TOAST_HISTORY_MAX) toastHistory.shift();
-  toastUnreadCount = Math.min(99, toastUnreadCount + 1);
-  refreshToastBell();
+  // Decide whether this counts toward the unread badge.
+  const importantKinds = new Set(['achievement', 'milestone', 'warn', 'warning', 'error', 'low_life', 'celebrate', 'rare']);
+  const bumpBadge = !opts.silent && (
+    !!opts.celebrate
+    || importantKinds.has(String(kind).toLowerCase())
+    || opts.important === true
+  );
+  if (bumpBadge) {
+    toastUnreadCount = Math.min(99, toastUnreadCount + 1);
+    refreshToastBell();
+  }
   const stack = document.getElementById('toast-stack');
   if (!stack) return;
   const card = document.createElement('div');
@@ -2840,6 +2902,20 @@ function formatTimeAgo(ts) {
   return `${Math.floor(sec / 86400)}d ago`;
 }
 
+// Engine v0.60 — Tier B2: per-section count snapshot for inventory-change
+// flash animation. We compare the current counts against `__lastCounts` and
+// highlight rows whose count went up since the previous render.
+const __lastCounts = { carried: new Map(), materials: new Map() };
+let __countSnapshotInitialised = false;
+function didIncrease(section, key, current) {
+  if (!__countSnapshotInitialised) return false;  // suppress flash on first render
+  const prev = __lastCounts[section]?.get(key) || 0;
+  return current > prev;
+}
+function snapshotCounts(section, mapLike) {
+  if (!__lastCounts[section]) __lastCounts[section] = new Map();
+  __lastCounts[section] = new Map(mapLike instanceof Map ? mapLike : Object.entries(mapLike));
+}
 function refreshSidebar() {
   const cap = computeMaxCapacity();
   const wt  = Math.round(computeWeight() * 10) / 10;
@@ -3112,6 +3188,9 @@ function refreshSidebar() {
   // (non-stackable) items that aren't equipped. Each row is tappable and
   // opens the item action sheet. Stackable groups (multiples of the same
   // item) collapse into a single tappable row with a count.
+  // Engine v0.60 — Tier B2: detect new/increased counts vs the previous
+  // refresh and flash those rows green so the player visibly catches new
+  // pickups without having to read.
   const carriedEl = document.getElementById('carried');
   const carriedSec = document.getElementById('carriedSection');
   if (carriedEl && carriedSec) {
@@ -3129,9 +3208,11 @@ function refreshSidebar() {
         const qtyHtml = n > 1 ? `×${n}` : '';
         row.innerHTML = `<span>${itemDisplay(itemId)}</span><span class="qty">${qtyHtml}</span>`;
         row.addEventListener('click', () => showItemActionSheet(itemId, { context: 'inventory' }));
+        if (didIncrease('carried', itemId, n)) row.classList.add('tf-flash-in');
         carriedEl.appendChild(row);
       }
     }
+    snapshotCounts('carried', groups);
   }
 
   const matEl = document.getElementById('materials');
@@ -3151,8 +3232,11 @@ function refreshSidebar() {
     }
     row.innerHTML = `<span>${itemDisplay(item)}</span><span class="qty">${qtyHtml}</span>`;
     row.addEventListener('click', () => showItemActionSheet(item, { context: 'materials' }));
+    if (didIncrease('materials', item, qty)) row.classList.add('tf-flash-in');
     matEl.appendChild(row);
   }
+  const matSnap = new Map(matEntries);
+  snapshotCounts('materials', matSnap);
 
   const sklEl = document.getElementById('skillsKnown');
   sklEl.innerHTML = '';
@@ -3163,6 +3247,9 @@ function refreshSidebar() {
     row.innerHTML = `<span class="name">${sk.display}</span><span class="cost">${T('tier {0}', sk.tier)}</span>`;
     sklEl.appendChild(row);
   }
+  // Engine v0.60 — Tier B2: arm the diff tracker after the first paint so
+  // initial counts don't all flash green.
+  __countSnapshotInitialised = true;
 }
 
 function computeWeight() {
@@ -5286,6 +5373,30 @@ function themeCommand(arg) {
   applyTheme(a);
   write(`Theme: ${a}.`, 'success');
 }
+// Engine v0.60 — Tier B6: settings deep-link URLs.
+// Read ?theme= / ?font= / ?lang= query params at boot. If valid, apply
+// AND persist them to localStorage (so a deep-link sticks). Strip the
+// applied params from the visible URL so a copy/paste doesn't keep
+// pinning the link to a single setting.
+function tfApplyDeepLinkSettings() {
+  try {
+    const url = new URL(window.location.href);
+    const params = url.searchParams;
+    let touched = false;
+    const t = (params.get('theme') || '').toLowerCase();
+    if (t && THEMES.includes(t)) { applyTheme(t); params.delete('theme'); touched = true; }
+    const f = (params.get('font') || params.get('fontsize') || '').toLowerCase();
+    const fontAliases = { s: 'small', sm: 'small', m: 'medium', md: 'medium', l: 'large', lg: 'large' };
+    const fNorm = fontAliases[f] || f;
+    if (fNorm && FONTSIZES.includes(fNorm)) { applyFontSize(fNorm); params.delete('font'); params.delete('fontsize'); touched = true; }
+    const lang = (params.get('lang') || '').toLowerCase();
+    if (lang && /^[a-z]{2,3}$/.test(lang)) { try { localStorage.setItem('taleforge:lang', lang); } catch {} params.delete('lang'); touched = true; }
+    if (touched) {
+      const clean = url.pathname + (params.toString() ? '?' + params.toString() : '') + url.hash;
+      try { history.replaceState(null, '', clean); } catch {}
+    }
+  } catch {}
+}
 applyTheme(loadTheme());
 
 function firstTimeMilestone(flagKey, label, subtitle) {
@@ -5340,6 +5451,8 @@ function fontsizeCommand(arg) {
   write(`Font size: ${target}.`, 'success');
 }
 applyFontSize(loadFontSize());
+// Apply deep-link overrides AFTER both defaults loaded so URL params win.
+tfApplyDeepLinkSettings();
 
 const TIME_OF_DAY_PERIODS = ['dawn','morning','noon','afternoon','dusk','evening','night'];
 function applyTimeOfDayTint(period) {
@@ -5823,6 +5936,8 @@ function renderNpcLine(npcId, line) {
   const img = document.createElement('img');
   img.src = portraitSrc;
   img.alt = display;
+  img.loading = 'lazy';
+  img.decoding = 'async';
   img.style.cssText = 'width:48px;height:48px;border-radius:50%;border:2px solid var(--accent, #c79b3a);object-fit:cover;flex-shrink:0;background:#0c0e10;';
   img.addEventListener('error', () => { img.style.display = 'none'; });
   const speech = document.createElement('div');
@@ -10283,6 +10398,16 @@ cmdInput.addEventListener('input', refreshCompletionHint);
 cmdInput.addEventListener('blur', () => { if (completionHint) completionHint.style.display = 'none'; });
 cmdInput.addEventListener('focus', refreshCompletionHint);
 cmdInput.addEventListener('keydown', e => {
+  // Engine v0.60 — Tier B4: Alt+L jumps focus to the most-recent tf-link
+  // in the terminal output. Once focused, ArrowUp/Down moves between
+  // links, Enter/Space activates, Esc returns to the input.
+  if (e.altKey && (e.key === 'l' || e.key === 'L')) {
+    e.preventDefault();
+    const links = out.querySelectorAll('[data-cmd]');
+    const last = links[links.length - 1];
+    if (last) { last.focus(); last.scrollIntoView({ block: 'nearest' }); }
+    return;
+  }
   if (e.key === 'Enter') {
     const v = cmdInput.value;
     cmdInput.value = '';
