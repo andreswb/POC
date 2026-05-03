@@ -5,8 +5,9 @@
     "title": "Saltbound",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.2.2",
+    "version": "1.3.0",
     "changelog": {
+      "1.3.0": "World expansion: 2 new NPCs (washed-up castaway at the tidal pools, ferryman's shade in the sea-caves), 5 new side quests (botanist's journal, navigator's charts, castaway's offering, companion's signal, ferryman's toll), 3 daily quests (fresh catch, fresh water, jungle forage). 7 → 15 quests total. Quest density doubled. Two new items: botanist_journal, coin_of_passage.",
       "1.2.2": "Map fix: overhead-layer (mountain summit ↔ lava field) now renders correctly with stair markers ⇡⇣. No content changes.",
       "1.2.0": "Tier 3 polish pass: 5 character_profiles added (castaway / surveyor / scholar / sailor / cook), tags + content_warnings declared, spawn timing tightened.",
       "1.1.0": "Three endings declared: RESCUE (signal fire on the summit), SAIL (build the raft and leave), STAY (Deep Grotto path — bind to the island)."
@@ -24,6 +25,7 @@
     "starting_gold": 0,
     "starting_sparks": 20,
     "starting_skills": ["firemaking", "foraging", "fishing", "hunting"],
+    "daily_quest_pool": ["daily_fresh_catch", "daily_fresh_water", "daily_jungle_forage"],
     "starting_life": 100,
     "life_max": 100,
     "life_decay_per_turn": 0.4,
@@ -133,7 +135,7 @@
     },
     "tidal_pools": {
       "name": "The Tidal Pools",
-      "summary": "A flat shelf of black rock, pocked with pools the sea fills and empties. Crabs work the edges. At low tide a hole in the rock shows steps going down to a sea-cave. The path back is west.",
+      "summary": "A flat shelf of black rock, pocked with pools the sea fills and empties. Crabs work the edges. At low tide a hole in the rock shows steps going down to a sea-cave. A castaway lies in the shallows above the high-tide line — alive, just. The path back is west.",
       "example_descriptions": [
         "A pool of small fish, bright as glass. A sea-star colour of dried blood.",
         "The sea hisses through a crack twice your height. Below: dark water, cooler than the day."
@@ -144,7 +146,7 @@
         "down": "sea_caves"
       },
       "items": [],
-      "npcs": [],
+      "npcs": ["washed_up_castaway"],
       "riddle": null,
       "tags": ["outdoor", "water"],
       "resources": [
@@ -503,18 +505,19 @@
     },
     "sea_caves": {
       "name": "The Sea Caves",
-      "summary": "Below the tidal shelf, water-carved tunnels go deeper than the light. Strange creatures live here. The tide is the only thing that decides whether you can leave. Up, the rock-pools. Down, deeper.",
+      "summary": "Below the tidal shelf, water-carved tunnels go deeper than the light. Strange creatures live here. The tide is the only thing that decides whether you can leave. A tall figure stands ankle-deep in the dark water, cloak dripping when nothing else does. Up, the rock-pools. Down, deeper.",
       "example_descriptions": [
         "Echo of dripping water. Your torch is a very small thing.",
-        "Something coils in the dark and is gone. You did not see how big it was. It saw you."
+        "Something coils in the dark and is gone. You did not see how big it was. It saw you.",
+        "The ferryman waits where the cave-water is deepest. He has been waiting a long time."
       ],
-      "tone_hints": ["wet", "dark", "watching", "old"],
+      "tone_hints": ["wet", "dark", "watching", "old", "spectral"],
       "exits": {
         "up": "tidal_pools",
         "down": "deep_grotto"
       },
       "items": [],
-      "npcs": [],
+      "npcs": ["ferryman_shade"],
       "riddle": "kraken_riddle",
       "tags": ["underground", "water"],
       "layer": "underground",
@@ -1036,6 +1039,28 @@
       "category": "good",
       "stackable": false,
       "image": "🔥"
+    },
+    "botanist_journal": {
+      "display": "botanist's field journal",
+      "article": "a",
+      "description": "Hand-bound, salt-damaged. The botanist's looping handwriting fills the margins. She left blank pages for plants she had not yet found; you have filled them. Reading it slowly, you understand the island better than any map could teach.",
+      "value": 0,
+      "weight": 0.4,
+      "tags": ["unique", "lore"],
+      "category": "good",
+      "stackable": false,
+      "image": "📓"
+    },
+    "coin_of_passage": {
+      "display": "coin of passage",
+      "article": "a",
+      "description": "A pitted bronze coin, square-holed. Cold to the touch even in the heat of the cave. The ferryman's shade pressed it into your palm; he asked for nothing in return that the living can lose. The coin warms only when you stand at the threshold of crossings.",
+      "value": 0,
+      "weight": 0.05,
+      "tags": ["unique", "supernatural"],
+      "category": "good",
+      "stackable": false,
+      "image": "🪙"
     }
   },
   "skills": {
@@ -1679,6 +1704,96 @@
           ]
         }
       }
+    },
+    "washed_up_castaway": {
+      "display": "the washed-up castaway",
+      "location": "tidal_pools",
+      "summary": "A man your age, sun-burnt, half-conscious. He wears the remnants of a different ship's uniform — not yours. He came in with the same tide. He is the first living human voice you've heard since the wreck.",
+      "tone_hints": ["dazed", "hopeful", "fellow-survivor", "shaky"],
+      "dialogue_seeds": [
+        "Water… please…",
+        "You're real, aren't you? Tell me you're real.",
+        "I thought I was the last one. You thought the same."
+      ],
+      "behaviors": ["chat", "tells_rumors"],
+      "is_marketplace": false,
+      "initial_stock": [],
+      "hours": {"open": 0, "close": 24},
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "You found me. The tide brought me up the same way it brought you, I think — different ship, same reef.",
+            "I can barely walk. But I can keep watch from here while you do what needs doing. Bring me food when you can. We'll signal together."
+          ],
+          "choices": [
+            {"label": "What do you remember?", "goto": "what_remember"},
+            {"label": "Are you hungry?", "goto": "hungry"},
+            {"label": "Stay alive. I'll come back.", "end": true}
+          ]
+        },
+        "what_remember": {
+          "lines": [
+            "A storm. We hit something — coral, or the volcano's old bones, hard to say. The captain went under. I clung to the foremast.",
+            "I think I drifted four days. The pelicans didn't bother me; that's a sign I was worth even less than carrion to them."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "hungry": {
+          "lines": [
+            "Always. Anything cooked. Even a piece of boar would put strength back in me. I would owe you my watch — it's all I have to trade."
+          ],
+          "choices": [
+            {"label": "I'll bring you something.", "end": true}
+          ]
+        }
+      }
+    },
+    "ferryman_shade": {
+      "display": "the ferryman's shade",
+      "location": "sea_caves",
+      "summary": "A tall figure in a ragged cloak that drips even when the cave is dry. He stands ankle-deep in the dark water with no boat in sight. The boat will come when there is something to ferry.",
+      "tone_hints": ["formal", "patient", "old-world", "spectral"],
+      "dialogue_seeds": [
+        "The crossing has a price. The price is not what you think.",
+        "I have ferried many. None paid in coin first."
+      ],
+      "behaviors": ["tells_rumors"],
+      "is_marketplace": false,
+      "initial_stock": [],
+      "hours": {"open": 0, "close": 24},
+      "dialogue_trees": {
+        "default": {
+          "lines": [
+            "Traveller. You have walked far on this island, and farther still in your own head.",
+            "If you would cross — to the deep grotto, to the open sea, to wherever — there is an old courtesy. Bring me three stone chips and one volcanic glass. Lay them in the water. The boat comes."
+          ],
+          "choices": [
+            {"label": "What is on the other side?", "goto": "other_side"},
+            {"label": "What do you want with the chips?", "goto": "why_chips"},
+            {"label": "I'll bring them.", "end": true}
+          ]
+        },
+        "other_side": {
+          "lines": [
+            "What is always on the other side. The next thing. I am not a teacher of metaphysics. I am a ferryman.",
+            "But: if you find a coin from the elder's people in the deep, bring it back to me. I will know what to do with it."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        },
+        "why_chips": {
+          "lines": [
+            "Three for the three souls each crossing leaves behind: the one who departed, the one who waited, the one neither of them remembered they were.",
+            "The volcanic glass is for the boat. It cuts the salt out of the wood. Without it the boat would have rotted long ago."
+          ],
+          "choices": [
+            {"label": "Back.", "goto": "default"}
+          ]
+        }
+      }
     }
   },
   "quests": {
@@ -1765,6 +1880,100 @@
       ],
       "rewards": {"gold": 0, "sparks": 5, "items": []},
       "completion_message": "The castaway's ghost has told you the two ways out. The elder's spirit holds the third. The island is patient — choose when you are ready."
+    },
+    "the_botanist_request": {
+      "title": "The Botanist's Field Journal",
+      "description": "The botanist's ghost has filled half a journal with the island's plants. She left blank pages for the herbs she hadn't found. Bring her 5 island herbs and she will read each one into the page she meant for it.",
+      "giver": "botanists_ghost",
+      "auto_accept": false,
+      "objectives": [
+        {"type": "have_item", "item": "herb", "qty": 5, "consume": true}
+      ],
+      "rewards": {"gold": 25, "sparks": 35, "items": [{"item": "botanist_journal", "qty": 1}]},
+      "completion_message": "She presses each herb between her ghostly hands and they become words on the page — names you have never heard, in a hand that is not quite hers. When she gives the journal back to you it is heavier than it was.\n\n'Read it slowly,' she says. 'I had forty years on this island. You can have my forty in an afternoon, if you read carefully.'"
+    },
+    "the_navigator_charts": {
+      "title": "Charts for the Navigator",
+      "description": "The navigator's ghost has been re-drawing his old charts from memory, but his hands won't hold a brush. Bring him 3 driftwood (for the frame) and 2 sail-cloth (for the canvas). He will tell you what the reef is shaped like, and where ships used to pass.",
+      "giver": "navigators_ghost",
+      "auto_accept": false,
+      "objectives": [
+        {"type": "have_item", "item": "driftwood", "qty": 3, "consume": true},
+        {"type": "have_item", "item": "sail_cloth", "qty": 2, "consume": true}
+      ],
+      "rewards": {"gold": 60, "sparks": 40, "items": [{"item": "map_fragment", "qty": 1}]},
+      "completion_message": "He stretches the canvas across the driftwood frame; the brush moves on its own, and his hand only follows. The chart shows the reef the way it really is — not the way the captain thought it was.\n\n'I drew this once before,' he says. 'The man who needed it died with it. You won't.'"
+    },
+    "the_castaway_offering": {
+      "title": "An Offering at the Camp",
+      "description": "The castaway's ghost watches the abandoned camp because no one ever brought him a last meal. Bring 1 cooked boar (or fish) and lay it down at the camp. He will not eat — but he will remember being seen.",
+      "giver": "castaways_ghost",
+      "auto_accept": false,
+      "objectives": [
+        {"type": "have_item", "item": "cooked_meat", "qty": 1, "consume": true}
+      ],
+      "rewards": {"gold": 0, "sparks": 60, "items": []},
+      "completion_message": "You set the meat on the cold ash. The ghost does not move. After a long minute, he sits down across from where you would sit, if it were still your camp.\n\n'Thank you,' he says — softer than he has ever spoken. 'Forty years. Forty years and you are the first.'\n\nThe wind goes out of the camp. The leaves stop moving. He stays a while, then he is gone — not gone the way ghosts go, but gone the way people go when they are finally, finally allowed to."
+    },
+    "the_companion_signal": {
+      "title": "Feed the Castaway",
+      "description": "The washed-up castaway at the tidal pools needs food and water before he can stand. Bring him 1 cooked meat and 2 fresh water. He will keep watch from the lookout tower with you when you are ready to signal.",
+      "giver": "washed_up_castaway",
+      "auto_accept": false,
+      "objectives": [
+        {"type": "have_item", "item": "cooked_meat", "qty": 1, "consume": true},
+        {"type": "have_item", "item": "fresh_water", "qty": 2, "consume": true}
+      ],
+      "rewards": {"gold": 0, "sparks": 80, "items": []},
+      "completion_message": "He eats slowly, then drinks slower. Within an hour he can sit up. Within a day he can walk a little. Within three he is helping you carry firewood up the lookout-tower steps.\n\n'Two of us, watching the horizon, lighting the fire,' he says. 'We won't miss the ship the way one alone might. I'll never forget this.'"
+    },
+    "the_ferryman_toll": {
+      "title": "The Ferryman's Toll",
+      "description": "The ferryman waits in the sea-caves. He asks for 3 stone chips and 1 volcanic glass — three for the souls each crossing leaves behind, one for the boat that the salt would otherwise rot. Lay them in the dark water. The boat comes.",
+      "giver": "ferryman_shade",
+      "auto_accept": false,
+      "objectives": [
+        {"type": "have_item", "item": "stone_chip", "qty": 3, "consume": true},
+        {"type": "have_item", "item": "volcanic_glass", "qty": 1, "consume": true}
+      ],
+      "rewards": {"gold": 0, "sparks": 70, "items": [{"item": "coin_of_passage", "qty": 1}]},
+      "completion_message": "You drop the chips one by one into the water. They sink slowly, more slowly than stone should. The volcanic glass sinks last; when it touches bottom, the dark thickens.\n\nThe boat is there.\n\nThe ferryman steps in without a sound. 'Cross when you must,' he says, 'and not before. Hold the coin until then. It will warm when the time comes.'\n\nHe presses a square-holed coin into your palm. It is cold."
+    },
+    "daily_fresh_catch": {
+      "title": "Today's Catch",
+      "description": "The island's spirits are hungry. Bring 5 raw fish to anywhere; they will know.",
+      "giver": null,
+      "auto_accept": true,
+      "recurrence": "daily",
+      "objectives": [
+        {"type": "have_item", "item": "raw_fish", "qty": 5, "consume": true}
+      ],
+      "rewards": {"gold": 16, "sparks": 8, "items": []},
+      "completion_message": "The fish are gone before you've looked away. The island feels seen. (Daily resets at dawn.)"
+    },
+    "daily_fresh_water": {
+      "title": "Three Flasks of Water",
+      "description": "The dry season is coming. Three flasks of fresh water set aside at any pool — for whoever passes next, including possibly you. (Drinking the water does not count; bring it.)",
+      "giver": null,
+      "auto_accept": true,
+      "recurrence": "daily",
+      "objectives": [
+        {"type": "have_item", "item": "fresh_water", "qty": 3, "consume": true}
+      ],
+      "rewards": {"gold": 12, "sparks": 12, "items": []},
+      "completion_message": "Three flasks set in the shade by the path. The next traveller — whoever they are — will not die today. (Daily resets at dawn.)"
+    },
+    "daily_jungle_forage": {
+      "title": "Herbs for the Botanist",
+      "description": "The botanist's ghost mutters about a particular bush most days. Four island herbs, before sundown. (She will not say which bush — they all count.)",
+      "giver": null,
+      "auto_accept": true,
+      "recurrence": "daily",
+      "objectives": [
+        {"type": "have_item", "item": "herb", "qty": 4, "consume": true}
+      ],
+      "rewards": {"gold": 8, "sparks": 16, "items": []},
+      "completion_message": "She names each herb under her breath as you set them down. The names stay with you. (Daily resets at dawn.)"
     }
   },
   "events": {
