@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.62';
+const ENGINE_VERSION_LABEL = 'v0.63';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.63':   'Polish broom: focus-trap pass completed across the remaining 5 modals (story preview, marketplace preview, characters dialog, mapview, ending-share screenshot preview). Sidebar now restores focus through re-renders the same way describeRoom does. Healing flashes the life value green — symmetric with the damage flash (≥10% of max life). Mobile bell deduplication: desktop bell hidden on phones via @media (max-width: 720px). `share settings` listed in the categorized help modal under Preferences. `tour` command now routes through the same rAF chain as the first-boot tour, so typing `tour` while a higher-priority overlay is up no longer crashes.',
   'v0.62':   'Loose-ends pass: desktop sidebar gained a 🔔 notification bell so non-mobile users have access to the toast-history panel (N5). Focus-trap pass extended to age-gate, bug reporter, bug board, first-run intro, and ending overlay — Tab now stays inside every modal (N6). Damage flash + low-life pulse no longer compete: the persistent opacity pulse pauses for the 900ms red flash and resumes after if life is still below 25% (N7). Room re-paints preserve keyboard focus: if a tf-link with a matching data-cmd survives the new render, focus moves to it; otherwise focus returns to the input (N8). New `share settings` command copies a deep-link URL with current theme + font + lang baked in — closes the v0.60 deep-link loop (N9). Equipment slot rows flash green when wearing/wielding lands an item — mirrors the carried/materials flash (N10).',
   'v0.61':   'Notification + a11y + mobile polish: showToast call sites audited and tagged with silent / important so the bell badge only counts real attention-worthy events (engine update, bounty, gift, DM, heal, world event, achievement) and stays quiet for routine ones like outbox sync, npub copy, "nothing fits slot" (N1). Modal focus-trap: action sheet, equipment doll, help, settings, notifications panel — Tab now stays inside the modal, Shift+Tab wraps, focus restores to the previous element on close, role="dialog" + aria-modal set for screen-readers (N2). Tour spotlight viewport-clamp: ring + card now respect the bottom-tab strip on phones, scroll the target into view first, and fall back to a centered card if neither above nor below the target fits (N3). Combat HP loss flash: when the player takes ≥10% of max life in one tick, the life value flashes red with a brief shake — visible feedback for damage that pairs with the green inventory flash (N4).',
   'v0.60':   'Polish sweep: tour now waits for the sidebar to populate (rAF chain, no more flicker) and skips while a higher-priority overlay is up (A5). Inventory rows flash green when a count goes up — instant visual feedback on pickups (B2). Full keyboard nav across inline tf-links: Alt+L jumps from the input to the most-recent link, ArrowUp/Down moves between links, Enter/Space activates, Esc returns to the input — focus-visible ring shows the active target (B4). Bell-badge filter: only celebrate / warn / error / achievement / milestone / low-life toasts bump the unread count; routine info toasts feed the panel silently (B5). Settings deep-link URLs: ?theme= / ?font= / ?lang= apply at boot, persist to localStorage, and are stripped from the visible URL after applying (B6). Image lazy-loading: NPC portraits, action-sheet glyphs, and item icons now carry loading="lazy" + decoding="async" so first-paint stays fast on image-heavy stories (B8).',
@@ -705,10 +706,13 @@ function showStoryPicker(currentId = null) {
       `;
       ov.appendChild(pn);
       document.body.appendChild(ov);
-      pn.querySelector('#pv-close').onclick = () => ov.remove();
-      pn.querySelector('#pv-cancel').onclick = () => ov.remove();
-      pn.querySelector('#pv-pick').onclick = () => { ov.remove(); pick(opt.id); };
-      ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') ov.remove(); });
+      // v0.63 N6: focus-trap on the story preview.
+      const release = tfFocusTrap(pn, { label: `Story preview: ${title}`, initialFocus: pn.querySelector('#pv-pick') });
+      function close() { try { release(); } catch {} ov.remove(); }
+      pn.querySelector('#pv-close').onclick = close;
+      pn.querySelector('#pv-cancel').onclick = close;
+      pn.querySelector('#pv-pick').onclick = () => { close(); pick(opt.id); };
+      ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
     }
 
     // Tier A1: marketplace listing preview — shows the listing metadata
@@ -743,9 +747,12 @@ function showStoryPicker(currentId = null) {
       `;
       ov.appendChild(pn);
       document.body.appendChild(ov);
-      pn.querySelector('#mv-close').onclick = () => ov.remove();
-      pn.querySelector('#mv-cancel').onclick = () => ov.remove();
-      ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') ov.remove(); });
+      // v0.63 N6: focus-trap on the marketplace preview.
+      const release = tfFocusTrap(pn, { label: 'Marketplace preview' });
+      function close() { try { release(); } catch {} ov.remove(); }
+      pn.querySelector('#mv-close').onclick = close;
+      pn.querySelector('#mv-cancel').onclick = close;
+      ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
     }
 
     function renderList() {
@@ -1633,9 +1640,13 @@ function runOnboardingTour() {
   place();
 }
 // Replay command — `tour` re-runs the onboarding tour even if seen.
+// Engine v0.63 — route through the same rAF wait `maybeShowOnboardingTour`
+// uses, so typing `tour` while the picker / age-gate / first-run intro is
+// still up doesn't crash. Without this, runOnboardingTour assumed a
+// populated sidebar and `#life` element.
 function replayTour() {
   try { localStorage.removeItem(TOUR_KEY); } catch {}
-  runOnboardingTour();
+  try { maybeShowOnboardingTour(); } catch { try { runOnboardingTour(); } catch {} }
 }
 
 async function resolveActiveStory() {
@@ -3023,6 +3034,23 @@ function snapshotCounts(section, mapLike) {
   __lastCounts[section] = new Map(mapLike instanceof Map ? mapLike : Object.entries(mapLike));
 }
 function refreshSidebar() {
+  // Engine v0.63 — symmetric sidebar focus restore (mirror of N8 for the
+  // sidebar). Snapshot a focused button/row inside #side before re-render
+  // by its data-tag (slot or item id), then try to refocus a matching
+  // element after. Falls through silently if nothing matches.
+  let __sidebarFocusKey = null;
+  try {
+    const a = document.activeElement;
+    if (a && a !== document.body) {
+      const side = document.getElementById('side');
+      if (side && side.contains(a)) {
+        __sidebarFocusKey =
+          a.getAttribute('data-quest-action') ? `quest:${a.textContent.trim()}` :
+          a.id ? `id:${a.id}` :
+          (a.getAttribute('data-slot') ? `slot:${a.getAttribute('data-slot')}` : null);
+      }
+    }
+  } catch {}
   const cap = computeMaxCapacity();
   const wt  = Math.round(computeWeight() * 10) / 10;
   const maxLife = computeMaxLife();
@@ -3038,21 +3066,28 @@ function refreshSidebar() {
   // element (different properties, but the opacity dip inside the red
   // pulse reads as glitchy). We snapshot the pre-flash inline `animation`
   // value and restore it after the flash ends.
-  if (__lastLife != null && __lastLife > curLife) {
-    const drop = __lastLife - curLife;
+  // Engine v0.63 — symmetric heal flash. Same threshold (≥10% of max
+  // life), green tint instead of red. Uses tf-life-heal class which
+  // shares the pause-pulse machinery.
+  if (__lastLife != null) {
+    const delta = curLife - __lastLife;
     const threshold = Math.max(1, Math.floor(maxLife * 0.10));
-    if (drop >= threshold) {
+    let flashClass = null;
+    if (delta <= -threshold) flashClass = 'tf-life-hit';
+    else if (delta >= threshold) flashClass = 'tf-life-heal';
+    if (flashClass) {
       try {
         lifeEl.classList.remove('tf-life-hit');
+        lifeEl.classList.remove('tf-life-heal');
         // Force reflow so the animation restarts on consecutive hits.
         void lifeEl.offsetWidth;
         const priorAnimation = lifeEl.style.animation;
         // Suspend any running animation (pulse) for the flash duration.
         lifeEl.style.animation = '';
-        lifeEl.classList.add('tf-life-hit');
+        lifeEl.classList.add(flashClass);
         setTimeout(() => {
           try {
-            lifeEl.classList.remove('tf-life-hit');
+            lifeEl.classList.remove(flashClass);
             // Only restore the prior animation if the current state still
             // wants one (the < 25% pulse condition might have been lifted
             // by healing during the flash).
@@ -3401,6 +3436,18 @@ function refreshSidebar() {
   // Engine v0.60 — Tier B2: arm the diff tracker after the first paint so
   // initial counts don't all flash green.
   __countSnapshotInitialised = true;
+  // Engine v0.63 — restore sidebar focus if we snapshot one earlier.
+  try {
+    if (__sidebarFocusKey) {
+      const side = document.getElementById('side');
+      if (side) {
+        let target = null;
+        if (__sidebarFocusKey.startsWith('id:')) target = side.querySelector(`#${CSS.escape(__sidebarFocusKey.slice(3))}`);
+        else if (__sidebarFocusKey.startsWith('slot:')) target = side.querySelector(`[data-slot="${CSS.escape(__sidebarFocusKey.slice(5))}"]`);
+        if (target && typeof target.focus === 'function') target.focus();
+      }
+    }
+  } catch {}
 }
 
 function computeWeight() {
@@ -4960,8 +5007,12 @@ async function showEndingShareModal(info) {
   `;
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
-  panel.querySelector('#esh-close').onclick = () => overlay.remove();
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  // v0.63 N6: focus-trap on the share-screenshot preview.
+  const release = tfFocusTrap(panel, { label: 'Share your ending' });
+  function close() { try { release(); } catch {} overlay.remove(); }
+  panel.querySelector('#esh-close').onclick = close;
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
   let pngBlob = null;
   try {
     pngBlob = await endingToPng(info);
@@ -8453,7 +8504,9 @@ function showCharactersDialog() {
   `;
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
-  function close() { overlay.remove(); }
+  // v0.63 N6: focus-trap on the characters dialog.
+  const release = tfFocusTrap(panel, { label: 'Characters on this browser' });
+  function close() { try { release(); } catch {} overlay.remove(); }
   panel.querySelector('#ch-close').onclick = close;
   overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
   panel.querySelectorAll('button[data-act]').forEach(btn => {
@@ -9809,7 +9862,9 @@ function showMapModal() {
   // Buttons
   header.querySelector('#mv-zoom-in').onclick = () => setScale(stateMV.scale * 1.2);
   header.querySelector('#mv-zoom-out').onclick = () => setScale(stateMV.scale / 1.2);
-  function close() { overlay.remove(); document.removeEventListener('keydown', escHandler); }
+  // v0.63 N6: focus-trap on the mapview modal.
+  const releaseMV = tfFocusTrap(overlay, { label: 'Map view' });
+  function close() { try { releaseMV(); } catch {} overlay.remove(); document.removeEventListener('keydown', escHandler); }
   function escHandler(e) { if (e.key === 'Escape') close(); }
   header.querySelector('#mv-close').onclick = close;
   document.addEventListener('keydown', escHandler);
@@ -10108,6 +10163,7 @@ function showHelpModal() {
         ['lang [<code>]', 'Show or switch language (e.g. "lang de")'],
         ['theme [<dark|light|sepia|contrast>]', 'Show or switch theme'],
         ['fontsize [<small|medium|large>]', 'Show or switch font size'],
+        ['share settings', 'Copy a shareable URL with your current theme + font + language baked in'],
         ['tutorial · tutorial topics · tutorial topic <name> · tutorial off', 'Onboarding hints (replay or silence)']
       ]
     },

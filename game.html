@@ -180,6 +180,19 @@
     padding: 0 4px;
     margin: 0 -4px;
   }
+  /* Engine v0.63 — symmetric heal flash. Green pulse, no shake. Pairs
+     with tf-life-hit so the player feels both directions of life change. */
+  @keyframes tf-life-heal {
+    0%   { background: rgba(109, 194, 141, 0.55); }
+    35%  { background: rgba(109, 194, 141, 0.35); }
+    100% { background: transparent; }
+  }
+  .tf-life-heal {
+    animation: tf-life-heal 900ms ease-out;
+    border-radius: 3px;
+    padding: 0 4px;
+    margin: 0 -4px;
+  }
   /* Engine v0.59 — Tier B2: notification panel slide-in. */
   @keyframes tf-slide-right {
     from { transform: translateX(20%); opacity: 0; }
@@ -189,6 +202,12 @@
      Hidden on desktop, fixed bottom bar on phones. Each tab triggers an
      existing engine command (map, status, inv, quests, help). */
   #mobile-tabs { display: none; }
+  /* Engine v0.63 — hide the desktop bell on phones. The mobile-header
+     copy already exists and would double-count visually when the drawer
+     is open. */
+  @media (max-width: 720px) {
+    #toast-bell-desktop { display: none; }
+  }
   @media (max-width: 720px) {
     #mobile-tabs {
       display: flex;
