@@ -123,6 +123,136 @@
     from { transform: translateY(20%); opacity: 0; }
     to   { transform: translateY(0);   opacity: 1; }
   }
+  /* Engine v0.59 — Tier A1: inline tappable terminal links. Subtle dotted
+     underline so the affordance is visible without overwhelming prose; the
+     accent color hints at clickability without screaming "link". */
+  .tf-link {
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+    text-decoration-color: rgba(199, 155, 58, 0.55);
+    transition: color 0.12s, text-decoration-color 0.12s, background 0.12s;
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+  .tf-link:hover, .tf-link:focus {
+    text-decoration-color: var(--accent, #c79b3a);
+    background: rgba(199, 155, 58, 0.10);
+    outline: none;
+  }
+  .tf-link-exit { color: #6ea8df; }
+  .tf-link-exit:hover { background: rgba(110, 168, 223, 0.12); text-decoration-color: #6ea8df; }
+  .tf-link-npc  { color: #b48ad6; }
+  .tf-link-npc:hover  { background: rgba(180, 138, 214, 0.12); text-decoration-color: #b48ad6; }
+  .tf-link-action { color: var(--accent, #c79b3a); font-weight: 600; }
+  /* Engine v0.59 — Tier B2: notification panel slide-in. */
+  @keyframes tf-slide-right {
+    from { transform: translateX(20%); opacity: 0; }
+    to   { transform: translateX(0);   opacity: 1; }
+  }
+  /* Engine v0.59 — Tier B3: mobile bottom-tab nav.
+     Hidden on desktop, fixed bottom bar on phones. Each tab triggers an
+     existing engine command (map, status, inv, quests, help). */
+  #mobile-tabs { display: none; }
+  @media (max-width: 720px) {
+    #mobile-tabs {
+      display: flex;
+      position: fixed;
+      left: 0; right: 0;
+      bottom: 0;
+      background: #161310;
+      border-top: 1px solid var(--border, #3a352e);
+      padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px));
+      z-index: 50;
+      gap: 2px;
+    }
+    #mobile-tabs button {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--muted, #9c9388);
+      padding: 6px 4px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      font: inherit;
+      font-size: 10px;
+      border-radius: 5px;
+      transition: background 0.12s, color 0.12s;
+    }
+    #mobile-tabs button:active { background: rgba(199, 155, 58, 0.15); color: var(--accent, #c79b3a); }
+    #mobile-tabs button:hover { color: var(--accent, #c79b3a); }
+    #mobile-tabs .tab-glyph { font-size: 18px; line-height: 1; }
+    #mobile-tabs .tab-label { font-size: 10px; }
+    /* Reserve room above the tab bar so the prompt row sits above it. */
+    #terminal-wrap { padding-bottom: 56px; }
+  }
+  /* Engine v0.59 — Tier B1: onboarding tooltip tour. */
+  #tour-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    pointer-events: auto;
+  }
+  #tour-overlay .tour-spot {
+    position: absolute;
+    border: 2px solid var(--accent, #c79b3a);
+    border-radius: 6px;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.55), 0 0 18px rgba(199, 155, 58, 0.55);
+    pointer-events: none;
+    transition: all 0.25s ease;
+  }
+  #tour-overlay .tour-card {
+    position: absolute;
+    background: #1a1815;
+    border: 1px solid var(--accent, #c79b3a);
+    border-radius: 6px;
+    padding: 14px 16px;
+    max-width: 320px;
+    color: #e8e6e3;
+    font-size: 13px;
+    line-height: 1.5;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+  }
+  #tour-overlay .tour-card .tour-title {
+    color: var(--accent, #c79b3a);
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  #tour-overlay .tour-card .tour-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    gap: 8px;
+  }
+  #tour-overlay button {
+    background: var(--accent, #c79b3a);
+    color: #1a1408;
+    border: none;
+    border-radius: 3px;
+    padding: 5px 12px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #tour-overlay button.tour-skip {
+    background: transparent;
+    color: var(--muted, #9c9388);
+    font-weight: normal;
+  }
+  #tour-overlay .tour-progress {
+    color: var(--muted, #7a7367);
+    font-size: 11px;
+  }
   /* Engine v0.58 — Tier A1: sidebar rows are tappable. Subtle hover hint
      on desktop; tap target sizing already comes from .row / .eq-row. */
   #equipment .eq-row, #carried .row, #materials .row { transition: background 0.12s; }
@@ -339,8 +469,19 @@
       <span class="stat spark"><span class="glyph">✨</span><span id="mh-sparks">0</span></span>
       <span class="stat load"><span class="glyph">📦</span><span id="mh-load">0/40</span></span>
       <span class="room" id="mh-room">…</span>
+      <button id="toast-bell" aria-label="Notifications" title="Notification history" style="position:relative;background:transparent;border:none;color:inherit;font-size:16px;cursor:pointer;padding:4px 6px;">
+        🔔<span class="bell-badge" style="display:none;position:absolute;top:0;right:0;background:#e07a7a;color:#fff;font-size:9px;font-weight:bold;padding:1px 5px;border-radius:8px;line-height:1.2;min-width:14px;text-align:center;">0</span>
+      </button>
       <button id="drawer-toggle" aria-label="Open panel">☰</button>
     </div>
+    <!-- Engine v0.59 — Tier B3: mobile bottom-tab nav (visible on phones only). -->
+    <nav id="mobile-tabs" role="navigation" aria-label="Quick nav">
+      <button data-tab-cmd="map" aria-label="Map"><span class="tab-glyph">🗺</span><span class="tab-label">Map</span></button>
+      <button data-tab-cmd="status" aria-label="Status"><span class="tab-glyph">❤️</span><span class="tab-label">Status</span></button>
+      <button data-tab-cmd="inv" aria-label="Inventory"><span class="tab-glyph">🎒</span><span class="tab-label">Items</span></button>
+      <button data-tab-cmd="quests" aria-label="Quests"><span class="tab-glyph">📜</span><span class="tab-label">Quests</span></button>
+      <button data-tab-cmd="help" aria-label="Help"><span class="tab-glyph">?</span><span class="tab-label">Help</span></button>
+    </nav>
     <div id="output"><div id="boot-loading" style="color:var(--muted);padding:14px;font-size:13px;">
       <span id="boot-loading-text" style="display:inline-block;animation:tf-pulse 1.4s ease-in-out infinite;">Loading worlds…</span>
     </div></div>

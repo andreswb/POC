@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.58';
+const ENGINE_VERSION_LABEL = 'v0.59';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.59':   'Click-everything pass: room items, NPCs, exits, and turn-in hints in the terminal are now clickable links that route through handleCommand (A1). Sidebar quest tracker gained "→ Turn in" / "→ Complete" / "→ Open" inline buttons (A3). Equipment paper-doll redesigned as a visual modal with SVG silhouette + per-slot rows + click-to-swap candidate picker — and the long-standing torso/back doubled-dot bug is fixed: each slot now has its own row (A4). Onboarding tooltip tour on first boot, replayable with the new "tour" command (B1). Notification bell in the mobile header opens a slide-in toast-history panel (last 30 toasts) — also reachable via "notifications" / "notif" (B2). Mobile bottom-tab nav: phones now show a fixed 5-button bar (Map / Status / Items / Quests / Help) above the safe-area inset (B3).',
   'v0.58':   'Tappable adventure: dialogue choices now render as clickable buttons under the NPC line (S1) — keyboard path still works. NPC portraits + speech bubbles in the talk view when an NPC declares an image (A2). Sidebar inventory becomes interactive: new "Carried" section, plus tap any equipment / carried / materials row to open an action sheet (eat, drink, wear, wield, read, examine, sell, drop) (A1). Action sheet routes through the existing handleCommand dispatcher so behaviour matches typing exactly.',
   'v0.57':   'Settings hub modal (gear of theme/font/lang + actions). First-time onboarding intro before the picker. Ending screenshot share (📷 generates a 1200×630 PNG). Mobile keyboard polish (sticky prompt row, dvh, safe-area). Wide-screen sidebar layout (≥1400px). New `thanks <story>` author appreciation gesture (kind-30446). Categorized help modal with sectioned tabs + search. `quests all` cross-story view. Cross-device achievements sync (extends kind-30433). Builder Cmd+K command palette across rooms/items/npcs/quests/etc.',
   'v0.56.1': 'Bug board upgraded to a modal with one-click ★ upvote (NIP-25 reactions). Builder Export now nudges if Playtest check finds critical issues.',
@@ -1480,6 +1481,89 @@ function showFirstRunIntro() {
   });
 }
 
+// Engine v0.59 — Tier B1: onboarding tooltip tour.
+// Five tooltips pointing at: life, day/turn, sparks/gold, the Carried
+// section, and the map. Fires once per browser per story (so a fresh
+// install gets the tour for the first story they pick — but switching
+// stories on the same browser doesn't re-tour). Skippable, dismissable
+// with Esc, and aborts cleanly if the target element is missing.
+const TOUR_KEY = 'taleforge:tour_seen';
+function maybeShowOnboardingTour() {
+  try {
+    if (localStorage.getItem(TOUR_KEY) === '1') return;
+    // Don't fire on first paint — give the sidebar time to populate.
+    setTimeout(() => { try { runOnboardingTour(); } catch {} }, 1500);
+  } catch {}
+}
+function runOnboardingTour() {
+  const steps = [
+    { sel: '#life', title: '❤️ Your life', body: 'Eat, drink, rest, or sleep somewhere safe to recover. The bar pulses red when you\'re close to dying.' },
+    { sel: '#time', title: '🕒 The world\'s clock', body: 'Time advances with each action. Wolves are bolder at night. NPC shops keep hours. Daily quests rotate at dawn.' },
+    { sel: '#sparks', title: '✨ Sparks & 🪙 gold', body: 'Sparks unlock skills (type "skills"). Gold buys at marketplaces. Both carry a small fraction over to your next run when you reach an ending.' },
+    { sel: '#carriedSection', title: '🎒 Tap to do things', body: 'Tap any item in your inventory or equipment for actions — eat, wear, drop, examine. New in v0.58.' },
+    { sel: '#side h3', title: 'Try "map", "help", "quests"', body: 'Type any of those. Or tap the bottom-bar tabs (on mobile) to jump there. You can always re-open this tour with "tutorial".' }
+  ];
+  let idx = 0;
+  const overlay = document.createElement('div');
+  overlay.id = 'tour-overlay';
+  document.body.appendChild(overlay);
+  const spot = document.createElement('div');
+  spot.className = 'tour-spot';
+  const card = document.createElement('div');
+  card.className = 'tour-card';
+  overlay.append(spot, card);
+
+  function place() {
+    if (idx >= steps.length) { finish(); return; }
+    const step = steps[idx];
+    const target = document.querySelector(step.sel);
+    if (!target) { idx++; place(); return; }
+    const r = target.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) { idx++; place(); return; }
+    const pad = 6;
+    spot.style.top = (r.top - pad) + 'px';
+    spot.style.left = (r.left - pad) + 'px';
+    spot.style.width = (r.width + pad * 2) + 'px';
+    spot.style.height = (r.height + pad * 2) + 'px';
+    card.innerHTML = `
+      <div class="tour-title">${escapeHtml(step.title)}</div>
+      <div>${escapeHtml(step.body)}</div>
+      <div class="tour-actions">
+        <span class="tour-progress">${idx + 1} / ${steps.length}</span>
+        <div style="display:flex;gap:6px;">
+          <button class="tour-skip" id="tour-skip">Skip tour</button>
+          <button id="tour-next">${idx === steps.length - 1 ? 'Got it' : 'Next →'}</button>
+        </div>
+      </div>
+    `;
+    // Position the card near the target without overflowing.
+    const cardW = 320;
+    const cardH = 140;
+    let left = r.left;
+    let top = r.bottom + 16;
+    if (top + cardH > window.innerHeight) top = Math.max(8, r.top - cardH - 16);
+    if (left + cardW > window.innerWidth - 12) left = Math.max(8, window.innerWidth - cardW - 12);
+    if (left < 8) left = 8;
+    card.style.top = top + 'px';
+    card.style.left = left + 'px';
+    card.querySelector('#tour-next').addEventListener('click', () => { idx++; place(); });
+    card.querySelector('#tour-skip').addEventListener('click', finish);
+  }
+  function finish() {
+    try { localStorage.setItem(TOUR_KEY, '1'); } catch {}
+    overlay.remove();
+    document.removeEventListener('keydown', onEsc);
+  }
+  function onEsc(e) { if (e.key === 'Escape') finish(); }
+  document.addEventListener('keydown', onEsc);
+  place();
+}
+// Replay command — `tour` re-runs the onboarding tour even if seen.
+function replayTour() {
+  try { localStorage.removeItem(TOUR_KEY); } catch {}
+  runOnboardingTour();
+}
+
 async function resolveActiveStory() {
   setBootStatus('Fetching story manifest…');
   await loadExtraStoriesIntoBuiltin();
@@ -2463,6 +2547,24 @@ async function fetchAndRestoreState(timeoutMs = 5000) {
 }
 
 const out = document.getElementById('output');
+// Engine v0.59 — Tier A1: delegated click + keyboard handler for inline
+// terminal links (items, NPCs, exits, quest actions). Handles touch via
+// the standard click event and keyboard Enter/Space for accessibility.
+out.addEventListener('click', (e) => {
+  const link = e.target.closest('[data-cmd]');
+  if (!link) return;
+  e.preventDefault();
+  const cmd = link.getAttribute('data-cmd');
+  if (cmd) handleCommand(cmd);
+});
+out.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const link = e.target.closest('[data-cmd]');
+  if (!link) return;
+  e.preventDefault();
+  const cmd = link.getAttribute('data-cmd');
+  if (cmd) handleCommand(cmd);
+});
 // Engine v0.50.2 — Tier B9: optional capture target. When __writeCapture is
 // non-null, write() pushes lines onto it instead of the DOM. Used by the
 // `mapview` command to render the same map text into a zoomable modal.
@@ -2476,13 +2578,26 @@ function write(text='', cls='') {
   if (boot) boot.remove();
   const div = document.createElement('div');
   div.className = 'line ' + cls;
-  if (typeof text === 'string' && (/<(?:img|svg)\s/.test(text) || /&(?:amp|lt|gt|quot|#\d+);/.test(text))) {
+  // Engine v0.59 — Tier A1: also recognise `<span data-cmd=` for clickable
+  // inline command links. Existing img/svg/entities triggers preserved.
+  if (typeof text === 'string' && (/<(?:img|svg|span)\s/.test(text) || /data-cmd=/.test(text) || /&(?:amp|lt|gt|quot|#\d+);/.test(text))) {
     div.innerHTML = text;
   } else {
     div.textContent = text;
   }
   out.appendChild(div);
   out.scrollTop = out.scrollHeight;
+}
+
+// Engine v0.59 — Tier A1: linkify helper for inline tappable terminal text.
+// Returns an HTML span wrapping `label` that fires `cmd` on click via the
+// delegated handler attached to #out (set up below at boot). The label may
+// already be HTML (e.g. itemDisplay returns an escaped string with possible
+// glyph + display fragments), so we don't double-escape. Caller is
+// responsible for ensuring label is HTML-safe (itemDisplay / escapeHtml).
+function tfLink(label, cmd, kind = 'item') {
+  const cleaned = String(cmd || '').replace(/"/g, '&quot;');
+  return `<span class="tf-link tf-link-${kind}" data-cmd="${cleaned}" tabindex="0" role="button">${label}</span>`;
 }
 
 // Engine v0.58 — interactive helpers for click-driven UI.
@@ -2602,7 +2717,27 @@ function showItemActionSheet(itemId, ctx = {}) {
 
 const TOAST_TTL = 5000;
 const TOAST_CELEBRATE_TTL = 8000;
+// Engine v0.59 — Tier B2: in-memory toast history. Each shown toast also
+// gets pushed onto `toastHistory` (capped at TOAST_HISTORY_MAX) so the
+// player can re-read what flew past, via the bell button in the header.
+const TOAST_HISTORY_MAX = 30;
+const toastHistory = [];
+let toastUnreadCount = 0;
 function showToast(text, kind = '', opts = {}) {
+  // Always record the entry, even if the toast stack DOM isn't present
+  // (so headless code paths still feed history).
+  const entry = {
+    ts: Date.now(),
+    text: String(text),
+    kind: kind || '',
+    tag: opts.tag || kind || '',
+    subtitle: opts.subtitle || '',
+    celebrate: !!opts.celebrate
+  };
+  toastHistory.push(entry);
+  if (toastHistory.length > TOAST_HISTORY_MAX) toastHistory.shift();
+  toastUnreadCount = Math.min(99, toastUnreadCount + 1);
+  refreshToastBell();
   const stack = document.getElementById('toast-stack');
   if (!stack) return;
   const card = document.createElement('div');
@@ -2638,6 +2773,71 @@ function showToast(text, kind = '', opts = {}) {
   while (stack.children.length > 5) {
     try { stack.children[0].remove(); } catch { break; }
   }
+}
+
+// Engine v0.59 — Tier B2: notification feed (bell + history modal).
+function refreshToastBell() {
+  const bell = document.getElementById('toast-bell');
+  if (!bell) return;
+  const badge = bell.querySelector('.bell-badge');
+  if (toastUnreadCount > 0) {
+    badge.textContent = toastUnreadCount > 9 ? '9+' : String(toastUnreadCount);
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+function showToastHistoryModal() {
+  toastUnreadCount = 0;
+  refreshToastBell();
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:flex-start;justify-content:flex-end;padding:0;font-family:inherit;color:#e8e6e3;';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:#1a1815;border-left:1px solid #3a352e;width:100%;max-width:380px;height:100vh;overflow-y:auto;box-shadow:-4px 0 20px rgba(0,0,0,0.4);animation:tf-slide-right 0.18s ease-out;';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #2a2724;position:sticky;top:0;background:#1a1815;z-index:1;">
+      <div>
+        <div style="font-size:15px;font-weight:bold;">🔔 Notifications</div>
+        <div style="color:#9c9388;font-size:11px;margin-top:1px;">Last ${TOAST_HISTORY_MAX} toasts (most recent first)</div>
+      </div>
+      <button id="th-close" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;">×</button>
+    </div>
+    <div id="th-list" style="padding:8px;"></div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  const list = panel.querySelector('#th-list');
+  const reversed = [...toastHistory].reverse();
+  if (reversed.length === 0) {
+    list.innerHTML = '<div style="padding:30px 16px;color:#9c9388;font-size:13px;text-align:center;">No notifications yet — they\'ll appear here as you play.</div>';
+  } else {
+    for (const e of reversed) {
+      const card = document.createElement('div');
+      card.style.cssText = `background:${e.celebrate ? '#2a230f' : '#23201c'};border:1px solid ${e.celebrate ? '#c79b3a' : '#3a352e'};border-radius:5px;padding:8px 12px;margin-bottom:6px;`;
+      const ago = formatTimeAgo(e.ts);
+      const tagHtml = e.tag ? `<span style="font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:var(--accent, #c79b3a);">${escapeHtml(e.tag)}</span>` : '';
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:3px;">
+          ${tagHtml}<span style="font-size:10px;color:#7a7367;">${ago}</span>
+        </div>
+        <div style="font-size:13px;color:#e8e6e3;line-height:1.4;">${escapeHtml(e.text)}</div>
+        ${e.subtitle ? `<div style="font-size:11px;color:#9c9388;margin-top:3px;">${escapeHtml(e.subtitle)}</div>` : ''}
+      `;
+      list.appendChild(card);
+    }
+  }
+  function close() { overlay.remove(); document.removeEventListener('keydown', onEsc); }
+  function onEsc(e) { if (e.key === 'Escape') close(); }
+  panel.querySelector('#th-close').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onEsc);
+}
+function formatTimeAgo(ts) {
+  const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (sec < 60) return 'just now';
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return `${Math.floor(sec / 86400)}d ago`;
 }
 
 function refreshSidebar() {
@@ -2735,7 +2935,12 @@ function refreshSidebar() {
       trackerEl.innerHTML = '';
       trackerSec.style.cursor = 'pointer';
       trackerSec.title = 'Click to open the full quests view.';
-      trackerSec.onclick = () => { try { showQuests(); } catch {} };
+      trackerSec.onclick = (ev) => {
+        // Engine v0.59 — Tier A3: don't open the quests view if the click
+        // hit one of the inline action buttons on the tracker rows.
+        if (ev?.target?.closest?.('[data-quest-action]')) return;
+        try { showQuests(); } catch {}
+      };
       const title = document.createElement('div');
       title.className = 'row';
       const tag = best.q.recurrence === 'daily' ? ' [daily]' : '';
@@ -2752,6 +2957,29 @@ function refreshSidebar() {
         row.innerHTML = `<span style="color:var(--muted);">[${mark}] ${escapeHtml(p.label)}</span><span class="qty" style="color:var(--accent);">${bar} ${cur}/${p.target}</span>`;
         trackerEl.appendChild(row);
       }
+      // Engine v0.59 — Tier A3: inline action buttons on the tracker.
+      // When the tracked quest is complete, surface "→ Turn in" (or
+      // "→ Complete" for null-giver quests). Otherwise show "→ Open" so
+      // players can jump to the full quests view from one tap.
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;';
+      const ready = questComplete(best.qid);
+      if (ready) {
+        const turnBtn = document.createElement('button');
+        const cmd = best.q.giver ? `turn in ${best.qid}` : `complete ${best.qid}`;
+        turnBtn.textContent = best.q.giver ? '→ Turn in' : '→ Complete';
+        turnBtn.setAttribute('data-quest-action', '1');
+        turnBtn.style.cssText = 'flex:1;padding:5px 8px;background:var(--accent, #c79b3a);color:#1a1408;border:none;border-radius:3px;cursor:pointer;font:inherit;font-size:11px;font-weight:600;';
+        turnBtn.addEventListener('click', (ev) => { ev.stopPropagation(); handleCommand(cmd); });
+        actions.appendChild(turnBtn);
+      }
+      const openBtn = document.createElement('button');
+      openBtn.textContent = ready ? '→ Open' : '→ Open quests';
+      openBtn.setAttribute('data-quest-action', '1');
+      openBtn.style.cssText = `flex:${ready ? '0 0 auto' : '1'};padding:5px 8px;background:transparent;color:var(--muted, #9c9388);border:1px solid #3a352e;border-radius:3px;cursor:pointer;font:inherit;font-size:11px;`;
+      openBtn.addEventListener('click', (ev) => { ev.stopPropagation(); try { showQuests(); } catch {} });
+      actions.appendChild(openBtn);
+      trackerEl.appendChild(actions);
     }
   }
   // Engine v0.52.1 — Tier A4: sidebar bounty tracker.
@@ -4645,12 +4873,19 @@ function describeRoom() {
     const seen = new Map();
     for (const i of room.items) seen.set(i, (seen.get(i) || 0) + 1);
     const parts = [];
-    for (const [id, n] of seen) parts.push(n > 1 ? `${itemDisplay(id, true)} ×${n}` : itemDisplay(id, true));
+    // Engine v0.59 — Tier A1: linkify room items. Click → `take <id>`.
+    for (const [id, n] of seen) {
+      const display = n > 1 ? `${itemDisplay(id, true)} ×${n}` : itemDisplay(id, true);
+      parts.push(tfLink(display, `take ${id}`, 'item'));
+    }
     write(T('You see: {0}', parts.join(', ')), 'items');
   }
   const presentNpcs = npcsHere(player.location);
-  if (presentNpcs.length)
-    write(T('Here: {0}', presentNpcs.map(n => t(STORY.npcs[n].display)).join(', ')), 'items');
+  if (presentNpcs.length) {
+    // Engine v0.59 — Tier A1: linkify NPCs. Click → `talk <id>`.
+    const npcLinks = presentNpcs.map(n => tfLink(escapeHtml(t(STORY.npcs[n].display)), `talk ${n}`, 'npc'));
+    write(T('Here: {0}', npcLinks.join(', ')), 'items');
+  }
   if (room.resources?.length) {
     const verbs = room.resources.map(r => `${cmdT(r.verb)} (${itemDisplay(r.id)})`).join(', ');
     write(T('Gatherable: {0}', verbs), 'items');
@@ -4695,13 +4930,17 @@ function describeRoom() {
       if (q.giver) continue;
       if (q.recurrence === 'daily') continue;
       if (!questComplete(qid)) continue;
-      write(T('>>> Ready to finish: {0}. Type "complete {1}" or "turn in {1}".', t(q.title), qid), 'spark');
+      // Engine v0.59 — Tier A3: linkify the turn-in hint.
+      const turnInLink = tfLink('turn in', `turn in ${qid}`, 'action');
+      write(`>>> Ready to finish: ${escapeHtml(t(q.title))}. ${turnInLink} — or type "complete ${qid}".`, 'spark');
     }
   } catch {}
+  // Engine v0.59 — Tier A1: linkify exits. Click → `go <dir>`.
   const exitLabels = Object.entries(room.exits).map(([dir, raw]) => {
     const r = resolveExit(raw);
-    if (!r || !r.gate) return dirT(dir);
-    return checkExitGate(r.gate).ok ? dirT(dir) : `${dirT(dir)} 🔒`;
+    const lock = (r && r.gate && !checkExitGate(r.gate).ok) ? ' 🔒' : '';
+    const label = escapeHtml(dirT(dir)) + lock;
+    return tfLink(label, `go ${dir}`, 'exit');
   });
   write(T('Exits: {0}', exitLabels.join(', ')), 'exits');
 }
@@ -6300,23 +6539,38 @@ function paperDollLine(slot, item, width) {
   return `${label} ${text}`;
 }
 function showEquipment() {
+  // Engine v0.59 — Tier A4: visual paper-doll modal.
+  // The previous text-art doll mashed `torso` and `back` onto the same row
+  // (with two ● dots) which read as "the torso has two slots" — a long-
+  // standing visual bug. The new modal renders each slot once, with its
+  // own row, plus an SVG body silhouette and click-to-swap actions.
+  // Falls back to the text view if the modal can't open (eg. captured).
+  if (__writeCapture) {
+    showEquipmentText();
+    return;
+  }
+  try { showEquipmentModal(); } catch (e) { console.warn('paper-doll fallback:', e); showEquipmentText(); }
+}
+
+function showEquipmentText() {
   writeBlock('=== Equipment ===', () => {
     const eq = player.equipment || {};
-    const slots = ['head', 'torso', 'hand', 'feet', 'back'];
-    const lines = [
-      '         ┌──────┐',
-      `  head ──┤ ${(eq.head ? '●' : '○')}    ├── ${eq.head ? (STORY.items[eq.head]?.display || eq.head) : '(nothing)'}`,
-      '         ├──────┤',
-      `  torso ─┤ ${(eq.torso ? '●' : '○')} ${(eq.back ? '●' : '○')}  ├── ${eq.torso ? (STORY.items[eq.torso]?.display || eq.torso) : '(nothing)'}` + (eq.back ? `  · back: ${STORY.items[eq.back]?.display || eq.back}` : ''),
-      `  hand ──┤ ${(eq.hand ? '●' : '○')}    ├── ${eq.hand ? (STORY.items[eq.hand]?.display || eq.hand) : '(nothing)'}`,
-      '         ├──────┤',
-      `  feet ──┤ ${(eq.feet ? '●' : '○') + ' ' + (eq.feet ? '●' : '○')}  ├── ${eq.feet ? (STORY.items[eq.feet]?.display || eq.feet) : '(nothing)'}`,
-      '         └──────┘'
-    ];
-    for (const l of lines) write(l);
+    // Each slot rendered on its own row — fixes the "torso has two dots"
+    // bug introduced when `back` was first added (engine v0.x).
+    const SLOT_ORDER = ['head', 'torso', 'back', 'belt', 'neck', 'hand', 'feet'];
+    write('         ┌──────┐');
+    SLOT_ORDER.forEach((slot, i) => {
+      const item = eq[slot];
+      const dot = item ? '●' : '○';
+      const label = item ? (STORY.items[item]?.display || item) : '(nothing)';
+      const padded = slot.padEnd(5, ' ');
+      write(`  ${padded} ┤ ${dot}    ├── ${label}`);
+      if (i < SLOT_ORDER.length - 1) write('         ├──────┤');
+    });
+    write('         └──────┘');
     let lifeBonus = 0, carryBonus = 0, attackBonus = 0;
     const def = totalDefenseBonus();
-    for (const slot of slots) {
+    for (const slot of SLOT_ORDER) {
       const item = eq[slot]; if (!item) continue;
       const ef = STORY.items[item]?.effects || {};
       if (ef.life_max_bonus) lifeBonus += ef.life_max_bonus;
@@ -6331,13 +6585,208 @@ function showEquipment() {
     if (def)         bonusParts.push(`+${def} defense`);
     if (bonusParts.length) write(`Net bonuses: ${bonusParts.join(' · ')}`, 'success');
     else write('Net bonuses: none — equip items to gain stat bonuses.', 'echo');
-    const customSlots = Object.keys(eq).filter(s => !slots.includes(s));
+    const customSlots = Object.keys(eq).filter(s => !SLOT_ORDER.includes(s));
     if (customSlots.length) {
       write('');
       write('Other slots:', 'system');
       for (const s of customSlots) write(`  ${s}: ${itemDisplay(eq[s], true)}`);
     }
   }, '── end of equipment ──');
+}
+
+// Engine v0.59 — Tier A4: visual paper-doll modal.
+// SVG silhouette with one anchor per slot. Each slot button shows the
+// equipped item (or "empty"). Tap an empty slot → see candidates from
+// inventory; tap an equipped slot → swap or unwear. Net bonuses computed
+// in real time from the equipment object.
+function showEquipmentModal() {
+  const SLOT_LIST = [
+    { id: 'head',  label: 'Head',  cx: 100, cy: 30,  desc: 'Helmets, hoods, hats' },
+    { id: 'neck',  label: 'Neck',  cx: 100, cy: 65,  desc: 'Amulets, charms' },
+    { id: 'torso', label: 'Torso', cx: 100, cy: 110, desc: 'Armor, robes, tunics' },
+    { id: 'back',  label: 'Back',  cx: 165, cy: 95,  desc: 'Packs, cloaks' },
+    { id: 'hand',  label: 'Hand',  cx: 35,  cy: 130, desc: 'Weapons, tools' },
+    { id: 'belt',  label: 'Belt',  cx: 100, cy: 165, desc: 'Pouches, sheaths' },
+    { id: 'feet',  label: 'Feet',  cx: 100, cy: 240, desc: 'Boots, sandals' },
+  ];
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:760px;width:100%;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #2a2724;">
+      <div>
+        <div style="font-size:18px;font-weight:bold;">Equipment</div>
+        <div style="color:#9c9388;font-size:12px;margin-top:2px;">Tap a slot to wear, swap, or unwear.</div>
+      </div>
+      <button id="eq-close" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;">×</button>
+    </div>
+    <div style="flex:1;overflow:auto;display:flex;gap:0;flex-wrap:wrap;">
+      <div id="eq-doll" style="flex:0 0 240px;padding:18px;display:flex;justify-content:center;border-right:1px solid #2a2724;"></div>
+      <div id="eq-slots" style="flex:1;min-width:280px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+    <div id="eq-footer" style="padding:10px 20px;border-top:1px solid #2a2724;font-size:12px;color:#9c9388;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;"></div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  function close() { overlay.remove(); document.removeEventListener('keydown', onEsc); }
+  function onEsc(e) { if (e.key === 'Escape') close(); }
+  panel.querySelector('#eq-close').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onEsc);
+
+  function render() {
+    const eq = player.equipment || {};
+    // SVG body silhouette with slot anchors.
+    const dollEl = panel.querySelector('#eq-doll');
+    const dotsSvg = SLOT_LIST.map(s => {
+      const filled = !!eq[s.id];
+      const fill = filled ? '#c79b3a' : '#23201c';
+      const stroke = filled ? '#f0b54a' : '#5a5249';
+      return `<g class="eq-anchor" data-slot="${s.id}" style="cursor:pointer;">
+        <circle cx="${s.cx}" cy="${s.cy}" r="9" fill="${fill}" stroke="${stroke}" stroke-width="2"/>
+        <text x="${s.cx + (s.cx > 110 ? 14 : (s.cx < 60 ? -14 : 0))}" y="${s.cy + 4}"
+              text-anchor="${s.cx > 110 ? 'start' : (s.cx < 60 ? 'end' : 'middle')}"
+              font-size="9" fill="#9c9388" font-family="ui-monospace,monospace">${s.label}</text>
+      </g>`;
+    }).join('');
+    dollEl.innerHTML = `
+      <svg viewBox="0 0 200 280" style="width:100%;max-width:200px;height:auto;">
+        <!-- silhouette: head + neck + torso + arms + legs -->
+        <ellipse cx="100" cy="30" rx="22" ry="26" fill="none" stroke="#3a352e" stroke-width="1.5"/>
+        <line x1="100" y1="56" x2="100" y2="78" stroke="#3a352e" stroke-width="1.5"/>
+        <path d="M 60 78 L 140 78 L 145 175 L 55 175 Z" fill="none" stroke="#3a352e" stroke-width="1.5"/>
+        <line x1="60" y1="82" x2="20" y2="150" stroke="#3a352e" stroke-width="1.5"/>
+        <line x1="140" y1="82" x2="180" y2="150" stroke="#3a352e" stroke-width="1.5"/>
+        <line x1="80" y1="175" x2="80" y2="240" stroke="#3a352e" stroke-width="1.5"/>
+        <line x1="120" y1="175" x2="120" y2="240" stroke="#3a352e" stroke-width="1.5"/>
+        ${dotsSvg}
+      </svg>
+    `;
+    dollEl.querySelectorAll('.eq-anchor').forEach(g => {
+      g.addEventListener('click', () => focusSlot(g.getAttribute('data-slot')));
+    });
+
+    // Right-pane slot rows.
+    const slotsEl = panel.querySelector('#eq-slots');
+    slotsEl.innerHTML = '';
+    for (const s of SLOT_LIST) {
+      const item = eq[s.id];
+      const it = item ? STORY.items[item] : null;
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;align-items:center;gap:10px;padding:8px 10px;background:${item ? '#23201c' : '#1a1815'};border:1px solid ${item ? '#3a352e' : '#2a2724'};border-radius:5px;`;
+      const slotLabel = document.createElement('div');
+      slotLabel.style.cssText = 'flex:0 0 64px;font-size:11px;color:#9c9388;text-transform:uppercase;letter-spacing:0.04em;';
+      slotLabel.textContent = s.label;
+      const main = document.createElement('div');
+      main.style.cssText = 'flex:1;min-width:0;';
+      if (item) {
+        const ef = it?.effects || {};
+        const bonusParts = [];
+        if (ef.attack_bonus) bonusParts.push(`+${ef.attack_bonus} atk`);
+        if (ef.life_max_bonus) bonusParts.push(`+${ef.life_max_bonus} life`);
+        if (ef.carry_capacity_bonus) bonusParts.push(`+${ef.carry_capacity_bonus} carry`);
+        const defBonus = (typeof slotDefenseBonus === 'function') ? slotDefenseBonus(item) : 0;
+        if (defBonus) bonusParts.push(`+${defBonus} def`);
+        main.innerHTML = `<div style="color:var(--accent, #c79b3a);font-size:13px;font-weight:600;">${escapeHtml(t(it.display))}</div>${bonusParts.length ? `<div style="color:#9c9388;font-size:11px;margin-top:2px;">${bonusParts.join(' · ')}</div>` : ''}`;
+      } else {
+        main.innerHTML = `<div style="color:#6a6358;font-size:13px;font-style:italic;">empty — ${s.desc.toLowerCase()}</div>`;
+      }
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:6px;flex-shrink:0;';
+      if (item) {
+        const unwearBtn = document.createElement('button');
+        unwearBtn.textContent = 'Unwear';
+        unwearBtn.style.cssText = 'padding:5px 10px;background:#3a352e;color:#e8e6e3;border:none;border-radius:3px;cursor:pointer;font:inherit;font-size:11px;';
+        unwearBtn.addEventListener('click', () => {
+          handleCommand(`unwear ${s.id}`);
+          setTimeout(() => render(), 50);
+        });
+        actions.appendChild(unwearBtn);
+        const swapBtn = document.createElement('button');
+        swapBtn.textContent = 'Swap';
+        swapBtn.style.cssText = 'padding:5px 10px;background:transparent;color:var(--accent, #c79b3a);border:1px solid var(--accent, #c79b3a);border-radius:3px;cursor:pointer;font:inherit;font-size:11px;';
+        swapBtn.addEventListener('click', () => focusSlot(s.id));
+        actions.appendChild(swapBtn);
+      } else {
+        const wearBtn = document.createElement('button');
+        const candidates = candidatesForSlot(s.id);
+        wearBtn.textContent = candidates.length === 0 ? 'No fits' : (candidates.length === 1 ? '+ Wear' : `+ Wear (${candidates.length})`);
+        wearBtn.disabled = candidates.length === 0;
+        wearBtn.style.cssText = `padding:5px 10px;background:${candidates.length ? 'var(--accent, #c79b3a)' : '#2a2724'};color:${candidates.length ? '#1a1408' : '#6a6358'};border:none;border-radius:3px;cursor:${candidates.length ? 'pointer' : 'not-allowed'};font:inherit;font-size:11px;font-weight:600;`;
+        if (candidates.length) wearBtn.addEventListener('click', () => focusSlot(s.id));
+        actions.appendChild(wearBtn);
+      }
+      row.append(slotLabel, main, actions);
+      slotsEl.appendChild(row);
+    }
+
+    // Footer: net bonuses.
+    const eqEntries = Object.entries(eq);
+    let lifeBonus = 0, carryBonus = 0, attackBonus = 0;
+    const def = (typeof totalDefenseBonus === 'function') ? totalDefenseBonus() : 0;
+    for (const [, item] of eqEntries) {
+      const ef = STORY.items[item]?.effects || {};
+      if (ef.life_max_bonus) lifeBonus += ef.life_max_bonus;
+      if (ef.carry_capacity_bonus) carryBonus += ef.carry_capacity_bonus;
+      if (ef.attack_bonus) attackBonus += ef.attack_bonus;
+    }
+    const parts = [];
+    if (lifeBonus)   parts.push(`+${lifeBonus} life`);
+    if (carryBonus)  parts.push(`+${carryBonus} carry`);
+    if (attackBonus) parts.push(`+${attackBonus} attack`);
+    if (def)         parts.push(`+${def} defense`);
+    panel.querySelector('#eq-footer').innerHTML = parts.length
+      ? `<span><strong style="color:#6dc28d;">Net bonuses:</strong> ${parts.join(' · ')}</span><span>${eqEntries.length} of ${SLOT_LIST.length} slots filled</span>`
+      : `<span style="color:#7a7367;">No bonuses yet — equip items to gain stats.</span><span>${eqEntries.length} of ${SLOT_LIST.length} slots filled</span>`;
+  }
+
+  function candidatesForSlot(slot) {
+    return [...new Set(player.inventory)].filter(id => STORY.items[id]?.slot === slot);
+  }
+
+  function focusSlot(slot) {
+    const candidates = candidatesForSlot(slot);
+    if (candidates.length === 0) {
+      // No fits — gentle toast.
+      try { showToast(`Nothing fits ${slot}`, 'system', { subtitle: 'Find or craft an item with that slot.' }); } catch {}
+      return;
+    }
+    if (candidates.length === 1) {
+      handleCommand(`wear ${candidates[0]}`);
+      setTimeout(() => render(), 50);
+      return;
+    }
+    // Multi-candidate picker — quick inline list overlay.
+    const subOv = document.createElement('div');
+    subOv.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    const subPanel = document.createElement('div');
+    subPanel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:380px;width:100%;padding:16px;';
+    subPanel.innerHTML = `<div style="font-size:14px;font-weight:bold;color:var(--accent, #c79b3a);margin-bottom:10px;">Pick what to wear in ${slot}</div>`;
+    for (const id of candidates) {
+      const it = STORY.items[id];
+      const btn = document.createElement('button');
+      btn.style.cssText = 'display:block;width:100%;text-align:left;padding:8px 12px;margin-bottom:5px;background:#23201c;color:#e8e6e3;border:1px solid #3a352e;border-radius:4px;cursor:pointer;font:inherit;font-size:13px;';
+      btn.textContent = t(it?.display || id);
+      btn.addEventListener('click', () => {
+        subOv.remove();
+        handleCommand(`wear ${id}`);
+        setTimeout(() => render(), 50);
+      });
+      subPanel.appendChild(btn);
+    }
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    cancel.style.cssText = 'display:block;width:100%;text-align:center;padding:8px 12px;margin-top:6px;background:transparent;color:#9c9388;border:1px solid #3a352e;border-radius:4px;cursor:pointer;font:inherit;font-size:12px;';
+    cancel.addEventListener('click', () => subOv.remove());
+    subPanel.appendChild(cancel);
+    subOv.appendChild(subPanel);
+    document.body.appendChild(subOv);
+    subOv.addEventListener('click', e => { if (e.target === subOv) subOv.remove(); });
+  }
+
+  render();
 }
 
 function questProgress(qid) {
@@ -9581,6 +10030,8 @@ function handleCommand(input) {
     case 'bug': case 'report':   showBugReporter(); consumesTurn = false; break;
     case 'bugs':                 showBugBoard(); consumesTurn = false; break;
     case 'thanks': case 'thank':case 'tip': thanksAuthor(argRaw); consumesTurn = false; break;
+    case 'tour': case 'walkthrough': replayTour(); consumesTurn = false; break;
+    case 'notifications': case 'notif': showToastHistoryModal(); consumesTurn = false; break;
     case 'read':                 readItem(arg); break;
     case 'examine': case 'inspect': case 'x':  examineItem(arg); consumesTurn = false; break;
     case 'reload': case 'update':
@@ -10187,3 +10638,21 @@ window.addEventListener('offline', () => {
 
 refreshRelayLabel();
 setTimeout(() => { if (loadOutbox().length) drainOutbox(true); }, 5000);
+
+// Engine v0.59 — Tier B2 + B3: wire the bell button + bottom-tabs at boot.
+try {
+  const bell = document.getElementById('toast-bell');
+  if (bell) bell.addEventListener('click', () => { try { showToastHistoryModal(); } catch {} });
+  const tabs = document.querySelectorAll('#mobile-tabs button[data-tab-cmd]');
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cmd = btn.getAttribute('data-tab-cmd');
+      if (cmd) handleCommand(cmd);
+    });
+  });
+  refreshToastBell();
+} catch {}
+
+// Engine v0.59 — Tier B1: trigger the onboarding tour after a successful boot.
+// Only fires once per browser; users can re-run it any time with `tour`.
+try { maybeShowOnboardingTour(); } catch {}
