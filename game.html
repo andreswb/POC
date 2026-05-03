@@ -164,6 +164,22 @@
     animation: tf-flash-in 1100ms ease-out;
     border-radius: 3px;
   }
+  /* Engine v0.61 — Tier N4: combat HP loss flash. Red pulse + tiny shake
+     when the player takes a hit ≥10% of max life. Coexists with the
+     low-life tf-pulse animation (which lives on `.life` directly). */
+  @keyframes tf-life-hit {
+    0%   { background: rgba(224, 122, 122, 0.55); transform: translateX(-3px); }
+    20%  { background: rgba(224, 122, 122, 0.55); transform: translateX(3px); }
+    40%  { background: rgba(224, 122, 122, 0.40); transform: translateX(-2px); }
+    60%  { background: rgba(224, 122, 122, 0.25); transform: translateX(0); }
+    100% { background: transparent;                transform: translateX(0); }
+  }
+  .tf-life-hit {
+    animation: tf-life-hit 900ms ease-out;
+    border-radius: 3px;
+    padding: 0 4px;
+    margin: 0 -4px;
+  }
   /* Engine v0.59 — Tier B2: notification panel slide-in. */
   @keyframes tf-slide-right {
     from { transform: translateX(20%); opacity: 0; }
@@ -521,6 +537,13 @@
   <div id="toast-stack" aria-live="polite"></div>
   <aside id="side">
     <button class="close-btn" id="drawer-close">close</button>
+    <!-- Engine v0.62 — Tier N5: desktop notification bell. Hidden on phones
+         (the mobile header has its own copy) and shown only when the
+         sidebar is visible. Same id family so refreshToastBell() updates
+         both copies. -->
+    <button id="toast-bell-desktop" aria-label="Notifications" title="Notification history" style="position:absolute;top:10px;right:54px;background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 6px;line-height:1;">
+      🔔<span class="bell-badge" style="display:none;position:absolute;top:0;right:0;background:#e07a7a;color:#fff;font-size:9px;font-weight:bold;padding:1px 5px;border-radius:8px;line-height:1.2;min-width:14px;text-align:center;">0</span>
+    </button>
     <section>
       <h3 data-i18n="Identity">Identity</h3>
       <div class="kv"><span class="k" data-i18n="name">name</span><span class="v" id="player-name">…</span></div>

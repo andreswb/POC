@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.60';
+const ENGINE_VERSION_LABEL = 'v0.62';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,8 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.62':   'Loose-ends pass: desktop sidebar gained a 🔔 notification bell so non-mobile users have access to the toast-history panel (N5). Focus-trap pass extended to age-gate, bug reporter, bug board, first-run intro, and ending overlay — Tab now stays inside every modal (N6). Damage flash + low-life pulse no longer compete: the persistent opacity pulse pauses for the 900ms red flash and resumes after if life is still below 25% (N7). Room re-paints preserve keyboard focus: if a tf-link with a matching data-cmd survives the new render, focus moves to it; otherwise focus returns to the input (N8). New `share settings` command copies a deep-link URL with current theme + font + lang baked in — closes the v0.60 deep-link loop (N9). Equipment slot rows flash green when wearing/wielding lands an item — mirrors the carried/materials flash (N10).',
+  'v0.61':   'Notification + a11y + mobile polish: showToast call sites audited and tagged with silent / important so the bell badge only counts real attention-worthy events (engine update, bounty, gift, DM, heal, world event, achievement) and stays quiet for routine ones like outbox sync, npub copy, "nothing fits slot" (N1). Modal focus-trap: action sheet, equipment doll, help, settings, notifications panel — Tab now stays inside the modal, Shift+Tab wraps, focus restores to the previous element on close, role="dialog" + aria-modal set for screen-readers (N2). Tour spotlight viewport-clamp: ring + card now respect the bottom-tab strip on phones, scroll the target into view first, and fall back to a centered card if neither above nor below the target fits (N3). Combat HP loss flash: when the player takes ≥10% of max life in one tick, the life value flashes red with a brief shake — visible feedback for damage that pairs with the green inventory flash (N4).',
   'v0.60':   'Polish sweep: tour now waits for the sidebar to populate (rAF chain, no more flicker) and skips while a higher-priority overlay is up (A5). Inventory rows flash green when a count goes up — instant visual feedback on pickups (B2). Full keyboard nav across inline tf-links: Alt+L jumps from the input to the most-recent link, ArrowUp/Down moves between links, Enter/Space activates, Esc returns to the input — focus-visible ring shows the active target (B4). Bell-badge filter: only celebrate / warn / error / achievement / milestone / low-life toasts bump the unread count; routine info toasts feed the panel silently (B5). Settings deep-link URLs: ?theme= / ?font= / ?lang= apply at boot, persist to localStorage, and are stripped from the visible URL after applying (B6). Image lazy-loading: NPC portraits, action-sheet glyphs, and item icons now carry loading="lazy" + decoding="async" so first-paint stays fast on image-heavy stories (B8).',
   'v0.59':   'Click-everything pass: room items, NPCs, exits, and turn-in hints in the terminal are now clickable links that route through handleCommand (A1). Sidebar quest tracker gained "→ Turn in" / "→ Complete" / "→ Open" inline buttons (A3). Equipment paper-doll redesigned as a visual modal with SVG silhouette + per-slot rows + click-to-swap candidate picker — and the long-standing torso/back doubled-dot bug is fixed: each slot now has its own row (A4). Onboarding tooltip tour on first boot, replayable with the new "tour" command (B1). Notification bell in the mobile header opens a slide-in toast-history panel (last 30 toasts) — also reachable via "notifications" / "notif" (B2). Mobile bottom-tab nav: phones now show a fixed 5-button bar (Map / Status / Items / Quests / Help) above the safe-area inset (B3).',
   'v0.58':   'Tappable adventure: dialogue choices now render as clickable buttons under the NPC line (S1) — keyboard path still works. NPC portraits + speech bubbles in the talk view when an NPC declares an image (A2). Sidebar inventory becomes interactive: new "Carried" section, plus tap any equipment / carried / materials row to open an action sheet (eat, drink, wear, wield, read, examine, sell, drop) (A1). Action sheet routes through the existing handleCommand dispatcher so behaviour matches typing exactly.',
@@ -226,6 +228,7 @@ async function checkForEngineUpdate({ silentIfSame = true } = {}) {
     try {
       showToast(`Engine ${remote} is out — reload to update`, 'engine', {
         celebrate: false,
+        important: true,  // v0.61 N1: bump badge — action required
         tag: 'Update available',
         subtitle: `You have ${local}. Click here or type "reload engine".`
       });
@@ -1071,7 +1074,15 @@ function showBugReporter() {
   };
 
   overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-  setTimeout(() => panel.querySelector('#bug-desc').focus(), 50);
+  // v0.62 N6: focus-trap + return focus on close.
+  const releaseTrap = tfFocusTrap(panel, { label: 'Report a bug', initialFocus: panel.querySelector('#bug-desc') });
+  const origClose = close;
+  // Override `close` to also release the trap. (close is closed-over by the
+  // event handlers above; we patch the binding via a wrapper.)
+  const closePatched = () => { try { releaseTrap(); } catch {} origClose(); };
+  // Re-wire dismissal paths to call closePatched.
+  panel.querySelector('#bug-cancel').onclick = closePatched;
+  overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePatched(); });
 }
 
 const AGE_ACK_KEY_PREFIX = 'taleforge:age_ack:';
@@ -1171,9 +1182,13 @@ async function showBugBoard() {
   `;
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
-  panel.querySelector('#bb-close').onclick = () => overlay.remove();
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.remove(); });
+  // v0.62 N6: focus-trap + restore.
+  const release = tfFocusTrap(panel, { label: 'Public bug board' });
+  function close() { release(); overlay.remove(); document.removeEventListener('keydown', onEsc); }
+  function onEsc(e) { if (e.key === 'Escape') close(); }
+  panel.querySelector('#bb-close').onclick = close;
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onEsc);
 
   const since = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
   const reports = [];
@@ -1423,15 +1438,17 @@ function showAgeGateModal(story) {
     btnEnter.textContent = minAge > 0
       ? `✓ I am at least ${minAge} — enter "${title}"`
       : `✓ Acknowledge — enter "${title}"`;
-    btnEnter.addEventListener('click', () => { recordAgeAck(story); overlay.remove(); resolve(true); });
     const btnBack = document.createElement('button');
     btnBack.style.cssText = 'padding:10px 16px;background:#23201c;border:1px solid #3a352e;color:#9c9388;border-radius:4px;cursor:pointer;font:inherit;font-size:13px;text-align:left;';
     btnBack.textContent = '← Back to story picker';
-    btnBack.addEventListener('click', () => { overlay.remove(); resolve(false); });
     actions.append(btnEnter, btnBack);
     card.appendChild(actions);
     overlay.appendChild(card);
     document.body.appendChild(overlay);
+    // v0.62 N6: focus-trap. Enter is the safe default; Back returns focus.
+    const release = tfFocusTrap(card, { label: 'Content advisory', initialFocus: btnBack });
+    btnEnter.addEventListener('click', () => { release(); recordAgeAck(story); overlay.remove(); resolve(true); });
+    btnBack.addEventListener('click', () => { release(); overlay.remove(); resolve(false); });
   });
 }
 
@@ -1475,7 +1492,10 @@ function showFirstRunIntro() {
     `;
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
-    function close() { try { localStorage.setItem(FIRST_RUN_KEY, '1'); } catch {} overlay.remove(); resolve(); }
+    // v0.62 N6: focus-trap. Initial focus on the primary action so Enter
+    // does the obvious thing.
+    const release = tfFocusTrap(panel, { label: 'Welcome to Taleforge', initialFocus: panel.querySelector('#fr-go') });
+    function close() { release(); try { localStorage.setItem(FIRST_RUN_KEY, '1'); } catch {} overlay.remove(); resolve(); }
     panel.querySelector('#fr-go').onclick = close;
     panel.querySelector('#fr-skip').onclick = close;
     overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
@@ -1548,11 +1568,26 @@ function runOnboardingTour() {
     if (!target) { idx++; place(); return; }
     const r = target.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) { idx++; place(); return; }
+    // Engine v0.61 — Tier N3: clamp the spotlight ring and card to the
+    // visible viewport, accounting for the mobile bottom-tab nav (which
+    // reserves 56px on phones) and any safe-area inset. Also scrolls the
+    // target into view first if it's offscreen.
+    try { target.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch {}
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // Reserve room for the bottom-tab bar on phones (matches the @media
+    // (max-width: 720px) rule in game.html).
+    const bottomReserve = (vw <= 720) ? 64 : 0;
+    const safeBottom = vh - bottomReserve;
     const pad = 6;
-    spot.style.top = (r.top - pad) + 'px';
-    spot.style.left = (r.left - pad) + 'px';
-    spot.style.width = (r.width + pad * 2) + 'px';
-    spot.style.height = (r.height + pad * 2) + 'px';
+    const spotTop = Math.max(4, r.top - pad);
+    const spotLeft = Math.max(4, r.left - pad);
+    const spotRight = Math.min(vw - 4, r.right + pad);
+    const spotBottom = Math.min(safeBottom - 4, r.bottom + pad);
+    spot.style.top = spotTop + 'px';
+    spot.style.left = spotLeft + 'px';
+    spot.style.width = Math.max(0, spotRight - spotLeft) + 'px';
+    spot.style.height = Math.max(0, spotBottom - spotTop) + 'px';
     card.innerHTML = `
       <div class="tour-title">${escapeHtml(step.title)}</div>
       <div>${escapeHtml(step.body)}</div>
@@ -1564,16 +1599,27 @@ function runOnboardingTour() {
         </div>
       </div>
     `;
-    // Position the card near the target without overflowing.
-    const cardW = 320;
-    const cardH = 140;
+    // Position the card near the target. Clamp on every side, including
+    // the reserved bottom-tab strip.
+    // Use the actual measured card size so phones with smaller cards don't
+    // over-shoot.
+    const measuredW = card.offsetWidth || 320;
+    const measuredH = card.offsetHeight || 140;
+    const cardW = Math.min(measuredW, vw - 16);  // never exceed viewport width
+    const cardH = measuredH;
+    const margin = 8;
     let left = r.left;
     let top = r.bottom + 16;
-    if (top + cardH > window.innerHeight) top = Math.max(8, r.top - cardH - 16);
-    if (left + cardW > window.innerWidth - 12) left = Math.max(8, window.innerWidth - cardW - 12);
-    if (left < 8) left = 8;
+    // If placing below would overflow the safe bottom, try above.
+    if (top + cardH > safeBottom - margin) top = r.top - cardH - 16;
+    // If above also overflows the top, fall back to center.
+    if (top < margin) top = Math.max(margin, Math.min(safeBottom - cardH - margin, (safeBottom - cardH) / 2));
+    // Horizontal clamp.
+    if (left + cardW > vw - margin) left = vw - cardW - margin;
+    if (left < margin) left = margin;
     card.style.top = top + 'px';
     card.style.left = left + 'px';
+    card.style.maxWidth = cardW + 'px';
     card.querySelector('#tour-next').addEventListener('click', () => { idx++; place(); });
     card.querySelector('#tour-skip').addEventListener('click', finish);
   }
@@ -1850,15 +1896,16 @@ pubkeyEl.style.cursor = 'pointer';
 pubkeyEl.addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(npub);
-    showToast('npub copied', 'identity');
+    // v0.61 N1: silent — routine UI confirmation, doesn't need a badge.
+    showToast('npub copied', 'identity', { silent: true });
   } catch (e) {
     try {
       const ta = document.createElement('textarea');
       ta.value = npub; ta.style.position = 'fixed'; ta.style.opacity = '0';
       document.body.appendChild(ta); ta.select();
       document.execCommand('copy'); ta.remove();
-      showToast('npub copied', 'identity');
-    } catch { showToast('Copy failed — long-press to select manually', 'identity'); }
+      showToast('npub copied', 'identity', { silent: true });
+    } catch { showToast('Copy failed — long-press to select manually', 'identity', { silent: true }); }
   }
 });
 
@@ -2143,7 +2190,7 @@ function notifyBountyClaimable(entityId) {
     if (player.bounty_claims.has(b.bid)) continue;
     write(T('>>> Bounty available: {0} gold for the {1} ({2}). Type "bounty claim {3}" to collect.',
       b.gold, STORY.entities[entityId]?.display || entityId, b.poster_name || '?', b.bid.slice(0, 8)), 'spark');
-    showToast(`Bounty: ${b.gold}g for ${STORY.entities[entityId]?.display || entityId}. claim ${b.bid.slice(0, 8)}`, 'bounty');
+    showToast(`Bounty: ${b.gold}g for ${STORY.entities[entityId]?.display || entityId}. claim ${b.bid.slice(0, 8)}`, 'bounty', { important: true });  // v0.61 N1: action-able
   }
 }
 
@@ -2659,6 +2706,44 @@ function appendDomToOutput(node) {
   out.scrollTop = out.scrollHeight;
 }
 
+// Engine v0.61 — Tier N2: modal focus-trap helper.
+// Wraps a modal panel so keyboard focus stays inside while it's open. Tabs
+// from the last focusable element wrap back to the first (and vice-versa
+// for Shift+Tab). On close (caller invokes the returned `release()` fn),
+// focus is restored to whatever element had it before the modal opened.
+// Sets aria-modal="true" + role="dialog" on the panel so screen-readers
+// announce it correctly.
+function tfFocusTrap(panel, opts = {}) {
+  const SELECTOR = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const previouslyFocused = document.activeElement;
+  panel.setAttribute('role', opts.role || 'dialog');
+  panel.setAttribute('aria-modal', 'true');
+  if (opts.label) panel.setAttribute('aria-label', opts.label);
+  function focusables() {
+    return Array.from(panel.querySelectorAll(SELECTOR)).filter(el => el.offsetParent !== null);
+  }
+  // Move focus inside on the next frame so the modal is laid out.
+  requestAnimationFrame(() => {
+    const list = focusables();
+    if (list.length) (opts.initialFocus || list[0]).focus();
+  });
+  function onKey(e) {
+    if (e.key !== 'Tab') return;
+    const list = focusables();
+    if (list.length === 0) { e.preventDefault(); return; }
+    const first = list[0];
+    const last = list[list.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+  }
+  panel.addEventListener('keydown', onKey);
+  return function release() {
+    panel.removeEventListener('keydown', onKey);
+    try { if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus(); } catch {}
+  };
+}
+
 // Engine v0.58 — Tier A1: item action sheet.
 // Opens an overlay sheet with relevant actions for an item (eat / drink /
 // wear / wield / unwear / read / sell / drop / examine) based on its
@@ -2701,7 +2786,7 @@ function showItemActionSheet(itemId, ctx = {}) {
   const closeBtn = document.createElement('button');
   closeBtn.textContent = '×';
   closeBtn.style.cssText = 'background:transparent;color:#9c9388;border:none;font:inherit;font-size:22px;cursor:pointer;padding:0 6px;line-height:1;';
-  closeBtn.addEventListener('click', () => overlay.remove());
+  // v0.61 N2: close() will be wired below (after tfFocusTrap is set up).
   head.append(glyph, titleBlock, closeBtn);
   sheet.appendChild(head);
   // Description.
@@ -2756,10 +2841,19 @@ function showItemActionSheet(itemId, ctx = {}) {
   sheet.appendChild(actions);
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  document.addEventListener('keydown', function onEsc(e) {
-    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onEsc); }
-  });
+  // v0.61 N2: focus-trap + restore focus on close.
+  const release = tfFocusTrap(sheet, { label: `Actions: ${t(it.display) || itemId}` });
+  function close() { release(); overlay.remove(); document.removeEventListener('keydown', onEsc); }
+  // Wire close into the existing dismissal paths.
+  closeBtn.addEventListener('click', close);
+  for (const btn of actions.querySelectorAll('button')) {
+    const orig = btn.onclick;
+    // Buttons already remove the overlay; we just need release() to fire too.
+    btn.addEventListener('click', () => { release(); }, { capture: true });
+  }
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  function onEsc(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onEsc);
 }
 
 const TOAST_TTL = 5000;
@@ -2838,15 +2932,20 @@ function showToast(text, kind = '', opts = {}) {
 }
 
 // Engine v0.59 — Tier B2: notification feed (bell + history modal).
+// Engine v0.62 — Tier N5: also update the desktop bell (#toast-bell-desktop)
+// so it stays in sync with the mobile copy.
 function refreshToastBell() {
-  const bell = document.getElementById('toast-bell');
-  if (!bell) return;
-  const badge = bell.querySelector('.bell-badge');
-  if (toastUnreadCount > 0) {
-    badge.textContent = toastUnreadCount > 9 ? '9+' : String(toastUnreadCount);
-    badge.style.display = '';
-  } else {
-    badge.style.display = 'none';
+  for (const id of ['toast-bell', 'toast-bell-desktop']) {
+    const bell = document.getElementById(id);
+    if (!bell) continue;
+    const badge = bell.querySelector('.bell-badge');
+    if (!badge) continue;
+    if (toastUnreadCount > 0) {
+      badge.textContent = toastUnreadCount > 9 ? '9+' : String(toastUnreadCount);
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
   }
 }
 function showToastHistoryModal() {
@@ -2888,7 +2987,9 @@ function showToastHistoryModal() {
       list.appendChild(card);
     }
   }
-  function close() { overlay.remove(); document.removeEventListener('keydown', onEsc); }
+  // v0.61 N2: focus-trap + aria-modal.
+  const release = tfFocusTrap(panel, { label: 'Notifications' });
+  function close() { release(); overlay.remove(); document.removeEventListener('keydown', onEsc); }
   function onEsc(e) { if (e.key === 'Escape') close(); }
   panel.querySelector('#th-close').addEventListener('click', close);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
@@ -2905,8 +3006,13 @@ function formatTimeAgo(ts) {
 // Engine v0.60 — Tier B2: per-section count snapshot for inventory-change
 // flash animation. We compare the current counts against `__lastCounts` and
 // highlight rows whose count went up since the previous render.
-const __lastCounts = { carried: new Map(), materials: new Map() };
+// Engine v0.62 — Tier N10: also track equipment so a wear/wield action
+// flashes the slot row (mirrors the green pickup flash).
+const __lastCounts = { carried: new Map(), materials: new Map(), equipment: new Map() };
 let __countSnapshotInitialised = false;
+// Engine v0.61 — Tier N4: track last life so we can detect a damaging tick
+// and flash the life value red when the drop is ≥10% of max life.
+let __lastLife = null;
 function didIncrease(section, key, current) {
   if (!__countSnapshotInitialised) return false;  // suppress flash on first render
   const prev = __lastCounts[section]?.get(key) || 0;
@@ -2921,8 +3027,45 @@ function refreshSidebar() {
   const wt  = Math.round(computeWeight() * 10) / 10;
   const maxLife = computeMaxLife();
   const lifeEl = document.getElementById('life');
-  lifeEl.textContent = `${Math.max(0, Math.floor(player.life))}/${maxLife}`;
+  const curLife = Math.max(0, Math.floor(player.life));
+  lifeEl.textContent = `${curLife}/${maxLife}`;
   const lifeRatio = Math.max(0, player.life) / Math.max(1, maxLife);
+  // Engine v0.61 — Tier N4: damage flash. If life dropped by ≥10% of max
+  // life since the previous render, add a brief red flash class. The flash
+  // uses its own background + transform animation.
+  // Engine v0.62 — Tier N7: pause the low-life opacity pulse while the
+  // flash is running. Otherwise both animations compete on the same
+  // element (different properties, but the opacity dip inside the red
+  // pulse reads as glitchy). We snapshot the pre-flash inline `animation`
+  // value and restore it after the flash ends.
+  if (__lastLife != null && __lastLife > curLife) {
+    const drop = __lastLife - curLife;
+    const threshold = Math.max(1, Math.floor(maxLife * 0.10));
+    if (drop >= threshold) {
+      try {
+        lifeEl.classList.remove('tf-life-hit');
+        // Force reflow so the animation restarts on consecutive hits.
+        void lifeEl.offsetWidth;
+        const priorAnimation = lifeEl.style.animation;
+        // Suspend any running animation (pulse) for the flash duration.
+        lifeEl.style.animation = '';
+        lifeEl.classList.add('tf-life-hit');
+        setTimeout(() => {
+          try {
+            lifeEl.classList.remove('tf-life-hit');
+            // Only restore the prior animation if the current state still
+            // wants one (the < 25% pulse condition might have been lifted
+            // by healing during the flash).
+            if (priorAnimation && lifeEl.style.animation === '') {
+              const ratioNow = Math.max(0, player.life) / Math.max(1, computeMaxLife());
+              if (ratioNow < 0.25) lifeEl.style.animation = priorAnimation;
+            }
+          } catch {}
+        }, 900);
+      } catch {}
+    }
+  }
+  __lastLife = curLife;
   if (lifeRatio < 0.25) {
     lifeEl.style.color = 'var(--red)';
     lifeEl.style.fontWeight = '700';
@@ -2980,10 +3123,18 @@ function refreshSidebar() {
         row.title = 'Tap for actions';
         row.innerHTML = `<span style="color:var(--muted);">${T(slot)}:</span> <span>${itemDisplay(item)}</span>`;
         row.addEventListener('click', () => showItemActionSheet(item, { context: 'equipment', slot }));
+        // Engine v0.62 — Tier N10: flash on newly-equipped slot. We key by
+        // slot so re-equipping a different item in the same slot triggers
+        // a flash too (the value changed even if the slot stayed populated).
+        const prev = __lastCounts.equipment.get(slot);
+        if (__countSnapshotInitialised && prev !== item) row.classList.add('tf-flash-in');
         eqEl.appendChild(row);
       }
     }
   }
+  // Snapshot equipment slots → item-id map.
+  const eqSnap = new Map(Object.entries(player.equipment || {}));
+  __lastCounts.equipment = eqSnap;
 
   const trackerSec = document.getElementById('questTrackerSection');
   const trackerEl = document.getElementById('questTracker');
@@ -3355,7 +3506,7 @@ async function drainOutbox(silent = false) {
   if (sent > 0) {
     markRelayUp();
     if (!silent) write(`[synced ${sent} queued event${sent === 1 ? '' : 's'}]`, 'system');
-    try { showToast(`Synced ${sent} queued event${sent === 1 ? '' : 's'} — back online.`, 'sync'); } catch {}
+    try { showToast(`Synced ${sent} queued event${sent === 1 ? '' : 's'} — back online.`, 'sync', { silent: true }); } catch {}  // v0.61 N1: background event
   }
   refreshRelayLabel();
 }
@@ -3691,7 +3842,7 @@ function handleRemoteGiftOffer(event) {
   write(`📦 ${p.from_name || event.pubkey.slice(0,8) + '…'} offers you ${p.qty || 1} ${itemDisplay(p.item)}.`, 'spark');
   if (p.message) write(`   "${p.message}"`, 'whisper');
   write(`   (claim ${offer_id.slice(0,8)} / decline ${offer_id.slice(0,8)})`, 'system');
-  showToast(`${p.from_name || 'Someone'} offers ${p.qty || 1}× ${STORY.items[p.item]?.display || p.item}. claim ${offer_id.slice(0,8)}`, 'gift');
+  showToast(`${p.from_name || 'Someone'} offers ${p.qty || 1}× ${STORY.items[p.item]?.display || p.item}. claim ${offer_id.slice(0,8)}`, 'gift', { important: true });  // v0.61 N1: incoming gift, action-able
 }
 
 function handleRemoteGiftAccept(event) {
@@ -3728,7 +3879,7 @@ function handleRemoteHeal(event) {
   player.life = Math.min(computeMaxLife(), player.life + restore);
   const actual = Math.floor(player.life - before);
   write(`💚 ${p.from_name || event.pubkey.slice(0,8) + '…'} heals you. (+${actual} life)`, 'success');
-  showToast(`${p.from_name || 'Someone'} healed you (+${actual} life)`, 'heal');
+  showToast(`${p.from_name || 'Someone'} healed you (+${actual} life)`, 'heal', { important: true });  // v0.61 N1: notable interaction
   refreshSidebar();
 }
 
@@ -3885,7 +4036,7 @@ async function handleRemoteDM(event) {
     dmInbox.unshift({ from_pubkey: event.pubkey, from_name: fromName, text: p.text, received_at: event.created_at * 1000 });
     while (dmInbox.length > 50) dmInbox.pop();
     write(`[dm from ${fromName}] ${p.text}`, 'whisper');
-    showToast(`${fromName}: ${p.text.slice(0, 100)}${p.text.length > 100 ? '…' : ''}`, 'dm');
+    showToast(`${fromName}: ${p.text.slice(0, 100)}${p.text.length > 100 ? '…' : ''}`, 'dm', { important: true });  // v0.61 N1: incoming DM
   } catch {}
 }
 
@@ -4718,6 +4869,14 @@ function showEndingOverlay(info) {
   card.append(tagEl, h, sub, stats, legacy, actions);
   overlay.appendChild(card);
   document.body.appendChild(overlay);
+  // v0.62 N6: focus-trap on the ending overlay (it's modal — players
+  // shouldn't tab into the muted terminal underneath).
+  const release = tfFocusTrap(card, { label: `Ending — ${info.tag}`, initialFocus: btnRestart });
+  // Each button now releases the trap before its own action; we wrap their
+  // existing handlers so we don't have to rewrite the original buttons.
+  for (const btn of [btnRestart, btnPick, btnShare, btnDismiss]) {
+    btn.addEventListener('click', () => { try { release(); } catch {} }, { capture: true });
+  }
 }
 
 // Render the ending info as a shareable PNG. Strategy: build an SVG with
@@ -4950,6 +5109,18 @@ function handleDeath(cause) {
 }
 
 function describeRoom() {
+  // Engine v0.62 — Tier N8: preserve keyboard focus through room re-paints.
+  // If the active element is an inline tf-link inside #out, we'll either
+  // (a) re-focus the same data-cmd link in the new render, or (b) fall
+  // back to the cmd input. Prevents the user from losing their place in
+  // the link cycle (Alt+L → ArrowDown → walk somewhere) every move.
+  let __preservedCmd = null;
+  try {
+    const a = document.activeElement;
+    if (a && a !== document.body && out.contains(a) && a.hasAttribute('data-cmd')) {
+      __preservedCmd = a.getAttribute('data-cmd');
+    }
+  } catch {}
   const room = player.rooms[player.location];
   write('');
   const adornments = (fireActive(player.location) ? '  🔥' : '') + (room.hazards?.wolves ? '  ⚠' : '') + (player.chests.has(player.location) ? '  📦' : '');
@@ -5030,6 +5201,19 @@ function describeRoom() {
     return tfLink(label, `go ${dir}`, 'exit');
   });
   write(T('Exits: {0}', exitLabels.join(', ')), 'exits');
+  // Engine v0.62 — Tier N8: restore focus after re-paint.
+  try {
+    if (__preservedCmd) {
+      // Try to find the same data-cmd link in the new render. The room
+      // changed, so it may not exist — fall back to the most-recent link
+      // of the same kind (e.g. an exit) if we can find one. Last resort:
+      // bring focus back to the input so the user isn't stranded on body.
+      const matches = out.querySelectorAll(`[data-cmd="${CSS.escape(__preservedCmd)}"]`);
+      if (matches.length) { matches[matches.length - 1].focus(); return; }
+      const cmdInputEl = document.getElementById('cmd');
+      if (cmdInputEl) cmdInputEl.focus();
+    }
+  } catch {}
 }
 
 function inCombat() { return player.combat_target != null; }
@@ -5373,6 +5557,53 @@ function themeCommand(arg) {
   applyTheme(a);
   write(`Theme: ${a}.`, 'success');
 }
+// Engine v0.62 — Tier N9: build a deep-link URL with the player's current
+// theme / font / language baked in. Used by the `share settings` command
+// to copy a shareable URL.
+function tfBuildShareableSettingsUrl() {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('theme');
+    url.searchParams.delete('font');
+    url.searchParams.delete('fontsize');
+    url.searchParams.delete('lang');
+    const t = loadTheme();
+    if (t && t !== 'dark') url.searchParams.set('theme', t);
+    const f = loadFontSize();
+    if (f && f !== 'medium') url.searchParams.set('font', f);
+    let lang = '';
+    try { lang = localStorage.getItem('taleforge:lang') || ''; } catch {}
+    if (lang && lang !== 'en') url.searchParams.set('lang', lang);
+    return url.toString();
+  } catch (e) {
+    return window.location.origin + window.location.pathname;
+  }
+}
+async function shareSettingsCommand() {
+  const url = tfBuildShareableSettingsUrl();
+  let copied = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      copied = document.execCommand('copy');
+      ta.remove();
+    }
+  } catch {}
+  if (copied) {
+    write(`Settings link copied to clipboard:`, 'success');
+    write(`  ${url}`, 'system');
+    try { showToast('Settings link copied', 'identity', { silent: true, subtitle: 'Theme + font + language baked in.' }); } catch {}
+  } else {
+    write(`Couldn't auto-copy. Here's the link — copy it manually:`, 'error');
+    write(`  ${url}`, 'system');
+  }
+}
+
 // Engine v0.60 — Tier B6: settings deep-link URLs.
 // Read ?theme= / ?font= / ?lang= query params at boot. If valid, apply
 // AND persist them to localStorage (so a deep-link sticks). Strip the
@@ -5530,9 +5761,13 @@ function showSettingsModal() {
   `;
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
-  panel.querySelector('#set-close').onclick = () => overlay.remove();
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.remove(); });
+  // v0.61 N2: focus-trap + aria-modal.
+  const release = tfFocusTrap(panel, { label: 'Settings' });
+  function close() { release(); overlay.remove(); document.removeEventListener('keydown', onEsc); }
+  function onEsc(e) { if (e.key === 'Escape') close(); }
+  panel.querySelector('#set-close').onclick = close;
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onEsc);
 
   panel.querySelectorAll('#set-theme button').forEach(b => {
     b.onclick = () => { applyTheme(b.dataset.theme); overlay.remove(); showSettingsModal(); };
@@ -6745,7 +6980,9 @@ function showEquipmentModal() {
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
-  function close() { overlay.remove(); document.removeEventListener('keydown', onEsc); }
+  // v0.61 N2: focus-trap + aria-modal.
+  const release = tfFocusTrap(panel, { label: 'Equipment' });
+  function close() { release(); overlay.remove(); document.removeEventListener('keydown', onEsc); }
   function onEsc(e) { if (e.key === 'Escape') close(); }
   panel.querySelector('#eq-close').addEventListener('click', close);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
@@ -6865,7 +7102,7 @@ function showEquipmentModal() {
     const candidates = candidatesForSlot(slot);
     if (candidates.length === 0) {
       // No fits — gentle toast.
-      try { showToast(`Nothing fits ${slot}`, 'system', { subtitle: 'Find or craft an item with that slot.' }); } catch {}
+      try { showToast(`Nothing fits ${slot}`, 'system', { silent: true, subtitle: 'Find or craft an item with that slot.' }); } catch {}  // v0.61 N1: hint, not noteworthy
       return;
     }
     if (candidates.length === 1) {
@@ -7274,7 +7511,7 @@ function advanceWorldEvents(currentDay) {
       write('');
       write(t(narr), 'spark');
       if (ev.description) write(`    ${t(ev.description)}`, 'system');
-      showToast(`World event: ${t(ev.title || eid)}`, 'event');
+      showToast(`World event: ${t(ev.title || eid)}`, 'event', { important: true });  // v0.61 N1: world-state shift
       const hasStages = Array.isArray(ev.stages) && ev.stages.length > 0;
       if (hasStages) {
         const s0 = ev.stages[0];
@@ -8106,16 +8343,17 @@ function showSoul() {
   (async () => {
     try {
       await navigator.clipboard.writeText(nsec);
-      showToast('nsec copied to clipboard. Save it somewhere safe.', 'identity');
+      // v0.61 N1: silent — confirmation only, the user just initiated it.
+      showToast('nsec copied to clipboard. Save it somewhere safe.', 'identity', { silent: true });
     } catch {
       try {
         const ta = document.createElement('textarea');
         ta.value = nsec; ta.style.position = 'fixed'; ta.style.opacity = '0';
         document.body.appendChild(ta); ta.select();
         document.execCommand('copy'); ta.remove();
-        showToast('nsec copied to clipboard. Save it somewhere safe.', 'identity');
+        showToast('nsec copied to clipboard. Save it somewhere safe.', 'identity', { silent: true });
       } catch {
-        showToast('Auto-copy failed — long-press the nsec line to select.', 'identity');
+        showToast('Auto-copy failed — long-press the nsec line to select.', 'identity', { silent: true });
       }
     }
   })();
@@ -9957,7 +10195,9 @@ function showHelpModal() {
       bodyEl.innerHTML = `<div style="padding:20px;color:#9c9388;font-size:13px;text-align:center;">No commands match "${escapeHtml(q)}". Try a different word, or clear the search.</div>`;
     }
   }
-  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  // v0.61 N2: focus-trap + aria-modal.
+  const release = tfFocusTrap(panel, { label: 'Help', initialFocus: searchEl });
+  function close() { release(); overlay.remove(); document.removeEventListener('keydown', onKey); }
   function onKey(e) { if (e.key === 'Escape') close(); }
   panel.querySelector('#hm-close').onclick = close;
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
@@ -9965,7 +10205,6 @@ function showHelpModal() {
   searchEl.addEventListener('input', () => renderBody(searchEl.value));
   renderTabs();
   renderBody('');
-  setTimeout(() => searchEl.focus(), 50);
 }
 function helpImpl(filterQ) {
   const skills = STORY.skills || {};
@@ -10147,6 +10386,14 @@ function handleCommand(input) {
     case 'thanks': case 'thank':case 'tip': thanksAuthor(argRaw); consumesTurn = false; break;
     case 'tour': case 'walkthrough': replayTour(); consumesTurn = false; break;
     case 'notifications': case 'notif': showToastHistoryModal(); consumesTurn = false; break;
+    case 'share':
+      // v0.62 N9: `share settings` — copy a deep-link URL with theme + font + lang.
+      if ((arg || '').toLowerCase().startsWith('settings') || (arg || '').toLowerCase().startsWith('preferences')) {
+        shareSettingsCommand(); consumesTurn = false; break;
+      }
+      // Fall through to the existing `share` handling for character magic-link.
+      // (handled by the next case if any, or default)
+      shareCharacterCommand?.(argRaw); consumesTurn = false; break;
     case 'read':                 readItem(arg); break;
     case 'examine': case 'inspect': case 'x':  examineItem(arg); consumesTurn = false; break;
     case 'reload': case 'update':
@@ -10517,7 +10764,7 @@ try {
     write('');
     write(`>>> Engine upgraded: ${lastSeen} → ${ENGINE_VERSION_LABEL}.`, 'spark');
     write(`    See https://github.com/awb-ch/taleforge for the changelog, or the in-game banner above for the running version.`, 'system');
-    showToast(`Welcome to ${ENGINE_VERSION_LABEL}.`, 'engine', { tag: 'engine upgrade', subtitle: `From ${lastSeen}.` });
+    showToast(`Welcome to ${ENGINE_VERSION_LABEL}.`, 'engine', { important: true, tag: 'engine upgrade', subtitle: `From ${lastSeen}.` });  // v0.61 N1: notable
   }
   localStorage.setItem(ENGINE_LAST_SEEN_KEY, ENGINE_VERSION_LABEL);
 } catch {}
@@ -10768,6 +11015,9 @@ setTimeout(() => { if (loadOutbox().length) drainOutbox(true); }, 5000);
 try {
   const bell = document.getElementById('toast-bell');
   if (bell) bell.addEventListener('click', () => { try { showToastHistoryModal(); } catch {} });
+  // v0.62 N5: desktop bell (sidebar). Same handler.
+  const bellDesktop = document.getElementById('toast-bell-desktop');
+  if (bellDesktop) bellDesktop.addEventListener('click', () => { try { showToastHistoryModal(); } catch {} });
   const tabs = document.querySelectorAll('#mobile-tabs button[data-tab-cmd]');
   tabs.forEach(btn => {
     btn.addEventListener('click', () => {
