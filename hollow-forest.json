@@ -5,8 +5,9 @@
     "title": "The Hollow Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.6.0",
+    "version": "1.7.0",
     "changelog": {
+      "1.7.0": "Fourth ending added: HEDGEWITCH (drink the witch's brew after the baptism — the third path, neither cured nor cursed). The witch's `baptism_ready` dialogue now grants a `fen_token` item; new auto-quest `embrace_the_fen` triggers the ending on receipt.",
       "1.6.0": "Three endings added: HUMAN (cure the curse, kill the count), VAMPIRE (accept the count's gift), WEREWOLF (run with the pack — new auto-quest after meeting the witch).",
       "1.5.0": "Hollow Forest opens. Gothic horror across chapel, lake, count's tower, witch hut. Lycanthropy + vampirism transform mechanics. 18 quests."
     },
@@ -1087,6 +1088,17 @@
       "category": "good",
       "stackable": false,
       "image": "🦷"
+    },
+    "fen_token": {
+      "display": "fen token",
+      "article": "a",
+      "description": "A small, water-smoothed stone tied with a thread of rush. The hermit-witch pressed it into your palm at the end of the baptism. It is faintly warm, the way a held thing is warm — and faintly wet, the way the fen is always wet. You are not sure it ever dries.",
+      "value": 0,
+      "weight": 0.0,
+      "tags": ["sacred", "token", "unique"],
+      "category": "good",
+      "stackable": false,
+      "image": "🪨"
     },
     "bog_iron": {
       "display": "bog iron",
@@ -2817,6 +2829,7 @@
             {"type": "revoke_skill", "skill": "vampirism"},
             {"type": "grant_skill", "skill": "hedgewitchery"},
             {"type": "set_flag", "flag": "fen_baptised"},
+            {"type": "give_item", "item": "fen_token", "qty": 1},
             {"type": "narrate", "text": ">>> Cold water tastes of iron. The world dims, then sharpens. You are awake in a way you have never been. Your shadow is now part of the fen.", "cls": "spark"}
           ],
           "choices": [
@@ -2968,6 +2981,29 @@
         "items": []
       },
       "completion_message": "She weighs them, nods once, and pays. \"Bring more if you find them.\""
+    },
+    "embrace_the_fen": {
+      "title": "Take the Witch's Baptism",
+      "description": "The hermit-witch offers a third path — neither cure nor curse. Bring her bog-iron, a hagstone, and holy water; turn them in; then sit at her fire and drink the brew she pours. The fen will know you afterward, and so will you.",
+      "giver": null,
+      "auto_accept": true,
+      "requires": [
+        "the_witch_offer"
+      ],
+      "objectives": [
+        {
+          "type": "have_item",
+          "item": "fen_token",
+          "qty": 1,
+          "consume": false
+        }
+      ],
+      "rewards": {
+        "gold": 0,
+        "sparks": 50,
+        "items": []
+      },
+      "completion_message": "You walk out of the witch's hut with the token warm in your palm. The bog-water at the edge of the path slows where you step, and the fog parts when you ask it to. You are not the priest's anymore. You are not the count's. You are not the pack's. You are the fen's, and the fen is older than any of them.\n\nThe village will not remember the third option, because the third option does not announce itself. The witch will not always be there to teach you. But the things you learned at her fire will keep — and the brews you can now make will keep your friends, the few you choose, alive a little longer than they were going to be.\n\nYou settle in. There is much to learn, and the fen is patient.\n\n>>> ENDING: HEDGEWITCH <<<"
     },
     "embrace_the_wolf": {
       "title": "Run with the Pack",

@@ -1,12 +1,13 @@
 {
-  "schema_version": "0.10",
+  "schema_version": "0.20",
   "meta": {
     "id": "whispering-forest-v1",
     "title": "The Whispering Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.17.0",
+    "version": "1.18.0",
     "changelog": {
+      "1.18.0": "Schema bumped 0.10 → 0.20 (no content change — declares features the story already uses). Renown reactions deepened: each shopkeeper NPC now has up to 4 conditional_dialogue tiers (low <10 / mid 30+ / high 70+ / legendary 120+) so the village's posture shifts as your reputation grows or sours. Low-renown means gruff and cautious; high-renown unlocks warmer voice + favored-customer asides.",
       "1.17.0": "Four endings added: PILGRIM (climb to the mountain peak with the hermit), MASTER_SMITH (forge the iron axe and earn the smith's blessing), FOREST_WARDEN (deliver three frost-salves to the trapper's pact), TRUSTED_MERCHANT (the long road quest — 10 cured meat + 3 leather to the weathered merchant).",
       "1.16.3": "Skill-id typo fixes: valley_smith profile now points at smelting (was smithing); frozen_lake resource at stone_knapping (was mining)."
     },
@@ -2167,6 +2168,34 @@
         {
           "if": [
             {
+              "type": "renown_lt",
+              "qty": 10
+            }
+          ],
+          "lines": [
+            "Stranger. Mind your hands and your tongue.",
+            "I deal best with people the village knows. Come back when someone here can vouch for you."
+          ]
+        },
+        {
+          "if": [
+            {
+              "type": "renown_gte",
+              "qty": 30
+            },
+            {
+              "type": "renown_lt",
+              "qty": 70
+            }
+          ],
+          "lines": [
+            "Good to see you again. The village has been speaking of your work.",
+            "Honest hands get honest prices at this cart."
+          ]
+        },
+        {
+          "if": [
+            {
               "type": "renown_gte",
               "qty": 70
             }
@@ -2174,6 +2203,18 @@
           "lines": [
             "I have heard your name in the village. They say you walk where the wolves do.",
             "A reputation like yours buys honest prices here. Look at what I have."
+          ]
+        },
+        {
+          "if": [
+            {
+              "type": "renown_gte",
+              "qty": 120
+            }
+          ],
+          "lines": [
+            "Friend. The merchants' guild three valleys over knows your name now.",
+            "I save the best of every shipment for you. The road has been kinder to me since you started walking it."
           ]
         }
       ],
@@ -2277,6 +2318,17 @@
         {
           "if": [
             {
+              "type": "renown_lt",
+              "qty": 10
+            }
+          ],
+          "lines": [
+            "Pay first, then we talk. I've been burned by drifters before."
+          ]
+        },
+        {
+          "if": [
+            {
               "type": "renown_gte",
               "qty": 70
             }
@@ -2284,6 +2336,18 @@
           "lines": [
             "You're the one I've heard about. Bring me your blade — I'll sharpen it for half.",
             "A famed customer is a steady one. Welcome."
+          ]
+        },
+        {
+          "if": [
+            {
+              "type": "renown_gte",
+              "qty": 130
+            }
+          ],
+          "lines": [
+            "Your blade has a story now, and the village knows it. Let me see it.",
+            "I'll forge whatever you need at cost. The forge owes you for the smoke we breathe."
           ]
         }
       ]
