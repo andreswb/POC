@@ -118,6 +118,22 @@
     0%, 100% { opacity: 1; }
     50%      { opacity: 0.5; }
   }
+  /* Engine v0.58 — Tier A1: action sheet slide-in. */
+  @keyframes tf-sheet-in {
+    from { transform: translateY(20%); opacity: 0; }
+    to   { transform: translateY(0);   opacity: 1; }
+  }
+  /* Engine v0.58 — Tier A1: sidebar rows are tappable. Subtle hover hint
+     on desktop; tap target sizing already comes from .row / .eq-row. */
+  #equipment .eq-row, #carried .row, #materials .row { transition: background 0.12s; }
+  #equipment .eq-row:hover, #carried .row:hover, #materials .row:hover {
+    background: rgba(199, 155, 58, 0.08);
+    border-radius: 4px;
+    padding-left: 4px;
+    padding-right: 4px;
+    margin-left: -4px;
+    margin-right: -4px;
+  }
   
   #ending-overlay {
     position: fixed; inset: 0; z-index: 200;
@@ -364,6 +380,10 @@
     <section id="equipmentSection">
       <h3 data-i18n="Equipment">Equipment</h3>
       <div class="mat-list" id="equipment"></div>
+    </section>
+    <section id="carriedSection" style="display:none;" title="Tap an item for actions (eat, wear, drop, examine).">
+      <h3 data-i18n="Carried">Carried</h3>
+      <div class="mat-list" id="carried"></div>
     </section>
     <section id="questTrackerSection" style="display:none;">
       <h3 data-i18n="Active quest">Active quest</h3>

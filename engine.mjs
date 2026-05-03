@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.57';
+const ENGINE_VERSION_LABEL = 'v0.58';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.58':   'Tappable adventure: dialogue choices now render as clickable buttons under the NPC line (S1) — keyboard path still works. NPC portraits + speech bubbles in the talk view when an NPC declares an image (A2). Sidebar inventory becomes interactive: new "Carried" section, plus tap any equipment / carried / materials row to open an action sheet (eat, drink, wear, wield, read, examine, sell, drop) (A1). Action sheet routes through the existing handleCommand dispatcher so behaviour matches typing exactly.',
   'v0.57':   'Settings hub modal (gear of theme/font/lang + actions). First-time onboarding intro before the picker. Ending screenshot share (📷 generates a 1200×630 PNG). Mobile keyboard polish (sticky prompt row, dvh, safe-area). Wide-screen sidebar layout (≥1400px). New `thanks <story>` author appreciation gesture (kind-30446). Categorized help modal with sectioned tabs + search. `quests all` cross-story view. Cross-device achievements sync (extends kind-30433). Builder Cmd+K command palette across rooms/items/npcs/quests/etc.',
   'v0.56.1': 'Bug board upgraded to a modal with one-click ★ upvote (NIP-25 reactions). Builder Export now nudges if Playtest check finds critical issues.',
   'v0.56':   '`endings all` cross-story view with completion %. Story-version changelog detection (meta.changelog field). Picker filters now collapsible (auto-collapse after 5 opens). Public bug board on Nostr (kind-30445) with `bugs` command. Builder gained ✨ rewrite presets (darker/tighten/sensory/poetic/…) and a ▶ playtest checklist.',
@@ -2484,6 +2485,121 @@ function write(text='', cls='') {
   out.scrollTop = out.scrollHeight;
 }
 
+// Engine v0.58 — interactive helpers for click-driven UI.
+// appendDomToOutput attaches a node to the terminal pane in-flow. Used by
+// dialogue choice buttons (S1), NPC portraits (A2), and any future inline
+// interactive widget. Skips when the engine is rendering to a buffer.
+function appendDomToOutput(node) {
+  if (__writeCapture) return;
+  const boot = document.getElementById('boot-loading');
+  if (boot) boot.remove();
+  out.appendChild(node);
+  out.scrollTop = out.scrollHeight;
+}
+
+// Engine v0.58 — Tier A1: item action sheet.
+// Opens an overlay sheet with relevant actions for an item (eat / drink /
+// wear / wield / unwear / read / sell / drop / examine) based on its
+// schema flags. Each button invokes the existing command via handleCommand
+// so behavior matches the typed path exactly. ctx tells the sheet whether
+// the item is currently equipped (so it offers Unwear instead of Wear).
+function showItemActionSheet(itemId, ctx = {}) {
+  const it = STORY.items[itemId];
+  if (!it) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'item-action-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:flex-end;justify-content:center;padding:0;font-family:inherit;color:#e8e6e3;';
+  const sheet = document.createElement('div');
+  sheet.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-bottom:none;border-top-left-radius:10px;border-top-right-radius:10px;max-width:480px;width:100%;max-height:80vh;overflow:auto;box-shadow:0 -8px 24px rgba(0,0,0,0.4);animation:tf-sheet-in 0.18s ease-out;';
+  // Header: glyph/portrait + name + close.
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid #2a2724;';
+  const glyph = document.createElement('div');
+  if (isImageUrl(it.image)) {
+    glyph.innerHTML = `<img src="${it.image}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;background:#0c0e10;">`;
+  } else if (isShortGlyph(it.image)) {
+    glyph.style.cssText = 'font-size:30px;width:40px;text-align:center;';
+    glyph.textContent = it.image;
+  } else {
+    glyph.style.cssText = 'width:40px;height:40px;background:#23201c;border-radius:6px;';
+  }
+  const titleBlock = document.createElement('div');
+  titleBlock.style.cssText = 'flex:1;min-width:0;';
+  const titleEl = document.createElement('div');
+  titleEl.style.cssText = 'font-size:15px;font-weight:600;color:var(--accent, #c79b3a);';
+  titleEl.textContent = t(it.display) || itemId;
+  const subEl = document.createElement('div');
+  subEl.style.cssText = 'font-size:11px;color:#9c9388;margin-top:2px;';
+  const meta = [];
+  if (it.weight) meta.push(`${it.weight} wt`);
+  if (it.tags?.length) meta.push(it.tags.slice(0, 3).join(', '));
+  if (typeof it.base_value === 'number') meta.push(`${it.base_value}g base`);
+  subEl.textContent = meta.join('  ·  ');
+  titleBlock.append(titleEl, subEl);
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '×';
+  closeBtn.style.cssText = 'background:transparent;color:#9c9388;border:none;font:inherit;font-size:22px;cursor:pointer;padding:0 6px;line-height:1;';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  head.append(glyph, titleBlock, closeBtn);
+  sheet.appendChild(head);
+  // Description.
+  if (it.description) {
+    const desc = document.createElement('div');
+    desc.style.cssText = 'padding:10px 16px 0;color:#bcb4a8;font-size:12px;line-height:1.5;';
+    desc.textContent = t(it.description);
+    sheet.appendChild(desc);
+  }
+  // Actions list.
+  const actions = document.createElement('div');
+  actions.style.cssText = 'padding:10px 12px 16px;display:flex;flex-direction:column;gap:6px;';
+  const equipped = (ctx.context === 'equipment') || Object.values(player.equipment || {}).includes(itemId);
+  const equippedSlot = Object.entries(player.equipment || {}).find(([s, i]) => i === itemId)?.[0];
+  const buttons = [];
+  function addAction(label, command, opts = {}) {
+    buttons.push({ label, command, danger: opts.danger });
+  }
+  // Choose actions based on item flags.
+  const isFood = it.consumable_action === 'eat' || it.tags?.includes('food');
+  const isDrink = it.consumable_action === 'drink' || it.tags?.includes('drink');
+  const isReadable = it.read_text || it.readable || it.tags?.includes('readable') || it.tags?.includes('book');
+  const isWearable = !!it.slot && it.slot !== 'hand';
+  const isWeapon = it.slot === 'hand' || (it.effects?.attack_bonus > 0);
+  const isMarketHere = (typeof npcsHere === 'function') ? npcsHere(player.location).some(n => STORY.npcs[n]?.is_marketplace) : false;
+  if (equipped) {
+    addAction(`✋ Unwear (${equippedSlot})`, `unwear ${equippedSlot || itemId}`);
+  } else {
+    if (isFood) addAction('🍴 Eat', `eat ${itemId}`);
+    if (isDrink) addAction('🥤 Drink', `drink ${itemId}`);
+    if (isReadable) addAction('📖 Read', `read ${itemId}`);
+    if (isWeapon) addAction('🗡 Wield', `wield ${itemId}`);
+    if (isWearable && !isWeapon) addAction('👕 Wear', `wear ${itemId}`);
+  }
+  addAction('🔍 Examine', `examine ${itemId}`);
+  if (isMarketHere && typeof it.base_value === 'number' && it.base_value > 0 && !equipped) {
+    addAction('💰 Sell', `sell ${itemId}`);
+  }
+  if (!equipped) addAction('🗑 Drop', `drop ${itemId}`, { danger: true });
+  for (const a of buttons) {
+    const btn = document.createElement('button');
+    btn.textContent = a.label;
+    btn.style.cssText = `text-align:left;padding:10px 14px;background:${a.danger ? '#2a1d1c' : '#23201c'};color:${a.danger ? '#e07a7a' : 'var(--fg, #e8e6e3)'};border:1px solid ${a.danger ? '#4a2a28' : '#3a352e'};border-radius:6px;cursor:pointer;font:inherit;font-size:14px;transition:background 0.12s,border-color 0.12s;`;
+    btn.addEventListener('mouseenter', () => { btn.style.background = a.danger ? '#3a2826' : '#2a2724'; btn.style.borderColor = a.danger ? '#e07a7a' : 'var(--accent, #c79b3a)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = a.danger ? '#2a1d1c' : '#23201c'; btn.style.borderColor = a.danger ? '#4a2a28' : '#3a352e'; });
+    btn.addEventListener('click', () => {
+      overlay.remove();
+      handleCommand(a.command);
+    });
+    actions.appendChild(btn);
+  }
+  sheet.appendChild(actions);
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onEsc); }
+  });
+}
+
 const TOAST_TTL = 5000;
 const TOAST_CELEBRATE_TTL = 8000;
 function showToast(text, kind = '', opts = {}) {
@@ -2583,7 +2699,11 @@ function refreshSidebar() {
       if (eqSec) eqSec.style.display = '';
       for (const [slot, item] of slots) {
         const row = document.createElement('div'); row.className = 'eq-row';
+        // Engine v0.58 — Tier A1: clickable equipment row → action sheet.
+        row.style.cursor = 'pointer';
+        row.title = 'Tap for actions';
         row.innerHTML = `<span style="color:var(--muted);">${T(slot)}:</span> <span>${itemDisplay(item)}</span>`;
+        row.addEventListener('click', () => showItemActionSheet(item, { context: 'equipment', slot }));
         eqEl.appendChild(row);
       }
     }
@@ -2760,12 +2880,41 @@ function refreshSidebar() {
     }
   }
 
+  // Engine v0.58 — Tier A1: render the new "Carried" section for unique
+  // (non-stackable) items that aren't equipped. Each row is tappable and
+  // opens the item action sheet. Stackable groups (multiples of the same
+  // item) collapse into a single tappable row with a count.
+  const carriedEl = document.getElementById('carried');
+  const carriedSec = document.getElementById('carriedSection');
+  if (carriedEl && carriedSec) {
+    carriedEl.innerHTML = '';
+    const groups = new Map();
+    for (const i of player.inventory) groups.set(i, (groups.get(i) || 0) + 1);
+    if (groups.size === 0) {
+      carriedSec.style.display = 'none';
+    } else {
+      carriedSec.style.display = '';
+      for (const [itemId, n] of groups) {
+        const row = document.createElement('div'); row.className = 'row';
+        row.style.cursor = 'pointer';
+        row.title = 'Tap for actions';
+        const qtyHtml = n > 1 ? `×${n}` : '';
+        row.innerHTML = `<span>${itemDisplay(itemId)}</span><span class="qty">${qtyHtml}</span>`;
+        row.addEventListener('click', () => showItemActionSheet(itemId, { context: 'inventory' }));
+        carriedEl.appendChild(row);
+      }
+    }
+  }
+
   const matEl = document.getElementById('materials');
   const matEntries = Object.entries(player.materials).filter(([_, q]) => q > 0);
   matEl.innerHTML = '';
   if (matEntries.length === 0) matEl.innerHTML = `<div class="empty">${T('no materials')}</div>`;
   else for (const [item, qty] of matEntries) {
     const row = document.createElement('div'); row.className = 'row';
+    // Engine v0.58 — Tier A1: clickable materials row → action sheet.
+    row.style.cursor = 'pointer';
+    row.title = 'Tap for actions';
     const left = freshnessRemaining(item);
     let qtyHtml = `×${qty}`;
     if (left != null) {
@@ -2773,6 +2922,7 @@ function refreshSidebar() {
       qtyHtml += ` <span style="color:${color};font-size:11px;" title="rots in ${left} turn${left === 1 ? '' : 's'}">·${left}t</span>`;
     }
     row.innerHTML = `<span>${itemDisplay(item)}</span><span class="qty">${qtyHtml}</span>`;
+    row.addEventListener('click', () => showItemActionSheet(item, { context: 'materials' }));
     matEl.appendChild(row);
   }
 
@@ -5341,7 +5491,8 @@ function showDialogNode(npcId, nodeId) {
     runEventEffects({ effects: node.effects });
   }
   const linesRaw = Array.isArray(node.lines) ? node.lines : (node.lines ? [node.lines] : []);
-  for (const ln of linesRaw) write(T('{0} says: "{1}"', t(npc.display), t(ln)), 'npc');
+  // Engine v0.58 — Tier A2: render NPC portrait + line via renderNpcLine.
+  for (const ln of linesRaw) renderNpcLine(npcId, ln);
   if (node.end) {
     write('(Conversation ends.)', 'system');
     player.dialog_session = null;
@@ -5354,6 +5505,8 @@ function showDialogNode(npcId, nodeId) {
     player.dialog_session = { npc_id: npcId, node_id: nodeId };
     return;
   }
+  // Engine v0.58 — Tier S1: render numbered text first (keyboard path /
+  // accessibility / log readability), then append clickable buttons.
   visible.forEach((x, n) => {
     const cost = [];
     if (typeof x.c.consume_gold === 'number' && x.c.consume_gold > 0) cost.push(`${x.c.consume_gold}g`);
@@ -5362,8 +5515,82 @@ function showDialogNode(npcId, nodeId) {
     const costStr = cost.length ? ` (${cost.join(', ')})` : '';
     write(`  ${n + 1}. ${t(x.c.label)}${costStr}${tag}`, x.available ? 'system' : 'error');
   });
-  write('(Type the number, or "leave" to end.)', 'system');
   player.dialog_session = { npc_id: npcId, node_id: nodeId, _visible: visible.map(x => x.idx) };
+  renderDialogChoiceButtons(visible);
+}
+
+// Engine v0.58 — Tier S1: click-driven dialogue choice buttons.
+// Mirrors the numbered text list with tappable buttons. Each button calls
+// handleCommand(String(n)), so it goes through the exact same dispatcher
+// path as typing the number. Disables siblings on click to prevent double-
+// activation. Adds a "Leave" footer button.
+function renderDialogChoiceButtons(visible) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dialog-choices';
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin:6px 0 12px 18px;';
+  visible.forEach((x, n) => {
+    const btn = document.createElement('button');
+    const cost = [];
+    if (typeof x.c.consume_gold === 'number' && x.c.consume_gold > 0) cost.push(`${x.c.consume_gold}g`);
+    if (x.c.consume_item) cost.push(itemDisplay(x.c.consume_item));
+    const costStr = cost.length ? `<span style="opacity:0.7;font-size:11px;margin-left:8px;">(${cost.join(', ')})</span>` : '';
+    btn.innerHTML = `<span style="color:var(--accent);font-weight:600;margin-right:8px;">${n + 1}.</span>${escapeHtml(t(x.c.label))}${costStr}`;
+    const enabled = x.available;
+    btn.disabled = !enabled;
+    btn.style.cssText = `text-align:left;padding:8px 12px;background:${enabled ? '#23201c' : '#1a1815'};color:${enabled ? 'var(--fg, #e8e6e3)' : '#6a6358'};border:1px solid ${enabled ? '#3a352e' : '#2a2724'};border-radius:4px;cursor:${enabled ? 'pointer' : 'not-allowed'};font:inherit;font-size:13px;line-height:1.4;transition:background 0.12s,border-color 0.12s;`;
+    if (enabled) {
+      btn.addEventListener('mouseenter', () => { btn.style.background = '#2a2724'; btn.style.borderColor = 'var(--accent, #c79b3a)'; });
+      btn.addEventListener('mouseleave', () => { btn.style.background = '#23201c'; btn.style.borderColor = '#3a352e'; });
+      btn.addEventListener('click', () => {
+        wrap.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.cursor = 'default'; });
+        handleCommand(String(n + 1));
+      });
+    }
+    wrap.appendChild(btn);
+  });
+  const leave = document.createElement('button');
+  leave.textContent = '× Leave';
+  leave.style.cssText = 'align-self:flex-start;padding:6px 12px;background:transparent;color:#9c9388;border:1px solid #3a352e;border-radius:4px;cursor:pointer;font:inherit;font-size:12px;margin-top:2px;transition:color 0.12s,border-color 0.12s;';
+  leave.addEventListener('mouseenter', () => { leave.style.color = '#e07a7a'; leave.style.borderColor = '#e07a7a'; });
+  leave.addEventListener('mouseleave', () => { leave.style.color = '#9c9388'; leave.style.borderColor = '#3a352e'; });
+  leave.addEventListener('click', () => {
+    wrap.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.cursor = 'default'; });
+    handleCommand('leave');
+  });
+  wrap.appendChild(leave);
+  appendDomToOutput(wrap);
+}
+
+// Engine v0.58 — Tier A2: NPC portrait + line.
+// Renders an NPC's spoken line. If npc.portrait or npc.image is a real URL
+// (data: or https:), composes a 48×48 portrait + speech-bubble layout.
+// Otherwise falls back to the existing text-only path so short-glyph NPCs
+// (emoji-only stories) keep their current rendering.
+function renderNpcLine(npcId, line) {
+  const npc = STORY.npcs[npcId];
+  if (!npc) { write(line, 'npc'); return; }
+  const display = t(npc.display) || npcId;
+  const lineText = t(line);
+  const portraitSrc = isImageUrl(npc.portrait) ? npc.portrait
+    : (isImageUrl(npc.image) ? npc.image : null);
+  if (!portraitSrc) {
+    const glyph = isShortGlyph(npc.image) ? `${npc.image} ` : '';
+    write(`${glyph}${display} says: "${lineText}"`, 'npc');
+    return;
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'line npc';
+  wrap.style.cssText = 'display:flex;align-items:flex-start;gap:10px;margin:6px 0;';
+  const img = document.createElement('img');
+  img.src = portraitSrc;
+  img.alt = display;
+  img.style.cssText = 'width:48px;height:48px;border-radius:50%;border:2px solid var(--accent, #c79b3a);object-fit:cover;flex-shrink:0;background:#0c0e10;';
+  img.addEventListener('error', () => { img.style.display = 'none'; });
+  const speech = document.createElement('div');
+  speech.style.cssText = 'flex:1;min-width:0;line-height:1.5;font-style:italic;color:#b48ad6;';
+  speech.innerHTML = `<span style="color:var(--accent, #c79b3a);font-weight:600;font-style:normal;">${escapeHtml(display)}</span> says: "${escapeHtml(lineText)}"`;
+  wrap.append(img, speech);
+  appendDomToOutput(wrap);
 }
 function chooseDialog(arg) {
   if (!player.dialog_session) { write('You are not in a conversation.', 'error'); return; }
@@ -5436,7 +5663,8 @@ function talk(target) {
     }
   }
   const line = lines[Math.floor(Math.random() * lines.length)];
-  write(T('{0} says: "{1}"', npc.display, line), 'npc');
+  // Engine v0.58 — Tier A2: render portrait if NPC has one.
+  renderNpcLine(target, line);
   const offers = offerQuestsFor(target);
   for (const [qid, q] of offers) {
     write(T('{0} adds: "I have work, if you\'d take it. {1}" (accept {2})', npc.display, q.description, qid), 'npc');
