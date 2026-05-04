@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.68';
+const ENGINE_VERSION_LABEL = 'v0.68.1';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.68.1': 'Final pre-pause cleanup. Z1: categorized help modal was missing three recently-added commands — `reading` / `focus` (Preferences), `tour` / `walkthrough` (Preferences), `notifications` / `notif` (Feedback & updates). All three now listed so the help modal no longer lies about what commands exist. Z2: builder reference dock no longer hardcodes top:80px — measures the actual header.bottom at render time and places the dock just below it (with a 80px floor). Fixes the edge case where the header toolbar wraps to two rows on narrow desktops, growing past 80px and leaving the dock overlapping the bottom row of toolbar buttons. The dev pause is now declared.',
   'v0.68':   'v0.67 surfaced gaps batch: reading-mode exit pill drops below the mobile-header on phones (≤720px) so it doesn\'t overlap the bell + drawer-toggle (NN1). Builder reference dock visibility now also re-evaluates on window resize via a 120ms-debounced listener — the dock hides/shows naturally when dragging the browser window across the 1100px threshold (NN2). Defensive position:relative on every picker cover div so the bottom-fade pseudo-element anchors correctly even on edge-case render paths (NN3). Long-press tooltip placement now measures size after appendChild (force-layout via offsetWidth) so first-show on mobile correctly clamps within the viewport — was reading 0×0 dimensions before. Added a defensive bottom-clamp too (P1). Combat panel "✓ Used" Charge label font-size matched to active state (11px, was 10px) so the button doesn\'t subtly shift when transitioning fresh ↔ used (P2).',
   'v0.67':   'v0.66 surfaced gaps batch: marketplace cards now match the new card-grid storefront style with cover gradients + verified/price/free pills (G1). Long-press tooltip now suppresses iOS Safari\'s tap-and-hold context menu via user-select / -webkit-touch-callout, threshold dropped 500→400ms (G2). Reading mode gets a floating "📖 Exit reading" pill top-right so users can tap their way out (G3). Builder reference dock auto-hides on viewports < 1100px to avoid overlapping the editor (G4) and refreshes on every render() so edits to the pinned entity show live (G6). Picker / age-gate / settings overlays now respect safe-area-inset-top so on iPhone PWA the modal top edge clears the notch (G5). Cover-image picker cards get a bottom-fade gradient overlay for title legibility on bright covers (P1). Combat panel "✓ Used" Charge state gets darker green + bolder font on light theme for contrast (P3).',
   'v0.66':   'iPhone notch fix: mobile header now respects safe-area-inset-top so it clears the camera notch / Dynamic Island. Combat polish: Use sheet sorts by usefulness (NN1) — healing food first, then plain food/drink, then readables. Stance-ready glow on Parry/Charge buttons (NN2) so the player sees "this buff is queued." Charge "✓ Used" label after firing (NN3) instead of plain disabled grey. Picker storefront redesign (S1): card grid with cover images or auto-generated gradients, prominent Continue hero rail, ★ endings badges, currently-playing pill, marketplace section header. Reading mode (B7): `reading` / `focus` command toggles a body class that hides the sidebar, centers prose, bumps font size — narrative-focused view. Long-press tooltip on inventory rows (B3): hold any sidebar item for ≥500ms to see its description / stats / tags inline without committing to the action sheet. Builder split-view via reference dock (A6): "📌 Pin as reference" button on every entity editor opens a floating right-side panel showing that entity\'s read-only summary; persists across tab switches so authors can edit a Room while reading the NPC inside it.',
@@ -10718,8 +10719,10 @@ function showHelpModal() {
         ['lang [<code>]', 'Show or switch language (e.g. "lang de")'],
         ['theme [<dark|light|sepia|contrast>]', 'Show or switch theme'],
         ['fontsize [<small|medium|large>]', 'Show or switch font size'],
+        ['reading / focus', 'Toggle reading mode — hides sidebar, centers prose, larger font'],
         ['share settings', 'Copy a shareable URL with your current theme + font + language baked in'],
-        ['tutorial · tutorial topics · tutorial topic <name> · tutorial off', 'Onboarding hints (replay or silence)']
+        ['tutorial · tutorial topics · tutorial topic <name> · tutorial off', 'Onboarding hints (replay or silence)'],
+        ['tour / walkthrough', 'Replay the first-time tooltip tour']
       ]
     },
     {
@@ -10727,6 +10730,7 @@ function showHelpModal() {
       lines: [
         ['bug / report', 'File a bug — also publishes to the public board'],
         ['bugs', 'Browse the public bug board'],
+        ['notifications / notif', 'Open the notification history panel (last 30 toasts)'],
         ['thanks [<story_id>]', 'Send appreciation to a story author'],
         ['reload story', 'Fetch the latest version of the active story without losing progress'],
         ['reload engine', 'Fetch the latest engine build (page reload — your character is safe)'],
