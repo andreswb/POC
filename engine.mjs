@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.63';
+const ENGINE_VERSION_LABEL = 'v0.63.1';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.63.1': 'Bug fix: age-gate (16+ content notice) was unreachable on mobile after the picker. Root cause — the gate overlay was z-index: 300 while the picker is z-index: 99999, so the picker covered the gate completely; taps went to the picker instead of the gate buttons. Bumped the gate to z-index: 200000 (above every other modal). Added explicit pointer-events:auto + touch-action:manipulation on the overlay for iOS Safari.',
   'v0.63':   'Polish broom: focus-trap pass completed across the remaining 5 modals (story preview, marketplace preview, characters dialog, mapview, ending-share screenshot preview). Sidebar now restores focus through re-renders the same way describeRoom does. Healing flashes the life value green — symmetric with the damage flash (≥10% of max life). Mobile bell deduplication: desktop bell hidden on phones via @media (max-width: 720px). `share settings` listed in the categorized help modal under Preferences. `tour` command now routes through the same rAF chain as the first-boot tour, so typing `tour` while a higher-priority overlay is up no longer crashes.',
   'v0.62':   'Loose-ends pass: desktop sidebar gained a 🔔 notification bell so non-mobile users have access to the toast-history panel (N5). Focus-trap pass extended to age-gate, bug reporter, bug board, first-run intro, and ending overlay — Tab now stays inside every modal (N6). Damage flash + low-life pulse no longer compete: the persistent opacity pulse pauses for the 900ms red flash and resumes after if life is still below 25% (N7). Room re-paints preserve keyboard focus: if a tf-link with a matching data-cmd survives the new render, focus moves to it; otherwise focus returns to the input (N8). New `share settings` command copies a deep-link URL with current theme + font + lang baked in — closes the v0.60 deep-link loop (N9). Equipment slot rows flash green when wearing/wielding lands an item — mirrors the carried/materials flash (N10).',
   'v0.61':   'Notification + a11y + mobile polish: showToast call sites audited and tagged with silent / important so the bell badge only counts real attention-worthy events (engine update, bounty, gift, DM, heal, world event, achievement) and stays quiet for routine ones like outbox sync, npub copy, "nothing fits slot" (N1). Modal focus-trap: action sheet, equipment doll, help, settings, notifications panel — Tab now stays inside the modal, Shift+Tab wraps, focus restores to the previous element on close, role="dialog" + aria-modal set for screen-readers (N2). Tour spotlight viewport-clamp: ring + card now respect the bottom-tab strip on phones, scroll the target into view first, and fall back to a centered card if neither above nor below the target fits (N3). Combat HP loss flash: when the player takes ≥10% of max life in one tick, the life value flashes red with a brief shake — visible feedback for damage that pairs with the green inventory flash (N4).',
@@ -1404,7 +1405,14 @@ function showAgeGateModal(story) {
     const tags = Array.isArray(m.tags) ? m.tags : [];
     const title = (typeof m.title === 'string') ? m.title : (m.title?.en || m.id || 'this story');
     const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(8,10,16,0.94);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit;color:#e8e6e3;';
+    // Engine v0.63.1 — bug fix: age-gate must sit ABOVE the picker.
+    // Previously z-index: 300, which rendered behind the picker overlay
+    // (z-index 99999). On mobile the gate appeared but was unreachable —
+    // taps went to the picker on top. Now 200000, above every other
+    // modal in the engine (max prior was 100000). Also wired
+    // pointer-events / touch-action explicitly so iOS Safari treats the
+    // overlay as the topmost interactive layer.
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:200000;background:rgba(8,10,16,0.94);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit;color:#e8e6e3;pointer-events:auto;touch-action:manipulation;';
     const card = document.createElement('div');
     card.style.cssText = 'max-width:540px;width:100%;background:#1a1815;border:1px solid #c08070;border-radius:8px;padding:24px;box-shadow:0 8px 40px rgba(192,128,112,0.3),0 0 0 1px #c08070 inset;';
     const tag = document.createElement('div');

@@ -1,6 +1,6 @@
 {
   "$comment": "Story manifest — engine v0.28+ fetches this at boot to discover extra stories. Each entry is a same-origin URL relative to game.html. Drop a story.json into this folder, add its path here, redeploy the manifest. No engine edit required. The engine_version field (added v0.41) lets the engine self-detect when a new build is deployed: the running engine compares its ENGINE_VERSION_LABEL against this string and prompts the player to reload when they differ. Bump it when you ship a new game.html.",
-  "engine_version": "v0.63",
+  "engine_version": "v0.63.1",
   "stories": [
     "./whispering-forest.json",
     "./hollow-forest.json",
