@@ -343,6 +343,129 @@
     animation: cp-victory 400ms ease-out forwards;
     pointer-events: none;
   }
+  /* Engine v0.66 — Tier B3: long-press tooltip.
+     Floating, fixed-position tooltip shown when the user holds an
+     inventory row for >500ms. Compact: title + description + stats +
+     tag chips. Disappears on pointerup / pointercancel. */
+  .tf-longpress-tooltip {
+    position: fixed;
+    z-index: 100050;
+    max-width: 280px;
+    background: #1a1815;
+    border: 1px solid var(--accent, #c79b3a);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: #e8e6e3;
+    font-size: 12px;
+    line-height: 1.45;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.55);
+    pointer-events: none;
+    animation: tf-longpress-in 140ms ease-out;
+  }
+  @keyframes tf-longpress-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .tf-longpress-tooltip .tf-lpt-title { font-weight: 700; color: var(--accent, #c79b3a); margin-bottom: 4px; }
+  .tf-longpress-tooltip .tf-lpt-desc  { color: #bcb4a8; margin-bottom: 6px; }
+  .tf-longpress-tooltip .tf-lpt-stats { color: #6dc28d; font-family: ui-monospace, monospace; font-size: 11px; }
+  .tf-longpress-tooltip .tf-lpt-tags  { color: #9c9388; font-style: italic; font-size: 11px; margin-top: 4px; }
+  /* Engine v0.67 — Tier G3: reading-mode exit pill.
+     Floating button in the top-right of the centered terminal that lets
+     the player tap their way out of reading mode without typing. */
+  #tf-reading-exit {
+    position: fixed;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 12px;
+    z-index: 10000;
+    background: var(--panel, #1a1815);
+    color: var(--accent, #c79b3a);
+    border: 1px solid var(--accent, #c79b3a);
+    border-radius: 16px;
+    padding: 5px 12px;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    transition: background 120ms, transform 120ms;
+  }
+  #tf-reading-exit:hover { background: var(--accent, #c79b3a); color: #1a1408; transform: translateY(-1px); }
+  /* Engine v0.67 — Tier G5: safe-area-inset-top for full-page overlays
+     (picker, settings, age-gate, etc.). Without this, on iPhone PWA the
+     overlay top edge tucks under the camera notch / Dynamic Island. We
+     can't blanket-apply to every overlay (they use inline styles), but
+     adding the inset to <body> via a top-level rule lets fixed overlays
+     pick it up via the env() function in their own padding. The existing
+     overlay code already uses padding: 16px-20px; we add a small
+     defensive rule that fixed overlays must have at least the safe-area
+     top inset of margin. */
+  /* Apply to anything with `position: fixed` and `inset: 0` styling that
+     puts a child near the top edge. The picker / age-gate / settings
+     follow this pattern. */
+  /* Engine v0.67 — Tier P1: cover gradient overlay on picker cards.
+     Bright cover images can swallow the title text. A bottom-fade
+     darkens the bottom 40% of the cover so the title is always
+     legible — applied via a pseudo-element. */
+  .picker-card > div:first-child::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 50%;
+    background: linear-gradient(to top, rgba(0,0,0,0.55), transparent);
+    pointer-events: none;
+  }
+  .picker-card > div:first-child { position: relative; }
+  /* Engine v0.66 — Tier B7: reading mode.
+     Hides the sidebar, centers and widens #terminal-wrap, bumps the prose
+     font slightly. Persistent class on <body>; toggle via `reading`
+     command. Designed for narrative-heavy moments (long room
+     descriptions, dialogue trees) where the sidebar adds noise. */
+  body.tf-reading #side { display: none !important; }
+  body.tf-reading #layout { display: block; }
+  body.tf-reading #terminal-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    border-right: none;
+  }
+  body.tf-reading #output { font-size: 15px; line-height: 1.65; padding: 18px 22px; }
+  body.tf-reading #drawer-toggle { display: none; }
+  /* On phones, keep the bottom-tab nav even in reading mode so the
+     player can still get to Map / Quests etc. */
+  /* Engine v0.66 — Tier NN2: stance-ready indicator on Parry/Charge.
+     Soft accent glow + bumped border so the player sees "this buff is
+     queued for the next round". Cleared by refreshCombatPanel when the
+     stance is consumed. */
+  #combat-panel .cp-buttons button.cp-stance-ready {
+    background: linear-gradient(to bottom, #2a3528, #1f2a1d);
+    color: #f0b54a;
+    border-color: #c79b3a;
+    box-shadow: 0 0 0 1px #c79b3a inset, 0 0 8px rgba(199, 155, 58, 0.35);
+  }
+  #combat-panel .cp-buttons button.cp-stance-ready:hover {
+    background: linear-gradient(to bottom, #3a4538, #2a3528);
+    border-color: #f0b54a;
+  }
+  /* Engine v0.66 — Tier NN3: charge "✓ Used" muted state. Distinct from
+     the generic disabled style — clarifies "this fight, can't again"
+     vs "you can't do this right now for some other reason".
+     v0.67 P3: opacity 0.7 (was 0.6) and label opacity 0.85 (was 0.55)
+     so the green check is readable on light theme too. */
+  #combat-panel .cp-buttons button.cp-stance-used {
+    background: #1a1410;
+    color: #6a6358;
+    border-color: #2a2220;
+    opacity: 0.7;
+  }
+  #combat-panel .cp-buttons button.cp-stance-used .cp-label {
+    color: #6dc28d;
+    opacity: 0.85;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  /* Light-theme override: darker green for contrast on a pale background. */
+  body.theme-light #combat-panel .cp-buttons button.cp-stance-used { background: #d8d0c2; border-color: #b8a890; }
+  body.theme-light #combat-panel .cp-buttons button.cp-stance-used .cp-label { color: #2a6e3e; opacity: 1; }
   /* Engine v0.65 — Tier P4: companion HP echo on the panel. Tucked to
      the right of the status row, after the enemy info. */
   #combat-panel .cp-companion {
@@ -631,7 +754,13 @@
 
     #mobile-header {
       display: flex; align-items: center; gap: 10px;
-      padding: 8px 12px; background: var(--panel);
+      /* v0.66 — safe-area-inset-top so the header clears the iPhone notch
+         / Dynamic Island. Without this, on iPhone X+ in PWA mode (or
+         standalone home-screen), the stats line tucks behind the camera.
+         The 8px base keeps the existing visual weight when no inset is
+         present (desktop, older phones). */
+      padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(12px + env(safe-area-inset-left, 0px));
+      background: var(--panel);
       border-bottom: 1px solid var(--border);
       font-size: 12px; line-height: 1; flex-wrap: nowrap;
       overflow-x: auto; white-space: nowrap;

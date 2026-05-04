@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.65';
+const ENGINE_VERSION_LABEL = 'v0.67';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,8 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.67':   'v0.66 surfaced gaps batch: marketplace cards now match the new card-grid storefront style with cover gradients + verified/price/free pills (G1). Long-press tooltip now suppresses iOS Safari\'s tap-and-hold context menu via user-select / -webkit-touch-callout, threshold dropped 500→400ms (G2). Reading mode gets a floating "📖 Exit reading" pill top-right so users can tap their way out (G3). Builder reference dock auto-hides on viewports < 1100px to avoid overlapping the editor (G4) and refreshes on every render() so edits to the pinned entity show live (G6). Picker / age-gate / settings overlays now respect safe-area-inset-top so on iPhone PWA the modal top edge clears the notch (G5). Cover-image picker cards get a bottom-fade gradient overlay for title legibility on bright covers (P1). Combat panel "✓ Used" Charge state gets darker green + bolder font on light theme for contrast (P3).',
+  'v0.66':   'iPhone notch fix: mobile header now respects safe-area-inset-top so it clears the camera notch / Dynamic Island. Combat polish: Use sheet sorts by usefulness (NN1) — healing food first, then plain food/drink, then readables. Stance-ready glow on Parry/Charge buttons (NN2) so the player sees "this buff is queued." Charge "✓ Used" label after firing (NN3) instead of plain disabled grey. Picker storefront redesign (S1): card grid with cover images or auto-generated gradients, prominent Continue hero rail, ★ endings badges, currently-playing pill, marketplace section header. Reading mode (B7): `reading` / `focus` command toggles a body class that hides the sidebar, centers prose, bumps font size — narrative-focused view. Long-press tooltip on inventory rows (B3): hold any sidebar item for ≥500ms to see its description / stats / tags inline without committing to the action sheet. Builder split-view via reference dock (A6): "📌 Pin as reference" button on every entity editor opens a floating right-side panel showing that entity\'s read-only summary; persists across tab switches so authors can edit a Room while reading the NPC inside it.',
   'v0.65':   'Combat panel polish + gap-fill: 🧪 Use button (G1) opens a quick item-action sheet listing food / drink / readable items in your pack — closes the "must dismiss to heal" gap. Sidebar combat tracker hidden whenever the panel is up (G2) — no more duplicate HP. Compact mode kicks in below 380px (G3) — glyph-only buttons fit all 7 actions on a single row even on the smallest phones. Enemy HP bar pulses brightness when ratio < 20% (P1) — kill is close. Panel border flashes red + 2px shake when player takes a damaging hit (P2), in sync with the sidebar life-value flash. Victory fade-out animation when the enemy dies (P3) — 400ms slide-down before the panel hides, instead of vanishing instantly. Companion HP echo on the panel (P4) when you fight alongside a tamed wolf. Number-key shortcuts 1–7 (P5) — 1=Attack, 2=Parry, 3=Charge, 4=Retreat, 5=Flee, 6=Use, 7=Recap. Suppressed while typing in the input or any modal.',
   'v0.64':   'Tier S3 — combat panel UI. When player.combat_target is set, a fixed panel slides in between the terminal output and the prompt row, showing the enemy portrait, name, animated HP bar (color-shift green→accent→red as the bar drains), and six tappable action buttons: ⚔ Attack (primary), 🛡 Parry, 💥 Charge, ↩ Retreat, 🏃 Flee, 📜 Recap. Buttons route through handleCommand so behaviour matches typing exactly. Charge auto-disables once it has been used in the current fight (matches the once-per-fight rule). Auto-renders inside refreshSidebar and after describeRoom so wolf encounters that spawn mid-room-render show the panel immediately. The last text-only major interaction surface in the engine is now fully tappable.',
   'v0.63.1': 'Bug fix: age-gate (16+ content notice) was unreachable on mobile after the picker. Root cause — the gate overlay was z-index: 300 while the picker is z-index: 99999, so the picker covered the gate completely; taps went to the picker instead of the gate buttons. Bumped the gate to z-index: 200000 (above every other modal). Added explicit pointer-events:auto + touch-action:manipulation on the overlay for iOS Safari.',
@@ -478,9 +480,14 @@ async function fetchStoryPlayerCounts() {
 function showStoryPicker(currentId = null) {
   return new Promise(resolve => {
     const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+    // v0.66 S1: picker redesign — wider panel, card-grid layout, hero
+    // Continue rail. Storefront feel rather than a flat row list.
+    // v0.67 G5: respect safe-area-inset-top so on iPhone PWA the modal
+    // top edge clears the camera notch / Dynamic Island.
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:calc(16px + env(safe-area-inset-top, 0px)) 16px 16px;font-family:inherit;color:#e8e6e3;overflow-y:auto;';
     const panel = document.createElement('div');
-    panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:24px;';
+    panel.id = 'picker-overlay';
+    panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:920px;width:100%;max-height:none;padding:24px;margin:auto;';
     panel.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px;flex-wrap:wrap;">
         <div style="font-size:20px;font-weight:bold;">Pick a story</div>
@@ -503,7 +510,7 @@ function showStoryPicker(currentId = null) {
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input id="picker-hide-cw" type="checkbox" style="margin:0;"> hide age-gated</label>
       </div>
       <div id="picker-tagchips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;"></div>
-      <div id="story-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;"></div>
+      <div id="story-list" class="picker-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px;"></div>
       <div id="picker-msg" style="margin-top:10px;color:#f0b54a;font-size:13px;min-height:16px;"></div>
     `;
     overlay.appendChild(panel);
@@ -558,9 +565,23 @@ function showStoryPicker(currentId = null) {
         const lastStory = loadStoryById(lastId);
         if (lastStory) {
           const lastTitle = (typeof lastStory.meta?.title === 'string') ? lastStory.meta.title : (lastStory.meta?.title?.en || lastId);
+          const lastTagline = (typeof lastStory.meta?.tagline === 'string') ? lastStory.meta.tagline
+            : (lastStory.meta?.tagline?.en || lastStory.meta?.summary || lastStory.meta?.short_description || '');
+          // v0.66 S1: Continue rail is now a hero — gradient banner with
+          // big "Continue" badge + title + tagline + Resume button.
           const cBtn = document.createElement('button');
-          cBtn.style.cssText = 'width:100%;text-align:left;padding:12px 14px;background:#2a3528;border:2px solid #f0b54a;color:#e8e6e3;border-radius:4px;cursor:pointer;font:inherit;display:flex;align-items:center;gap:10px;';
-          cBtn.innerHTML = `<span style="font-size:20px;color:#f0b54a;">▶</span><span><strong style="color:#f0b54a;">Continue</strong> <em style="color:#bcb4a8;">${escapeHtml(lastTitle)}</em><br><span style="font-size:11px;color:#9c9388;">last active story on this browser</span></span>`;
+          cBtn.style.cssText = 'width:100%;text-align:left;padding:18px 20px;background:linear-gradient(135deg,#3a4a2a 0%,#2a3528 60%,#1f2618 100%);border:2px solid #f0b54a;color:#e8e6e3;border-radius:8px;cursor:pointer;font:inherit;display:flex;align-items:center;gap:14px;box-shadow:0 4px 14px rgba(240,181,74,0.18);transition:transform 120ms,box-shadow 120ms;';
+          cBtn.addEventListener('mouseenter', () => { cBtn.style.transform = 'translateY(-1px)'; cBtn.style.boxShadow = '0 6px 18px rgba(240,181,74,0.30)'; });
+          cBtn.addEventListener('mouseleave', () => { cBtn.style.transform = ''; cBtn.style.boxShadow = '0 4px 14px rgba(240,181,74,0.18)'; });
+          cBtn.innerHTML = `
+            <div style="font-size:36px;line-height:1;color:#f0b54a;flex-shrink:0;">▶</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:11px;color:#f0b54a;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;margin-bottom:2px;">Continue where you left off</div>
+              <div style="font-size:18px;font-weight:700;color:#e8e6e3;margin-bottom:4px;">${escapeHtml(lastTitle)}</div>
+              ${lastTagline ? `<div style="font-size:12px;color:#bcb4a8;line-height:1.4;font-style:italic;">${escapeHtml(lastTagline.slice(0, 140))}</div>` : ''}
+            </div>
+            <div style="flex-shrink:0;background:#f0b54a;color:#1a1408;padding:8px 14px;border-radius:4px;font-weight:700;font-size:13px;">Resume</div>
+          `;
           cBtn.addEventListener('click', () => pick(lastId));
           continueWrap.appendChild(cBtn);
         }
@@ -816,112 +837,202 @@ function showStoryPicker(currentId = null) {
         listEl.appendChild(empty);
         return;
       }
+      // v0.66 S1: storefront-style cards.
+      // Each card has a 110px-tall cover area at the top (image OR a
+      // gradient seeded by the story id), then title, author, world-size
+      // line, tags, content-warning chips, ★ endings badge, and a small
+      // 👁 preview action. Clicking the card calls pick(); clicking the
+      // preview link instead opens the story preview overlay.
       for (const opt of local) {
-        const row = document.createElement('button');
-        row.style.cssText = 'text-align:left;padding:12px 14px;background:' + (opt.id === currentId ? '#2a3528' : '#23201c') + ';border:1px solid ' + (opt.id === currentId ? '#4a6a3a' : '#3a352e') + ';color:#e8e6e3;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;gap:2px;font:inherit;';
-        const titleSpan = document.createElement('span');
-        titleSpan.style.cssText = 'font-weight:bold;';
+        const m = opt.story?.meta || {};
+        const isActive = opt.id === currentId;
+        const card = document.createElement('button');
+        card.className = 'picker-card';
+        card.style.cssText = `position:relative;text-align:left;padding:0;background:${isActive ? '#23291c' : '#1f1d1a'};border:1px solid ${isActive ? '#6dc28d' : '#3a352e'};color:#e8e6e3;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;font:inherit;overflow:hidden;transition:transform 120ms,box-shadow 120ms,border-color 120ms;`;
+        card.addEventListener('mouseenter', () => { card.style.transform = 'translateY(-2px)'; card.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)'; if (!isActive) card.style.borderColor = '#c79b3a'; });
+        card.addEventListener('mouseleave', () => { card.style.transform = ''; card.style.boxShadow = ''; if (!isActive) card.style.borderColor = '#3a352e'; });
+        // Cover area.
+        const cover = document.createElement('div');
+        const coverHeight = 110;
+        const cover_url = (typeof m.cover_image === 'string' && /^(https?:|data:image\/)/.test(m.cover_image)) ? m.cover_image
+          : (typeof m.image === 'string' && /^(https?:|data:image\/)/.test(m.image)) ? m.image
+          : null;
+        if (cover_url) {
+          cover.style.cssText = `height:${coverHeight}px;background:#0c0e10 url("${cover_url}") center/cover no-repeat;border-bottom:1px solid #2a2724;`;
+        } else {
+          // Generate a deterministic gradient from the story id so each
+          // story has a recognisable color — even without art.
+          const seed = String(opt.id || '').split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
+          const h1 = Math.abs(seed) % 360;
+          const h2 = (h1 + 40) % 360;
+          cover.style.cssText = `height:${coverHeight}px;background:linear-gradient(135deg,hsl(${h1},40%,30%) 0%,hsl(${h2},35%,18%) 100%);border-bottom:1px solid #2a2724;display:flex;align-items:center;justify-content:center;font-size:38px;color:rgba(255,255,255,0.45);font-weight:700;letter-spacing:0.05em;`;
+          // Glyph fallback: first letter of title.
+          const title0 = ((typeof m.title === 'string') ? m.title : (m.title?.en || opt.id || '?'))[0] || '?';
+          cover.textContent = title0.toUpperCase();
+        }
+        card.appendChild(cover);
+        // Currently-playing pill (top-right).
+        if (isActive) {
+          const pill = document.createElement('div');
+          pill.style.cssText = 'position:absolute;top:6px;right:6px;background:#6dc28d;color:#0c1a0e;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;letter-spacing:0.04em;';
+          pill.textContent = '✓ PLAYING';
+          card.appendChild(pill);
+        }
+        // ★ endings badge (top-left).
         const globalEndings = (typeof loadGlobalEndings === 'function') ? loadGlobalEndings() : {};
         const reachedCount = (globalEndings[opt.id] || []).length;
-        const badgeStr = reachedCount > 0 ? `  ★${reachedCount}` : '';
-        titleSpan.innerHTML = escapeHtml(opt.label)
-          + (reachedCount > 0 ? ' <span style="color:#f0b54a;font-weight:600;" title="' + escapeHtml(`Endings reached on this browser: ${(globalEndings[opt.id] || []).join(', ')}`) + '">' + badgeStr + '</span>' : '')
-          + (opt.id === currentId ? '  <span style="color:#6dc28d;">✓ (currently playing)</span>' : '');
-        const sub = document.createElement('span');
-        sub.style.cssText = 'font-size:12px;color:#9c9388;';
-        sub.textContent = `${Object.keys(opt.story.rooms || {}).length} rooms · ${Object.keys(opt.story.entities || {}).length} entities · author: ${opt.story.meta?.author || '—'}`;
-        const live = document.createElement('span');
-        live.style.cssText = 'font-size:11px;color:#6f8a5a;font-style:italic;';
+        if (reachedCount > 0) {
+          const star = document.createElement('div');
+          star.style.cssText = 'position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.7);color:#f0b54a;font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;letter-spacing:0.04em;border:1px solid rgba(240,181,74,0.45);';
+          star.textContent = `★ ${reachedCount}`;
+          star.title = `Endings reached on this browser: ${(globalEndings[opt.id] || []).join(', ')}`;
+          card.appendChild(star);
+        }
+        // Body.
+        const body = document.createElement('div');
+        body.style.cssText = 'padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1;';
+        const titleSpan = document.createElement('div');
+        titleSpan.style.cssText = 'font-weight:700;font-size:14px;line-height:1.3;color:#e8e6e3;';
+        titleSpan.textContent = opt.label;
+        const authorEl = document.createElement('div');
+        authorEl.style.cssText = 'font-size:11px;color:#bcb4a8;';
+        authorEl.textContent = m.author ? `by ${m.author}` : '—';
+        const sub = document.createElement('div');
+        sub.style.cssText = 'font-size:10px;color:#9c9388;letter-spacing:0.02em;';
+        sub.textContent = `${Object.keys(opt.story.rooms || {}).length} rooms · ${Object.keys(opt.story.entities || {}).length} entities`;
+        const live = document.createElement('div');
+        live.style.cssText = 'font-size:10px;color:#6f8a5a;font-style:italic;min-height:13px;';
         live.setAttribute('data-story-count-id', opt.id);
         if (_liveCounts && _liveCounts[opt.id] >= 5) {
           const n = _liveCounts[opt.id];
-          live.textContent = `${n} traveler${n === 1 ? '' : 's'} in this world (last 30d)`;
+          live.textContent = `${n} traveler${n === 1 ? '' : 's'} (30d)`;
         }
-        row.append(titleSpan, sub, live);
-        const tags = Array.isArray(opt.story.meta?.tags) ? opt.story.meta.tags : [];
-        const cws = Array.isArray(opt.story.meta?.content_warnings) ? opt.story.meta.content_warnings : [];
+        body.append(titleSpan, authorEl, sub, live);
+        const tags = Array.isArray(m.tags) ? m.tags : [];
+        const cws = Array.isArray(m.content_warnings) ? m.content_warnings : [];
         if (tags.length) {
           const tagRow = document.createElement('div');
-          tagRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;';
-          for (const tg of tags) {
+          tagRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;';
+          for (const tg of tags.slice(0, 4)) {
             const chip = document.createElement('span');
             chip.textContent = tg;
-            chip.style.cssText = 'font-size:10px;padding:2px 7px;border-radius:9px;background:#2a3528;color:#a8c7a0;border:1px solid #4a6a3a;text-transform:lowercase;letter-spacing:0.02em;';
+            chip.style.cssText = 'font-size:9px;padding:1px 6px;border-radius:8px;background:#2a3528;color:#a8c7a0;border:1px solid #4a6a3a;text-transform:lowercase;letter-spacing:0.02em;';
             tagRow.appendChild(chip);
           }
-          row.appendChild(tagRow);
+          body.appendChild(tagRow);
         }
         if (cws.length) {
-          const cwRow = document.createElement('div');
-          cwRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center;';
-          const cwLbl = document.createElement('span');
-          cwLbl.textContent = '⚠ content:';
-          cwLbl.style.cssText = 'font-size:10px;color:#c08070;text-transform:uppercase;letter-spacing:0.04em;margin-right:2px;';
-          cwRow.appendChild(cwLbl);
-          for (const cw of cws) {
-            const chip = document.createElement('span');
-            chip.textContent = cw;
-            chip.style.cssText = 'font-size:10px;padding:2px 7px;border-radius:9px;background:#3a2520;color:#e0a890;border:1px solid #6a4a3a;text-transform:lowercase;letter-spacing:0.02em;';
-            cwRow.appendChild(chip);
-          }
-          row.appendChild(cwRow);
+          const cwIcon = document.createElement('div');
+          cwIcon.style.cssText = 'font-size:10px;color:#c08070;font-weight:600;';
+          cwIcon.textContent = `⚠ ${m.minimum_age ? m.minimum_age + '+' : 'mature'}`;
+          cwIcon.title = `Content warnings: ${cws.join(', ')}`;
+          body.appendChild(cwIcon);
         }
-        // Tier A5: preview link
+        // Footer actions.
         const actions = document.createElement('div');
-        actions.style.cssText = 'display:flex;gap:10px;margin-top:6px;align-items:center;';
+        actions.style.cssText = 'display:flex;gap:10px;margin-top:auto;padding-top:8px;align-items:center;border-top:1px solid #2a2724;';
         const preview = document.createElement('span');
         preview.textContent = '👁 preview';
-        preview.style.cssText = 'color:#9c9388;font-size:11px;cursor:pointer;text-decoration:underline;';
+        preview.style.cssText = 'color:#9c9388;font-size:10px;cursor:pointer;text-decoration:underline;';
         preview.onclick = (ev) => { ev.stopPropagation(); showStoryPreview(opt); };
         actions.appendChild(preview);
         if (opt.source === 'custom') {
           const del = document.createElement('span');
           del.textContent = 'remove';
-          del.style.cssText = 'color:#c66;font-size:11px;cursor:pointer;text-decoration:underline;';
+          del.style.cssText = 'color:#c66;font-size:10px;cursor:pointer;text-decoration:underline;margin-left:auto;';
           del.onclick = (ev) => {
             ev.stopPropagation();
-            if (!confirm(`Remove "${opt.story.meta?.title || opt.id}" from your library? Character state stays on the relays.`)) return;
+            if (!confirm(`Remove "${m.title || opt.id}" from your library? Character state stays on the relays.`)) return;
             try { localStorage.removeItem(CUSTOM_STORY_PREFIX + opt.id); } catch {}
             renderList();
           };
           actions.appendChild(del);
         }
-        row.appendChild(actions);
-        row.onclick = () => pick(opt.id);
-        listEl.appendChild(row);
+        body.appendChild(actions);
+        card.appendChild(body);
+        card.onclick = () => pick(opt.id);
+        listEl.appendChild(card);
       }
       if (marketplace.length > 0) {
         const sep = document.createElement('div');
-        sep.style.cssText = 'margin-top:8px;padding:8px 0 4px;border-top:1px solid #3a352e;font-size:11px;color:#9c9388;text-transform:uppercase;letter-spacing:0.05em;';
-        sep.textContent = `Marketplace (${marketplace.length} story${marketplace.length === 1 ? '' : ' · published by other players'})`;
+        // v0.66 S1: separator now spans the full grid row.
+        sep.style.cssText = 'grid-column:1/-1;margin-top:14px;padding:10px 4px 6px;border-top:1px solid #3a352e;font-size:11px;color:#9c9388;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;';
+        sep.textContent = `🌍 Marketplace · ${marketplace.length} story${marketplace.length === 1 ? '' : ' published by other players'}`;
         listEl.appendChild(sep);
         for (const opt of marketplace) {
           const li = opt.listing;
+          // v0.67 G1: marketplace cards now match the storefront card
+          // style of local stories. Outer button is the card; inside it,
+          // a gradient cover + a body div hold the title / author / price /
+          // description / preview link. The purchase flow (buy buttons,
+          // import-after-paid logic) is appended to the body unchanged.
           const row = document.createElement('button');
-          row.style.cssText = 'text-align:left;padding:12px 14px;background:#23201c;border:1px solid #3a352e;color:#e8e6e3;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;gap:2px;font:inherit;';
-          const titleSpan = document.createElement('span');
-          titleSpan.style.cssText = 'font-weight:bold;';
+          row.className = 'picker-card';
+          row.style.cssText = 'position:relative;text-align:left;padding:0;background:#1f1d1a;border:1px solid #3a352e;color:#e8e6e3;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;font:inherit;overflow:hidden;transition:transform 120ms,box-shadow 120ms,border-color 120ms;';
+          row.addEventListener('mouseenter', () => { row.style.transform = 'translateY(-2px)'; row.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)'; row.style.borderColor = '#c79b3a'; });
+          row.addEventListener('mouseleave', () => { row.style.transform = ''; row.style.boxShadow = ''; row.style.borderColor = '#3a352e'; });
+          // Cover with gradient seeded by listing id.
+          const cover = document.createElement('div');
+          const seed = String(li.id || '').split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
+          const h1 = Math.abs(seed) % 360;
+          const h2 = (h1 + 40) % 360;
+          cover.style.cssText = `position:relative;height:110px;background:linear-gradient(135deg,hsl(${h1},38%,28%) 0%,hsl(${h2},33%,16%) 100%);border-bottom:1px solid #2a2724;display:flex;align-items:center;justify-content:center;font-size:38px;color:rgba(255,255,255,0.45);font-weight:700;letter-spacing:0.05em;`;
+          const title0 = (li.title || li.id || '?')[0] || '?';
+          cover.textContent = title0.toUpperCase();
+          // v0.67 P1: bottom fade for legibility — unused here since the
+          // cover is gradient-only, but keep the architecture consistent.
+          row.appendChild(cover);
+          // Verified pill (top-left).
+          if (li.verified) {
+            const verPill = document.createElement('div');
+            verPill.style.cssText = 'position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.7);color:#6dc28d;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;letter-spacing:0.04em;border:1px solid rgba(109,194,141,0.45);';
+            verPill.textContent = '✓ VERIFIED';
+            row.appendChild(verPill);
+          }
+          // Price pill (top-right).
+          const priceSatsTop = li.license?.price_sats || 0;
+          if (priceSatsTop > 0) {
+            const pricePill = document.createElement('div');
+            pricePill.style.cssText = 'position:absolute;top:6px;right:6px;background:#f0b54a;color:#1a1408;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;letter-spacing:0.04em;';
+            pricePill.textContent = `⚡ ${priceSatsTop}`;
+            row.appendChild(pricePill);
+          } else {
+            const freePill = document.createElement('div');
+            freePill.style.cssText = 'position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.7);color:#6dc28d;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;letter-spacing:0.04em;border:1px solid rgba(109,194,141,0.35);';
+            freePill.textContent = 'FREE';
+            row.appendChild(freePill);
+          }
+          // Body.
+          const body = document.createElement('div');
+          body.style.cssText = 'padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1;';
           let shortNpub = '';
           try { const np = nip19.npubEncode(li.author_pubkey); shortNpub = np.slice(0, 12) + '…' + np.slice(-6); } catch {}
-          const verifiedBadge = li.verified ? ' <span style="color:#6dc28d;">✓ verified</span>' : '';
-          titleSpan.innerHTML = (li.title || li.id) + verifiedBadge;
-          const sub = document.createElement('span');
-          sub.style.cssText = 'font-size:12px;color:#9c9388;';
-          const priceTag = (li.license?.price_sats > 0) ? ` · ${li.license.price_sats}⚡` : ' · free';
-          sub.textContent = `v${li.version} · ${li.author || 'anon'} (${shortNpub})${priceTag}`;
-          row.append(titleSpan, sub);
+          const titleSpan = document.createElement('div');
+          titleSpan.style.cssText = 'font-weight:700;font-size:14px;line-height:1.3;color:#e8e6e3;';
+          titleSpan.textContent = li.title || li.id;
+          const authorEl = document.createElement('div');
+          authorEl.style.cssText = 'font-size:11px;color:#bcb4a8;';
+          authorEl.textContent = `by ${li.author || 'anon'}`;
+          const sub = document.createElement('div');
+          sub.style.cssText = 'font-size:10px;color:#9c9388;letter-spacing:0.02em;font-family:ui-monospace,monospace;';
+          sub.textContent = `v${li.version} · ${shortNpub}`;
+          body.append(titleSpan, authorEl, sub);
           if (li.description) {
-            const desc = document.createElement('span');
-            desc.style.cssText = 'font-size:12px;color:#bcb4a8;margin-top:4px;';
-            desc.textContent = li.description.slice(0, 200);
-            row.append(desc);
+            const desc = document.createElement('div');
+            desc.style.cssText = 'font-size:11px;color:#bcb4a8;line-height:1.4;margin-top:2px;';
+            desc.textContent = li.description.slice(0, 140);
+            body.append(desc);
           }
-          // Tier A1: preview link on marketplace cards.
+          // Footer actions (preview).
+          const actions = document.createElement('div');
+          actions.style.cssText = 'display:flex;gap:10px;margin-top:auto;padding-top:8px;align-items:center;border-top:1px solid #2a2724;';
           const previewLink = document.createElement('span');
           previewLink.textContent = '👁 preview';
-          previewLink.style.cssText = 'color:#9c9388;font-size:11px;cursor:pointer;text-decoration:underline;margin-top:4px;align-self:flex-start;';
+          previewLink.style.cssText = 'color:#9c9388;font-size:10px;cursor:pointer;text-decoration:underline;';
           previewLink.onclick = (ev) => { ev.stopPropagation(); showMarketplacePreview(li); };
-          row.append(previewLink);
+          actions.appendChild(previewLink);
+          body.appendChild(actions);
+          row.appendChild(body);
           const priceSats = li.license?.price_sats || 0;
           const paymentUrl = li.license?.payment_url;
           const alreadyPaid = isStoryPaid(li.id);
@@ -957,7 +1068,8 @@ function showStoryPicker(currentId = null) {
               }
             };
             buyRow.append(payBtn, paidBtn);
-            row.append(buyRow);
+            // v0.67 G1: append to body (inside the new card layout), not row.
+            body.append(buyRow);
             row.onclick = (ev) => {  };
           } else {
             row.onclick = async () => {
@@ -1414,7 +1526,8 @@ function showAgeGateModal(story) {
     // modal in the engine (max prior was 100000). Also wired
     // pointer-events / touch-action explicitly so iOS Safari treats the
     // overlay as the topmost interactive layer.
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:200000;background:rgba(8,10,16,0.94);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit;color:#e8e6e3;pointer-events:auto;touch-action:manipulation;';
+    // v0.67 G5: also respect safe-area-inset-top for iPhone PWA notch.
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:200000;background:rgba(8,10,16,0.94);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:calc(20px + env(safe-area-inset-top, 0px)) 20px 20px;font-family:inherit;color:#e8e6e3;pointer-events:auto;touch-action:manipulation;';
     const card = document.createElement('div');
     card.style.cssText = 'max-width:540px;width:100%;background:#1a1815;border:1px solid #c08070;border-radius:8px;padding:24px;box-shadow:0 8px 40px rgba(192,128,112,0.3),0 0 0 1px #c08070 inset;';
     const tag = document.createElement('div');
@@ -2856,8 +2969,43 @@ function refreshCombatPanel() {
     }
   }
   // Disable buttons that aren't currently legal.
+  // v0.66 NN2 + NN3: stance indicators.
+  //  - Parry: glows + "Ready" label until the next blow consumes it.
+  //  - Charge: glows + "Ready" label between tapping and the consumed
+  //    attack. After the attack lands, charge_used_this_combat is true
+  //    and we swap the label to "✓ Used" so the disabled state is no
+  //    longer just a grey blob.
+  const parryBtn = panel.querySelector('button[data-cp-cmd="parry"]');
+  if (parryBtn) {
+    const parryLbl = parryBtn.querySelector('.cp-label');
+    if (player.parry_ready) {
+      parryBtn.classList.add('cp-stance-ready');
+      if (parryLbl) parryLbl.textContent = 'Ready';
+    } else {
+      parryBtn.classList.remove('cp-stance-ready');
+      if (parryLbl) parryLbl.textContent = 'Parry';
+    }
+  }
   const chargeBtn = panel.querySelector('button[data-cp-cmd="charge"]');
-  if (chargeBtn) chargeBtn.disabled = !!player.charge_used_this_combat;
+  if (chargeBtn) {
+    const chargeLbl = chargeBtn.querySelector('.cp-label');
+    if (player.charge_used_this_combat) {
+      chargeBtn.disabled = true;
+      chargeBtn.classList.remove('cp-stance-ready');
+      chargeBtn.classList.add('cp-stance-used');
+      if (chargeLbl) chargeLbl.textContent = '✓ Used';
+    } else if (player.charge_pending) {
+      chargeBtn.disabled = false;
+      chargeBtn.classList.add('cp-stance-ready');
+      chargeBtn.classList.remove('cp-stance-used');
+      if (chargeLbl) chargeLbl.textContent = 'Ready';
+    } else {
+      chargeBtn.disabled = false;
+      chargeBtn.classList.remove('cp-stance-ready');
+      chargeBtn.classList.remove('cp-stance-used');
+      if (chargeLbl) chargeLbl.textContent = 'Charge';
+    }
+  }
   // Use button: disable if there's nothing usable in carried/materials.
   const useBtn = panel.querySelector('button[data-cp-cmd="__use"]');
   if (useBtn) useBtn.disabled = !combatUsableItems().length;
@@ -2873,9 +3021,14 @@ function refreshCombatPanel() {
 
 // Engine v0.65 — Tier G1: list usable items for the combat Use button.
 // Anything food/drink/readable in inventory or materials is fair game.
+// Engine v0.66 — Tier NN1: sort by usefulness mid-combat:
+//   1. Healing food/drink with restore_life > 0, biggest restore first.
+//   2. Other food/drink (no restore — flavor or rot stoppers).
+//   3. Readables.
+// So a panicked tap goes straight to the best heal.
 function combatUsableItems() {
   if (!STORY?.items) return [];
-  const out = [];
+  const candidates = [];
   const seen = new Set();
   function consider(id) {
     if (seen.has(id)) return;
@@ -2884,11 +3037,18 @@ function combatUsableItems() {
     const isFood = it.consumable_action === 'eat' || it.tags?.includes('food');
     const isDrink = it.consumable_action === 'drink' || it.tags?.includes('drink');
     const isReadable = it.read_text || it.readable || it.tags?.includes('readable') || it.tags?.includes('book');
-    if (isFood || isDrink || isReadable) { out.push(id); seen.add(id); }
+    if (!(isFood || isDrink || isReadable)) return;
+    const restore = Number(it.effects?.restore_life) || 0;
+    let bucket = 2;  // readable
+    if ((isFood || isDrink) && restore > 0) bucket = 0;
+    else if (isFood || isDrink) bucket = 1;
+    candidates.push({ id, bucket, restore });
+    seen.add(id);
   }
   for (const i of (player?.inventory || [])) consider(i);
   for (const [k, q] of Object.entries(player?.materials || {})) { if (q > 0) consider(k); }
-  return out;
+  candidates.sort((a, b) => (a.bucket - b.bucket) || (b.restore - a.restore));
+  return candidates.map(c => c.id);
 }
 
 // Engine v0.65 — Tier G1: combat Use sheet.
@@ -2947,6 +3107,131 @@ function showCombatUseSheet() {
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
   document.addEventListener('keydown', onEsc);
 }
+
+// Engine v0.66 — Tier B3: long-press tooltip.
+// Attach to a sidebar item row; if the user holds (touch or mouse) for
+// >500ms without moving more than a few pixels, show a floating tooltip
+// with the item's description / stats and suppress the click. Releasing
+// hides the tooltip. Lets the player inspect inventory without
+// committing to an action sheet. Click still works for taps under the
+// long-press threshold.
+function attachLongPressTooltip(el, itemId) {
+  // v0.67 G2: suppress iOS Safari's tap-and-hold context menu (text-select
+  // popover, magnify-glass) on long-press targets. Without these
+  // properties, holding a row triggers the OS callout, which fights with
+  // our tooltip and steals the press.
+  el.style.webkitUserSelect = 'none';
+  el.style.userSelect = 'none';
+  el.style.webkitTouchCallout = 'none';
+  let timer = null;
+  let startX = 0, startY = 0;
+  let moved = false;
+  let suppressClick = false;
+  let tooltip = null;
+  function showTip(x, y) {
+    const it = STORY?.items?.[itemId];
+    if (!it) return;
+    tooltip = document.createElement('div');
+    tooltip.className = 'tf-longpress-tooltip';
+    const tags = (it.tags || []).slice(0, 4).join(', ');
+    const ef = it.effects || {};
+    const stats = [];
+    if (ef.attack_bonus) stats.push(`+${ef.attack_bonus} atk`);
+    if (ef.life_max_bonus) stats.push(`+${ef.life_max_bonus} life`);
+    if (ef.carry_capacity_bonus) stats.push(`+${ef.carry_capacity_bonus} carry`);
+    if (ef.restore_life) stats.push(`+${ef.restore_life} restore`);
+    if (it.weight) stats.push(`${it.weight} wt`);
+    if (it.slot) stats.push(it.slot + ' slot');
+    tooltip.innerHTML = `
+      <div class="tf-lpt-title">${escapeHtml(t(it.display) || itemId)}</div>
+      ${it.description ? `<div class="tf-lpt-desc">${escapeHtml(t(it.description))}</div>` : ''}
+      ${stats.length ? `<div class="tf-lpt-stats">${stats.join(' · ')}</div>` : ''}
+      ${tags ? `<div class="tf-lpt-tags">${escapeHtml(tags)}</div>` : ''}
+    `;
+    document.body.appendChild(tooltip);
+    // Position: prefer above and to the right of the cursor / touch.
+    const margin = 12;
+    const tw = tooltip.offsetWidth;
+    const th = tooltip.offsetHeight;
+    let left = Math.min(window.innerWidth - tw - margin, x + 12);
+    let top = y - th - 12;
+    if (top < margin) top = y + 18;  // flip below
+    if (left < margin) left = margin;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  }
+  function hideTip() {
+    if (tooltip) { try { tooltip.remove(); } catch {} tooltip = null; }
+  }
+  function onStart(e) {
+    moved = false;
+    suppressClick = false;
+    const p = e.touches?.[0] || e;
+    startX = p.clientX; startY = p.clientY;
+    // v0.67 G2: snappier 400ms threshold (was 500). Still long enough to
+    // distinguish from a tap, short enough to feel responsive.
+    timer = setTimeout(() => {
+      if (moved) return;
+      suppressClick = true;
+      showTip(startX, startY);
+    }, 400);
+  }
+  function onMove(e) {
+    if (!timer) return;
+    const p = e.touches?.[0] || e;
+    if (Math.abs(p.clientX - startX) > 8 || Math.abs(p.clientY - startY) > 8) moved = true;
+  }
+  function onEnd() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    hideTip();
+  }
+  el.addEventListener('pointerdown', onStart);
+  el.addEventListener('pointermove', onMove);
+  el.addEventListener('pointerup', onEnd);
+  el.addEventListener('pointercancel', onEnd);
+  el.addEventListener('pointerleave', onEnd);
+  // Suppress the click that fires after a long-press release.
+  el.addEventListener('click', e => { if (suppressClick) { e.preventDefault(); e.stopImmediatePropagation(); suppressClick = false; } }, true);
+}
+
+// Engine v0.66 — Tier B7: reading mode.
+// Toggle a body class `tf-reading` that hides the sidebar and centers the
+// terminal pane, with a slight font-size bump. Persisted in localStorage
+// so the player's preference survives reloads. Activated via the new
+// `reading` / `focus` command.
+//
+// Engine v0.67 — Tier G3: while reading mode is active, a floating
+// "📖 Exit reading mode" pill appears top-right of the centered pane.
+// Click → toggles off. Closes the "no exit affordance" gap.
+const READING_MODE_KEY = 'taleforge:reading_mode';
+function applyReadingMode(on) {
+  try { document.body.classList.toggle('tf-reading', !!on); } catch {}
+  try { localStorage.setItem(READING_MODE_KEY, on ? '1' : '0'); } catch {}
+  try {
+    let pill = document.getElementById('tf-reading-exit');
+    if (on) {
+      if (!pill) {
+        pill = document.createElement('button');
+        pill.id = 'tf-reading-exit';
+        pill.title = 'Exit reading mode';
+        pill.textContent = '📖 Exit reading';
+        pill.addEventListener('click', () => toggleReadingMode());
+        document.body.appendChild(pill);
+      }
+    } else if (pill) {
+      pill.remove();
+    }
+  } catch {}
+}
+function loadReadingMode() {
+  try { return localStorage.getItem(READING_MODE_KEY) === '1'; } catch { return false; }
+}
+function toggleReadingMode() {
+  const next = !document.body.classList.contains('tf-reading');
+  applyReadingMode(next);
+  write(next ? '📖 Reading mode on. Sidebar hidden, prose centered. Type "reading" again to exit.' : '📖 Reading mode off. Sidebar restored.', 'success');
+}
+applyReadingMode(loadReadingMode());
 
 // Engine v0.65 — Tier P2: trigger a one-shot border flash on the combat
 // panel when the player takes a hit. Called from refreshSidebar's
@@ -3417,6 +3702,8 @@ function refreshSidebar() {
         row.title = 'Tap for actions';
         row.innerHTML = `<span style="color:var(--muted);">${T(slot)}:</span> <span>${itemDisplay(item)}</span>`;
         row.addEventListener('click', () => showItemActionSheet(item, { context: 'equipment', slot }));
+        // v0.66 B3: long-press → tooltip.
+        try { attachLongPressTooltip(row, item); } catch {}
         // Engine v0.62 — Tier N10: flash on newly-equipped slot. We key by
         // slot so re-equipping a different item in the same slot triggers
         // a flash too (the value changed even if the slot stayed populated).
@@ -3635,6 +3922,8 @@ function refreshSidebar() {
         const qtyHtml = n > 1 ? `×${n}` : '';
         row.innerHTML = `<span>${itemDisplay(itemId)}</span><span class="qty">${qtyHtml}</span>`;
         row.addEventListener('click', () => showItemActionSheet(itemId, { context: 'inventory' }));
+        // v0.66 B3: long-press → quick tooltip (no commit).
+        try { attachLongPressTooltip(row, itemId); } catch {}
         if (didIncrease('carried', itemId, n)) row.classList.add('tf-flash-in');
         carriedEl.appendChild(row);
       }
@@ -3659,6 +3948,8 @@ function refreshSidebar() {
     }
     row.innerHTML = `<span>${itemDisplay(item)}</span><span class="qty">${qtyHtml}</span>`;
     row.addEventListener('click', () => showItemActionSheet(item, { context: 'materials' }));
+    // v0.66 B3: long-press → tooltip.
+    try { attachLongPressTooltip(row, item); } catch {}
     if (didIncrease('materials', item, qty)) row.classList.add('tf-flash-in');
     matEl.appendChild(row);
   }
@@ -5995,7 +6286,8 @@ function applyTimeOfDayTint(period) {
 // single discoverable surface (those commands keep working too).
 function showSettingsModal() {
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit;color:#e8e6e3;';
+  // v0.67 G5: safe-area-inset-top for iPhone PWA notch.
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:calc(16px + env(safe-area-inset-top, 0px)) 16px 16px;font-family:inherit;color:#e8e6e3;';
   const panel = document.createElement('div');
   panel.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-radius:8px;max-width:480px;width:100%;max-height:90vh;overflow:auto;padding:22px;';
   const curTheme = loadTheme();
@@ -10689,6 +10981,7 @@ function handleCommand(input) {
     case 'thanks': case 'thank':case 'tip': thanksAuthor(argRaw); consumesTurn = false; break;
     case 'tour': case 'walkthrough': replayTour(); consumesTurn = false; break;
     case 'notifications': case 'notif': showToastHistoryModal(); consumesTurn = false; break;
+    case 'reading': case 'readingmode': case 'focus': toggleReadingMode(); consumesTurn = false; break;
     case 'share':
       // v0.62 N9: `share settings` — copy a deep-link URL with theme + font + lang.
       if ((arg || '').toLowerCase().startsWith('settings') || (arg || '').toLowerCase().startsWith('preferences')) {
