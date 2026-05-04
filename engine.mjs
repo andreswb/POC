@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.67';
+const ENGINE_VERSION_LABEL = 'v0.68';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.68':   'v0.67 surfaced gaps batch: reading-mode exit pill drops below the mobile-header on phones (≤720px) so it doesn\'t overlap the bell + drawer-toggle (NN1). Builder reference dock visibility now also re-evaluates on window resize via a 120ms-debounced listener — the dock hides/shows naturally when dragging the browser window across the 1100px threshold (NN2). Defensive position:relative on every picker cover div so the bottom-fade pseudo-element anchors correctly even on edge-case render paths (NN3). Long-press tooltip placement now measures size after appendChild (force-layout via offsetWidth) so first-show on mobile correctly clamps within the viewport — was reading 0×0 dimensions before. Added a defensive bottom-clamp too (P1). Combat panel "✓ Used" Charge label font-size matched to active state (11px, was 10px) so the button doesn\'t subtly shift when transitioning fresh ↔ used (P2).',
   'v0.67':   'v0.66 surfaced gaps batch: marketplace cards now match the new card-grid storefront style with cover gradients + verified/price/free pills (G1). Long-press tooltip now suppresses iOS Safari\'s tap-and-hold context menu via user-select / -webkit-touch-callout, threshold dropped 500→400ms (G2). Reading mode gets a floating "📖 Exit reading" pill top-right so users can tap their way out (G3). Builder reference dock auto-hides on viewports < 1100px to avoid overlapping the editor (G4) and refreshes on every render() so edits to the pinned entity show live (G6). Picker / age-gate / settings overlays now respect safe-area-inset-top so on iPhone PWA the modal top edge clears the notch (G5). Cover-image picker cards get a bottom-fade gradient overlay for title legibility on bright covers (P1). Combat panel "✓ Used" Charge state gets darker green + bolder font on light theme for contrast (P3).',
   'v0.66':   'iPhone notch fix: mobile header now respects safe-area-inset-top so it clears the camera notch / Dynamic Island. Combat polish: Use sheet sorts by usefulness (NN1) — healing food first, then plain food/drink, then readables. Stance-ready glow on Parry/Charge buttons (NN2) so the player sees "this buff is queued." Charge "✓ Used" label after firing (NN3) instead of plain disabled grey. Picker storefront redesign (S1): card grid with cover images or auto-generated gradients, prominent Continue hero rail, ★ endings badges, currently-playing pill, marketplace section header. Reading mode (B7): `reading` / `focus` command toggles a body class that hides the sidebar, centers prose, bumps font size — narrative-focused view. Long-press tooltip on inventory rows (B3): hold any sidebar item for ≥500ms to see its description / stats / tags inline without committing to the action sheet. Builder split-view via reference dock (A6): "📌 Pin as reference" button on every entity editor opens a floating right-side panel showing that entity\'s read-only summary; persists across tab switches so authors can edit a Room while reading the NPC inside it.',
   'v0.65':   'Combat panel polish + gap-fill: 🧪 Use button (G1) opens a quick item-action sheet listing food / drink / readable items in your pack — closes the "must dismiss to heal" gap. Sidebar combat tracker hidden whenever the panel is up (G2) — no more duplicate HP. Compact mode kicks in below 380px (G3) — glyph-only buttons fit all 7 actions on a single row even on the smallest phones. Enemy HP bar pulses brightness when ratio < 20% (P1) — kill is close. Panel border flashes red + 2px shake when player takes a damaging hit (P2), in sync with the sidebar life-value flash. Victory fade-out animation when the enemy dies (P3) — 400ms slide-down before the panel hides, instead of vanishing instantly. Companion HP echo on the panel (P4) when you fight alongside a tamed wolf. Number-key shortcuts 1–7 (P5) — 1=Attack, 2=Parry, 3=Charge, 4=Retreat, 5=Flee, 6=Use, 7=Recap. Suppressed while typing in the input or any modal.',
@@ -857,15 +858,19 @@ function showStoryPicker(currentId = null) {
         const cover_url = (typeof m.cover_image === 'string' && /^(https?:|data:image\/)/.test(m.cover_image)) ? m.cover_image
           : (typeof m.image === 'string' && /^(https?:|data:image\/)/.test(m.image)) ? m.image
           : null;
+        // v0.68 NN3: explicit position:relative so the bottom-fade
+        // pseudo-element (added in v0.67 P1) anchors correctly even on
+        // edge-case render paths where flex doesn't establish a
+        // positioning context.
         if (cover_url) {
-          cover.style.cssText = `height:${coverHeight}px;background:#0c0e10 url("${cover_url}") center/cover no-repeat;border-bottom:1px solid #2a2724;`;
+          cover.style.cssText = `position:relative;height:${coverHeight}px;background:#0c0e10 url("${cover_url}") center/cover no-repeat;border-bottom:1px solid #2a2724;`;
         } else {
           // Generate a deterministic gradient from the story id so each
           // story has a recognisable color — even without art.
           const seed = String(opt.id || '').split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
           const h1 = Math.abs(seed) % 360;
           const h2 = (h1 + 40) % 360;
-          cover.style.cssText = `height:${coverHeight}px;background:linear-gradient(135deg,hsl(${h1},40%,30%) 0%,hsl(${h2},35%,18%) 100%);border-bottom:1px solid #2a2724;display:flex;align-items:center;justify-content:center;font-size:38px;color:rgba(255,255,255,0.45);font-weight:700;letter-spacing:0.05em;`;
+          cover.style.cssText = `position:relative;height:${coverHeight}px;background:linear-gradient(135deg,hsl(${h1},40%,30%) 0%,hsl(${h2},35%,18%) 100%);border-bottom:1px solid #2a2724;display:flex;align-items:center;justify-content:center;font-size:38px;color:rgba(255,255,255,0.45);font-weight:700;letter-spacing:0.05em;`;
           // Glyph fallback: first letter of title.
           const title0 = ((typeof m.title === 'string') ? m.title : (m.title?.en || opt.id || '?'))[0] || '?';
           cover.textContent = title0.toUpperCase();
@@ -976,7 +981,7 @@ function showStoryPicker(currentId = null) {
           const seed = String(li.id || '').split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
           const h1 = Math.abs(seed) % 360;
           const h2 = (h1 + 40) % 360;
-          cover.style.cssText = `position:relative;height:110px;background:linear-gradient(135deg,hsl(${h1},38%,28%) 0%,hsl(${h2},33%,16%) 100%);border-bottom:1px solid #2a2724;display:flex;align-items:center;justify-content:center;font-size:38px;color:rgba(255,255,255,0.45);font-weight:700;letter-spacing:0.05em;`;
+          cover.style.cssText = `position:relative;height:110px;background:linear-gradient(135deg,hsl(${h1},38%,28%) 0%,hsl(${h2},33%,16%) 100%);border-bottom:1px solid #2a2724;display:flex;align-items:center;justify-content:center;font-size:38px;color:rgba(255,255,255,0.45);font-weight:700;letter-spacing:0.05em;`;  /* v0.68 NN3 */
           const title0 = (li.title || li.id || '?')[0] || '?';
           cover.textContent = title0.toUpperCase();
           // v0.67 P1: bottom fade for legibility — unused here since the
@@ -3148,15 +3153,26 @@ function attachLongPressTooltip(el, itemId) {
       ${stats.length ? `<div class="tf-lpt-stats">${stats.join(' · ')}</div>` : ''}
       ${tags ? `<div class="tf-lpt-tags">${escapeHtml(tags)}</div>` : ''}
     `;
+    // v0.68 P1: position the tooltip off-screen first so its size can
+    // be measured, then reposition. Without this, on first show the
+    // offsetWidth/Height read 0 (layout hasn't run yet for the just-
+    // appended node) and the clamp math overflows the viewport on
+    // small phones.
+    tooltip.style.left = '-9999px';
+    tooltip.style.top = '-9999px';
     document.body.appendChild(tooltip);
-    // Position: prefer above and to the right of the cursor / touch.
+    // Force layout, then measure.
+    void tooltip.offsetWidth;
     const margin = 12;
-    const tw = tooltip.offsetWidth;
-    const th = tooltip.offsetHeight;
+    const tw = Math.max(120, tooltip.offsetWidth);
+    const th = Math.max(40,  tooltip.offsetHeight);
     let left = Math.min(window.innerWidth - tw - margin, x + 12);
     let top = y - th - 12;
     if (top < margin) top = y + 18;  // flip below
     if (left < margin) left = margin;
+    // Defensive bottom clamp — if the tooltip would still overflow
+    // (very small viewport), pin it to the bottom safe-area.
+    if (top + th > window.innerHeight - margin) top = window.innerHeight - th - margin;
     tooltip.style.left = left + 'px';
     tooltip.style.top = top + 'px';
   }

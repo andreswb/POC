@@ -372,7 +372,9 @@
   .tf-longpress-tooltip .tf-lpt-tags  { color: #9c9388; font-style: italic; font-size: 11px; margin-top: 4px; }
   /* Engine v0.67 — Tier G3: reading-mode exit pill.
      Floating button in the top-right of the centered terminal that lets
-     the player tap their way out of reading mode without typing. */
+     the player tap their way out of reading mode without typing.
+     v0.68 NN1: on phones (≤720px), drop below the mobile-header bell
+     so the pill doesn't overlap the bell + drawer-toggle. */
   #tf-reading-exit {
     position: fixed;
     top: calc(12px + env(safe-area-inset-top, 0px));
@@ -391,6 +393,11 @@
     transition: background 120ms, transform 120ms;
   }
   #tf-reading-exit:hover { background: var(--accent, #c79b3a); color: #1a1408; transform: translateY(-1px); }
+  @media (max-width: 720px) {
+    /* Mobile-header is ~48px tall (8px padding + 32px content). Add a
+       little extra so the pill sits clearly below it. */
+    #tf-reading-exit { top: calc(60px + env(safe-area-inset-top, 0px)); }
+  }
   /* Engine v0.67 — Tier G5: safe-area-inset-top for full-page overlays
      (picker, settings, age-gate, etc.). Without this, on iPhone PWA the
      overlay top edge tucks under the camera notch / Dynamic Island. We
@@ -460,7 +467,10 @@
   #combat-panel .cp-buttons button.cp-stance-used .cp-label {
     color: #6dc28d;
     opacity: 0.85;
-    font-size: 10px;
+    /* v0.68 P2: match the active button font-size (11px) so the button
+       doesn't subtly shift vertical alignment when transitioning from
+       used → fresh in the next combat. Was 10px which broke alignment. */
+    font-size: 11px;
     font-weight: 700;
   }
   /* Light-theme override: darker green for contrast on a pale background. */
