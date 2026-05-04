@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.68.1';
+const ENGINE_VERSION_LABEL = 'v0.69';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.69':   'Two real bugs reported during playtest, both fixed. (1) Capacity overflow when capacity drops: selling a leather pack (or any item with carry_capacity_bonus), transforming to wolf/bat (capacity halved), or unwearing a pack used to leave the player carrying over the new ceiling indefinitely. New `dropOverflowToRoom(reason)` helper now drops heaviest items (inventory first, then materials) to the current room until back under capacity, with a clear "⚠ Too heavy! …you drop X, Y" message. Wired into `sell`, `transform`, and `unwear`. (2) Trap set/place was missing — items tagged "trap" (snare, bone_trap) had descriptions saying "ready to be sold or set" but no `set` command existed. Now: `set <trap>` (alias `place <trap>`) places a trap from inventory into the current room\'s spawn_table area; the trap settles for 8 turns, then each visit rolls a 45% catch chance against the room\'s spawn_table. On catch, the player gains the entity\'s base_drops + skinning + rare drops (with overflow handling), kill stats fire, quest progress increments, the trap is consumed. New `traps` command lists active traps with settle status. State persisted in save / restored on load.',
   'v0.68.1': 'Final pre-pause cleanup. Z1: categorized help modal was missing three recently-added commands — `reading` / `focus` (Preferences), `tour` / `walkthrough` (Preferences), `notifications` / `notif` (Feedback & updates). All three now listed so the help modal no longer lies about what commands exist. Z2: builder reference dock no longer hardcodes top:80px — measures the actual header.bottom at render time and places the dock just below it (with a 80px floor). Fixes the edge case where the header toolbar wraps to two rows on narrow desktops, growing past 80px and leaving the dock overlapping the bottom row of toolbar buttons. The dev pause is now declared.',
   'v0.68':   'v0.67 surfaced gaps batch: reading-mode exit pill drops below the mobile-header on phones (≤720px) so it doesn\'t overlap the bell + drawer-toggle (NN1). Builder reference dock visibility now also re-evaluates on window resize via a 120ms-debounced listener — the dock hides/shows naturally when dragging the browser window across the 1100px threshold (NN2). Defensive position:relative on every picker cover div so the bottom-fade pseudo-element anchors correctly even on edge-case render paths (NN3). Long-press tooltip placement now measures size after appendChild (force-layout via offsetWidth) so first-show on mobile correctly clamps within the viewport — was reading 0×0 dimensions before. Added a defensive bottom-clamp too (P1). Combat panel "✓ Used" Charge label font-size matched to active state (11px, was 10px) so the button doesn\'t subtly shift when transitioning fresh ↔ used (P2).',
   'v0.67':   'v0.66 surfaced gaps batch: marketplace cards now match the new card-grid storefront style with cover gradients + verified/price/free pills (G1). Long-press tooltip now suppresses iOS Safari\'s tap-and-hold context menu via user-select / -webkit-touch-callout, threshold dropped 500→400ms (G2). Reading mode gets a floating "📖 Exit reading" pill top-right so users can tap their way out (G3). Builder reference dock auto-hides on viewports < 1100px to avoid overlapping the editor (G4) and refreshes on every render() so edits to the pinned entity show live (G6). Picker / age-gate / settings overlays now respect safe-area-inset-top so on iPhone PWA the modal top edge clears the notch (G5). Cover-image picker cards get a bottom-fade gradient overlay for title legibility on bright covers (P1). Combat panel "✓ Used" Charge state gets darker green + bolder font on light theme for contrast (P3).',
@@ -2070,6 +2071,7 @@ const player = {
   combat_target: null,
   turn: 0,
   chests: new Map(),
+  set_traps: new Map(),  // v0.69 — traps the player has set in rooms (key: roomId, value: [{item_id, set_at_turn, spawn_snapshot}]).
   equipment: {},
   visited: new Set([STORY.meta.starting_location]),
   quests: {},
@@ -2529,6 +2531,8 @@ function serializeState() {
     riddles_solved: [...player.riddles_solved],
     fires: [...player.fires],
     chests: [...player.chests].map(([k, v]) => [k, { items: [...v.items], materials: { ...v.materials } }]),
+    // v0.69 — persist set traps so they survive reload.
+    set_traps: player.set_traps instanceof Map ? [...player.set_traps] : Object.entries(player.set_traps || {}),
     equipment: { ...player.equipment },
     visited: [...player.visited],
     quests: Object.fromEntries(Object.entries(player.quests).map(([k, v]) => [k, { state: v.state, kills: { ...v.kills }, visited: [...v.visited] }])),
@@ -2585,6 +2589,8 @@ function applyState(s) {
   player.riddles_solved = new Set(s.riddles_solved || []);
   player.fires = new Map(s.fires || []);
   player.chests = new Map(s.chests || []);
+  // v0.69 — restore set traps from save.
+  player.set_traps = new Map(s.set_traps || []);
   player.equipment = { ...(s.equipment || {}) };
   player.visited = new Set(s.visited || [player.location]);
   player.quests = {};
@@ -4027,6 +4033,233 @@ function computeMaxLife() {
 function canCarry(itemId, qty = 1) {
   const w = (STORY.items[itemId]?.weight ?? 1) * qty;
   return computeWeight() + w <= computeMaxCapacity();
+}
+
+// Engine v0.69 — Tier bug fix: when carry capacity decreases (selling a
+// pack with carry_capacity_bonus, transforming to wolf/bat which halves
+// capacity), any items over the new ceiling drop to the current room
+// rather than staying in inventory at over-capacity. Mirrors the existing
+// kill-loot overflow behaviour but for any source of capacity loss.
+//
+// Drop policy: heaviest items first (minimises items-dropped count).
+// Inventory items first, then materials. Equipped items are never dropped
+// (the player chose to wear them; they're "spent" against capacity).
+// Engine v0.69 — Tier bug fix: trap set / catch mechanic.
+// Items tagged "trap" (snare, bone_trap, etc.) had descriptions saying
+// "ready to be sold or set" but no `set` command existed. Now:
+//
+//   set <trap>     — place a trap from inventory into the current room
+//   place <trap>   — alias of `set <trap>`
+//   traps          — list every active trap on this character
+//
+// A trap "settles" for TRAP_SETTLE_TURNS (8) before it can catch
+// anything. After that, every visit to the trap's room rolls a chance
+// (TRAP_CATCH_CHANCE) to catch an entity from the room's spawn_table.
+// On catch: the trap is consumed, the player gains the entity's
+// base_drops (with overflow handled), kill stats / quest progress fire
+// as if the player hunted the entity normally.
+const TRAP_SETTLE_TURNS = 8;
+const TRAP_CATCH_CHANCE = 0.45;
+function getActiveTraps() {
+  if (!(player.set_traps instanceof Map)) player.set_traps = new Map(Object.entries(player.set_traps || {}));
+  return player.set_traps;
+}
+function setTrap(arg) {
+  if (combatBlock('set')) return;
+  if (transformBlock('set')) return;
+  if (!arg || !String(arg).trim()) {
+    write('Set what? Usage: set <trap>. (Craft snares or bone traps via the Trapping skill, then set them in rooms with huntable creatures.)', 'error');
+    return;
+  }
+  const idx = findItemIn(player.inventory, String(arg).trim());
+  if (idx === -1) {
+    // Allow "set <materialId>" too in case the player typed a stackable
+    // (snares are not stackable in the bundled stories, but bone traps
+    // could become so in custom content).
+    const matKey = findMaterialKey(String(arg).trim());
+    if (!matKey || !STORY.items[matKey]?.tags?.includes('trap')) {
+      write(`You don't have "${arg}" — or it isn't a trap.`, 'error');
+      return;
+    }
+    return placeTrapFromMaterials(matKey);
+  }
+  const itemId = player.inventory[idx];
+  const it = STORY.items[itemId];
+  if (!it.tags?.includes('trap')) { write(`${itemDisplay(itemId, true)} isn't a trap.`, 'error'); return; }
+  const room = player.rooms[player.location];
+  if (!room.spawn_table || room.spawn_table.length === 0) {
+    write(`Nothing to trap here. Set traps in rooms with creature tracks (try "look" — you\'ll see "Tracks suggest…").`, 'error');
+    return;
+  }
+  player.inventory.splice(idx, 1);
+  const traps = getActiveTraps();
+  if (!traps.has(player.location)) traps.set(player.location, []);
+  traps.get(player.location).push({
+    item_id: itemId,
+    set_at_turn: player.turn,
+    spawn_snapshot: room.spawn_table.map(e => ({ entity: e.entity, weight: e.weight || 1 }))
+  });
+  write(`You set ${itemDisplay(itemId, true)} carefully, hidden in the brush. Come back in ${TRAP_SETTLE_TURNS}+ turns to check it.`, 'success');
+  publishAction('trap_set', { item: itemId, room: player.location });
+  try { saveLocal(); } catch {}
+}
+function placeTrapFromMaterials(matKey) {
+  const room = player.rooms[player.location];
+  if (!room.spawn_table || room.spawn_table.length === 0) {
+    write(`Nothing to trap here.`, 'error');
+    return;
+  }
+  player.materials[matKey] = (player.materials[matKey] || 0) - 1;
+  const traps = getActiveTraps();
+  if (!traps.has(player.location)) traps.set(player.location, []);
+  traps.get(player.location).push({
+    item_id: matKey,
+    set_at_turn: player.turn,
+    spawn_snapshot: room.spawn_table.map(e => ({ entity: e.entity, weight: e.weight || 1 }))
+  });
+  write(`You set ${itemDisplay(matKey, true)} in the brush. Come back in ${TRAP_SETTLE_TURNS}+ turns to check it.`, 'success');
+  publishAction('trap_set', { item: matKey, room: player.location });
+  try { saveLocal(); } catch {}
+}
+function checkTrapsHere() {
+  const traps = getActiveTraps();
+  const here = traps.get(player.location);
+  if (!here || here.length === 0) return;
+  const remaining = [];
+  for (const t of here) {
+    const elapsed = player.turn - t.set_at_turn;
+    if (elapsed < TRAP_SETTLE_TURNS) {
+      remaining.push(t);
+      continue;
+    }
+    if (Math.random() < TRAP_CATCH_CHANCE) {
+      // Pick an entity from the snapshot.
+      const total = t.spawn_snapshot.reduce((s, e) => s + (e.weight || 1), 0);
+      let r = Math.random() * total;
+      let picked = t.spawn_snapshot[0];
+      for (const e of t.spawn_snapshot) {
+        r -= (e.weight || 1);
+        if (r <= 0) { picked = e; break; }
+      }
+      const ent = STORY.entities[picked.entity];
+      if (ent) {
+        write('');
+        write(`>>> Your ${itemDisplay(t.item_id)} caught a ${ent.display}!`, 'success');
+        // Award the base drops + skinning if known.
+        const allDrops = [...(ent.base_drops || [])];
+        if (player.skills.has('skinning')) allDrops.push(...(ent.skinning_drops || []));
+        for (const rd of (ent.rare_drops || [])) {
+          if (Math.random() < (rd.chance || 0)) allDrops.push({ item: rd.item, qty: rd.qty });
+        }
+        const got = [], left = [];
+        for (const d of allDrops) {
+          if (canCarry(d.item, d.qty)) { addItem(d.item, d.qty); got.push(`${d.qty} ${itemDisplay(d.item)}`); }
+          else left.push(`${d.qty} ${itemDisplay(d.item)}`);
+        }
+        if (got.length) write(`You gain: ${got.join(', ')}.`, 'success');
+        if (left.length) {
+          // Drop overflow into the room.
+          if (!player.rooms[player.location].items) player.rooms[player.location].items = [];
+          for (const d of allDrops) {
+            if (left.find(s => s.includes(itemDisplay(d.item)))) {
+              for (let i = 0; i < d.qty; i++) player.rooms[player.location].items.push(d.item);
+            }
+          }
+          write(`Too heavy to carry: ${left.join(', ')} — left here as a drop. Use "take" to retrieve.`, 'system');
+        }
+        // Kill stats + quest progress, like a normal hunt.
+        player.stats.kills[picked.entity] = (player.stats.kills[picked.entity] || 0) + 1;
+        for (const ps of Object.values(player.quests)) {
+          if (ps.state === 'active') ps.kills[picked.entity] = (ps.kills[picked.entity] || 0) + 1;
+        }
+        try { fireEvents('on_kill', { entity: picked.entity }); } catch {}
+        try { gainRenown('hunt'); } catch {}
+        try { checkAchievements(); } catch {}
+        publishAction('trap_catch', { item: t.item_id, entity: picked.entity, room: player.location });
+        // Trap consumed.
+      } else {
+        // Entity missing from STORY — keep the trap.
+        remaining.push(t);
+      }
+    } else {
+      // Empty — keep the trap.
+      remaining.push(t);
+    }
+  }
+  if (remaining.length === 0) traps.delete(player.location);
+  else traps.set(player.location, remaining);
+  try { saveLocal(); } catch {}
+}
+function showTraps() {
+  const traps = getActiveTraps();
+  let total = 0;
+  for (const list of traps.values()) total += list.length;
+  if (total === 0) { write('You have no traps set.', 'system'); return; }
+  writeBlock('=== Active traps ===', () => {
+    for (const [roomId, list] of traps.entries()) {
+      const r = player.rooms[roomId];
+      const name = r ? (typeof r.name === 'string' ? r.name : (r.name?.en || roomId)) : roomId;
+      write(`  ${name}:`, 'system');
+      for (const t of list) {
+        const elapsed = player.turn - t.set_at_turn;
+        const settled = elapsed >= TRAP_SETTLE_TURNS;
+        write(`    · ${itemDisplay(t.item_id)}  ${settled ? '✓ ready' : `${TRAP_SETTLE_TURNS - elapsed} turn${TRAP_SETTLE_TURNS - elapsed === 1 ? '' : 's'} to settle`}`, settled ? 'success' : 'echo');
+      }
+    }
+    write('');
+    write(`Visit a settled trap's room to check for a catch.`, 'echo');
+  }, '── end of traps ──');
+}
+
+function dropOverflowToRoom(reason) {
+  let weight = computeWeight();
+  let capacity = computeMaxCapacity();
+  if (weight <= capacity) return [];
+  const room = player.rooms[player.location];
+  if (!room.items) room.items = [];
+  const dropped = [];
+  // Phase 1: drop unique inventory items, heaviest first.
+  const invSorted = [...new Set(player.inventory)]
+    .map(id => ({ id, weight: STORY.items[id]?.weight ?? 1 }))
+    .sort((a, b) => b.weight - a.weight);
+  for (const { id } of invSorted) {
+    while (weight > capacity) {
+      const i = player.inventory.indexOf(id);
+      if (i === -1) break;
+      player.inventory.splice(i, 1);
+      room.items.push(id);
+      dropped.push(id);
+      weight = computeWeight();
+    }
+    if (weight <= capacity) break;
+  }
+  // Phase 2: drop stackable materials, heaviest first.
+  if (weight > capacity) {
+    const matSorted = Object.entries(player.materials || {})
+      .filter(([, q]) => q > 0)
+      .map(([id]) => ({ id, weight: STORY.items[id]?.weight ?? 1 }))
+      .sort((a, b) => b.weight - a.weight);
+    for (const { id } of matSorted) {
+      while (weight > capacity && (player.materials[id] || 0) > 0) {
+        player.materials[id]--;
+        room.items.push(id);
+        dropped.push(id);
+        weight = computeWeight();
+      }
+      if (weight <= capacity) break;
+    }
+  }
+  if (dropped.length > 0) {
+    const counts = new Map();
+    for (const id of dropped) counts.set(id, (counts.get(id) || 0) + 1);
+    const labels = [];
+    for (const [id, n] of counts) labels.push(n > 1 ? `${n}× ${itemDisplay(id)}` : itemDisplay(id, true));
+    write('');
+    write(`⚠ Too heavy! ${reason || 'Capacity dropped'}. You drop ${labels.join(', ')} on the ground.`, 'error');
+    write(`(Carry: ${Math.round(weight * 10) / 10}/${capacity}. Use "take <item>" to retrieve.)`, 'system');
+    try { saveLocal(); } catch {}
+  }
+  return dropped;
 }
 
 function uuid() {
@@ -5605,6 +5838,7 @@ function restartCurrentStory() {
   player.riddles_solved = new Set();
   player.fires = new Map();
   player.chests = new Map();
+  player.set_traps = new Map();  // v0.69 — restart / new char wipes set traps.
   player.quests = {};
   player.edges = new Map();
   player.flags = new Set();
@@ -5776,6 +6010,8 @@ function describeRoom() {
   for (const n of notices.values()) if (n.roomId === player.location) noticeCount++;
   if (noticeCount > 0) write(T('A bulletin board holds {0} note{1}. Use "notices".', noticeCount, noticeCount === 1 ? '' : 's'), 'system');
   describeCarvingsHere();
+  // v0.69 — Tier bug fix: check any traps the player set here for catches.
+  try { checkTrapsHere(); } catch (e) { console.warn('checkTrapsHere failed:', e); }
   const activeCombatsHere = freshCombatsForRoom(player.location,  true);
   if (activeCombatsHere.length) {
     for (const s of activeCombatsHere) {
@@ -7487,6 +7723,13 @@ function unwear(arg) {
   player.inventory.push(itemId);
   write(`You take off ${itemDisplay(itemId, true)}.`, 'success');
   publishAction('unwear', { item: itemId, slot });
+  // v0.69 bug fix: if the unwearen item gave a carry_capacity_bonus
+  // (e.g. a pack), removing it might push the player over the new
+  // capacity. Drop overflow to the room.
+  try {
+    const ef = STORY.items[itemId]?.effects || {};
+    if (ef.carry_capacity_bonus) dropOverflowToRoom('Removed a pack — capacity dropped');
+  } catch {}
 }
 
 function paperDollLine(slot, item, width) {
@@ -8832,6 +9075,9 @@ function transformCommand(formArg) {
     write('(While transformed: +20% attack, blood you draw heals you, +20% evasion, carry halved, NPCs flee. Dawn forces you back.)', 'system');
   }
   publishAction('transform', { form });
+  // v0.69 bug fix: transforming halves carry capacity. Drop any overflow
+  // to the room rather than silently over-carrying.
+  try { dropOverflowToRoom(`Shifted to ${form} form — capacity halved`); } catch {}
   refreshSidebar();
 }
 function revertCommand() {
@@ -9321,6 +9567,7 @@ function newCharacter() {
   player.riddles_solved = new Set();
   player.fires = new Map();
   player.chests = new Map();
+  player.set_traps = new Map();  // v0.69 — restart / new char wipes set traps.
   player.quests = {};
   player.edges = new Map();
   player.flags = new Set();
@@ -9703,6 +9950,12 @@ async function sell(args) {
   if (stars > 0 && markup > 0) gainRenown('sale');
   if (sold === 1) write(`${STORY.npcs[buyer].display} takes ${itemDisplay(itemId, true)} for ${adjusted} gold${stars ? ` (${total} + ${Math.floor(markup)} reputation)` : ''}.`, 'success');
   else write(`${STORY.npcs[buyer].display} takes ${sold}× ${itemDisplay(itemId)} for ${adjusted} gold (${value} each${stars ? `, +${Math.floor(markup)} reputation` : ''}).`, 'success');
+  // v0.69 bug fix: if the sold item carried a carry_capacity_bonus (e.g.,
+  // leather pack, bandolier), the player's capacity just dropped. Any
+  // overflow items must drop now or the inventory is silently
+  // over-capacity until the next refreshSidebar diff (which doesn't
+  // resolve it either). dropOverflowToRoom is a no-op when not over.
+  try { dropOverflowToRoom('Sold a pack — capacity dropped'); } catch {}
 }
 
 function showListings() {
@@ -11073,7 +11326,20 @@ function handleCommand(input) {
     case 'relay': case 'relays': relayCommand(argRaw); consumesTurn = false; break;
     case 'lang': case 'language': langCommand(argRaw); consumesTurn = false; break;
     case 'stories':              listStoriesCommand(); consumesTurn = false; break;
-    case 'place':                if (arg === 'chest') placeChest(); else write('Place what? Try "place chest".', 'error'); break;
+    case 'set':                  setTrap(argRaw); break;
+    case 'place':
+      if (arg === 'chest') { placeChest(); break; }
+      // v0.69 bug fix: `place <trap>` is an alias for `set <trap>` so
+      // players who type "place snare" naturally get the same behaviour.
+      if (arg) {
+        const idx2 = findItemIn(player.inventory, arg);
+        if (idx2 !== -1 && STORY.items[player.inventory[idx2]]?.tags?.includes('trap')) {
+          setTrap(argRaw); break;
+        }
+      }
+      write('Place what? Try "place chest" or "place <trap>".', 'error');
+      break;
+    case 'traps':                showTraps(); consumesTurn = false; break;
     case 'chest':                showChest(); consumesTurn = false; break;
     case 'store':                storeItem(argRaw); break;
     case 'retrieve': case 'unstore': retrieveItem(argRaw); break;
