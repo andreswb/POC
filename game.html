@@ -193,6 +193,170 @@
     padding: 0 4px;
     margin: 0 -4px;
   }
+  /* Engine v0.64 — Tier S3: combat panel.
+     Sits between #output and #prompt-row when active. Two rows:
+     1) portrait + name + HP bar
+     2) tappable action buttons (Attack / Parry / Charge / Retreat / Flee / Recap)
+     Hidden by default; engine toggles display:flex on combat enter / exit. */
+  #combat-panel {
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px) * 0);
+    background: linear-gradient(to bottom, rgba(40, 16, 16, 0.85), rgba(26, 24, 21, 0.85));
+    border-top: 1px solid rgba(224, 122, 122, 0.45);
+    border-bottom: 1px solid rgba(224, 122, 122, 0.20);
+    box-shadow: 0 -2px 12px rgba(224, 122, 122, 0.12);
+    color: var(--text);
+    font-size: 13px;
+    animation: tf-combat-in 200ms ease-out;
+  }
+  @keyframes tf-combat-in {
+    from { transform: translateY(8px); opacity: 0; }
+    to   { transform: translateY(0);   opacity: 1; }
+  }
+  #combat-panel .cp-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  #combat-panel .cp-portrait {
+    width: 44px; height: 44px;
+    border-radius: 6px;
+    background: #0c0e10;
+    border: 2px solid rgba(224, 122, 122, 0.55);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; line-height: 1;
+    overflow: hidden;
+  }
+  #combat-panel .cp-portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #combat-panel .cp-info { flex: 1; min-width: 0; }
+  #combat-panel .cp-name {
+    color: #e07a7a;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  #combat-panel .cp-name .cp-hp { color: var(--accent, #c79b3a); font-family: ui-monospace, monospace; font-size: 12px; font-weight: 500; }
+  #combat-panel .cp-bar {
+    height: 8px;
+    background: #1a1410;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  #combat-panel .cp-bar-fill {
+    height: 100%;
+    background: linear-gradient(to right, #6dc28d, #c79b3a 50%, #e07a7a 80%);
+    transition: width 250ms ease-out, background 250ms ease-out;
+  }
+  #combat-panel .cp-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  #combat-panel .cp-buttons button {
+    flex: 1;
+    min-width: 64px;
+    padding: 8px 6px;
+    background: #2a1d1c;
+    color: var(--text);
+    border: 1px solid #4a2a28;
+    border-radius: 4px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, transform 80ms;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    line-height: 1.15;
+  }
+  #combat-panel .cp-buttons button:hover {
+    background: #3a2826;
+    border-color: #e07a7a;
+  }
+  #combat-panel .cp-buttons button:active { transform: scale(0.97); }
+  #combat-panel .cp-buttons button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: #1a1410;
+  }
+  #combat-panel .cp-buttons button.cp-primary {
+    background: linear-gradient(to bottom, #c0524e, #8a3a36);
+    color: #fff;
+    border-color: #d06a66;
+  }
+  #combat-panel .cp-buttons button.cp-primary:hover { background: linear-gradient(to bottom, #d06a66, #a04844); }
+  #combat-panel .cp-buttons button.cp-flee {
+    background: #1a1815;
+    color: #9c9388;
+    border-color: #3a352e;
+  }
+  #combat-panel .cp-buttons button.cp-flee:hover { color: #e0a890; border-color: #c08070; }
+  #combat-panel .cp-buttons .cp-glyph { font-size: 14px; }
+  #combat-panel .cp-buttons .cp-label { font-size: 11px; letter-spacing: 0.02em; }
+  /* Mobile: tighten spacing slightly. */
+  @media (max-width: 720px) {
+    #combat-panel { padding: 8px 10px; }
+    #combat-panel .cp-buttons button { min-width: 48px; padding: 7px 3px; }
+    #combat-panel .cp-buttons .cp-label { font-size: 10px; }
+  }
+  /* Engine v0.65 — Tier G3: ultra-compact mode for narrow phones.
+     Hides labels (glyphs only) so all 7 buttons fit on one row even at
+     320px. Activated via JS class toggle when window.innerWidth ≤ 380. */
+  #combat-panel.cp-compact .cp-buttons button {
+    min-width: 36px;
+    padding: 8px 2px;
+    flex-direction: row;
+    gap: 0;
+  }
+  #combat-panel.cp-compact .cp-buttons .cp-label { display: none; }
+  #combat-panel.cp-compact .cp-buttons .cp-glyph { font-size: 16px; }
+  #combat-panel.cp-compact { padding: 6px 8px; gap: 6px; }
+  #combat-panel.cp-compact .cp-portrait { width: 36px; height: 36px; }
+  /* Engine v0.65 — Tier P1: low-HP enemy bar pulse. Persistent animation
+     when enemy ratio < 20%. Tells the player "one more hit might do it." */
+  @keyframes cp-bar-low {
+    0%, 100% { filter: brightness(1.0); }
+    50%      { filter: brightness(1.45); }
+  }
+  #combat-panel .cp-bar-fill.cp-bar-low {
+    animation: cp-bar-low 0.9s ease-in-out infinite;
+  }
+  /* Engine v0.65 — Tier P2: damage flash on the panel border. One-shot,
+     ~700ms. Fired by flashCombatPanelHit() in sync with the life-value
+     red flash on the sidebar. */
+  @keyframes cp-hit-flash {
+    0%   { box-shadow: 0 -2px 12px rgba(224, 122, 122, 0.85), 0 0 0 2px rgba(224, 122, 122, 0.55) inset; transform: translateX(-2px); }
+    25%  { transform: translateX(2px); }
+    50%  { box-shadow: 0 -2px 12px rgba(224, 122, 122, 0.55), 0 0 0 2px rgba(224, 122, 122, 0.30) inset; transform: translateX(-1px); }
+    75%  { transform: translateX(1px); }
+    100% { box-shadow: 0 -2px 12px rgba(224, 122, 122, 0.12); transform: translateX(0); }
+  }
+  #combat-panel.cp-hit-flash {
+    animation: cp-hit-flash 700ms ease-out;
+  }
+  /* Engine v0.65 — Tier P3: victory fade-out. Plays for ~400ms when the
+     enemy dies; the panel fades + slides down before being hidden. */
+  @keyframes cp-victory {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(8px); }
+  }
+  #combat-panel.cp-victory {
+    animation: cp-victory 400ms ease-out forwards;
+    pointer-events: none;
+  }
+  /* Engine v0.65 — Tier P4: companion HP echo on the panel. Tucked to
+     the right of the status row, after the enemy info. */
+  #combat-panel .cp-companion {
+    flex-shrink: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 8px;
+    border-left: 1px solid #3a352e;
+    margin-left: 6px;
+  }
+  #combat-panel .cp-companion .cp-comp-glyph { font-size: 18px; line-height: 1; }
+  #combat-panel .cp-companion .cp-comp-hp { font-size: 11px; font-family: ui-monospace, monospace; font-weight: 600; }
   /* Engine v0.59 — Tier B2: notification panel slide-in. */
   @keyframes tf-slide-right {
     from { transform: translateX(20%); opacity: 0; }
@@ -539,6 +703,11 @@
     <div id="output"><div id="boot-loading" style="color:var(--muted);padding:14px;font-size:13px;">
       <span id="boot-loading-text" style="display:inline-block;animation:tf-pulse 1.4s ease-in-out infinite;">Loading worlds…</span>
     </div></div>
+    <!-- Engine v0.64 — Tier S3: combat panel. Pinned between #output and
+         #prompt-row whenever player.combat_target is set. Shows enemy
+         portrait + HP bar + tappable action buttons (Attack / Parry /
+         Charge / Retreat / Flee / Recap). Hidden by default. -->
+    <div id="combat-panel" role="region" aria-label="Combat" style="display:none;"></div>
     <div id="prompt-row">
       <span class="prompt">&gt;</span>
       <input id="cmd" type="text" name="cmd"

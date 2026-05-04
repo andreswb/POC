@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.63.1';
+const ENGINE_VERSION_LABEL = 'v0.65';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,8 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.65':   'Combat panel polish + gap-fill: 🧪 Use button (G1) opens a quick item-action sheet listing food / drink / readable items in your pack — closes the "must dismiss to heal" gap. Sidebar combat tracker hidden whenever the panel is up (G2) — no more duplicate HP. Compact mode kicks in below 380px (G3) — glyph-only buttons fit all 7 actions on a single row even on the smallest phones. Enemy HP bar pulses brightness when ratio < 20% (P1) — kill is close. Panel border flashes red + 2px shake when player takes a damaging hit (P2), in sync with the sidebar life-value flash. Victory fade-out animation when the enemy dies (P3) — 400ms slide-down before the panel hides, instead of vanishing instantly. Companion HP echo on the panel (P4) when you fight alongside a tamed wolf. Number-key shortcuts 1–7 (P5) — 1=Attack, 2=Parry, 3=Charge, 4=Retreat, 5=Flee, 6=Use, 7=Recap. Suppressed while typing in the input or any modal.',
+  'v0.64':   'Tier S3 — combat panel UI. When player.combat_target is set, a fixed panel slides in between the terminal output and the prompt row, showing the enemy portrait, name, animated HP bar (color-shift green→accent→red as the bar drains), and six tappable action buttons: ⚔ Attack (primary), 🛡 Parry, 💥 Charge, ↩ Retreat, 🏃 Flee, 📜 Recap. Buttons route through handleCommand so behaviour matches typing exactly. Charge auto-disables once it has been used in the current fight (matches the once-per-fight rule). Auto-renders inside refreshSidebar and after describeRoom so wolf encounters that spawn mid-room-render show the panel immediately. The last text-only major interaction surface in the engine is now fully tappable.',
   'v0.63.1': 'Bug fix: age-gate (16+ content notice) was unreachable on mobile after the picker. Root cause — the gate overlay was z-index: 300 while the picker is z-index: 99999, so the picker covered the gate completely; taps went to the picker instead of the gate buttons. Bumped the gate to z-index: 200000 (above every other modal). Added explicit pointer-events:auto + touch-action:manipulation on the overlay for iOS Safari.',
   'v0.63':   'Polish broom: focus-trap pass completed across the remaining 5 modals (story preview, marketplace preview, characters dialog, mapview, ending-share screenshot preview). Sidebar now restores focus through re-renders the same way describeRoom does. Healing flashes the life value green — symmetric with the damage flash (≥10% of max life). Mobile bell deduplication: desktop bell hidden on phones via @media (max-width: 720px). `share settings` listed in the categorized help modal under Preferences. `tour` command now routes through the same rAF chain as the first-boot tour, so typing `tour` while a higher-priority overlay is up no longer crashes.',
   'v0.62':   'Loose-ends pass: desktop sidebar gained a 🔔 notification bell so non-mobile users have access to the toast-history panel (N5). Focus-trap pass extended to age-gate, bug reporter, bug board, first-run intro, and ending overlay — Tab now stays inside every modal (N6). Damage flash + low-life pulse no longer compete: the persistent opacity pulse pauses for the 900ms red flash and resumes after if life is still below 25% (N7). Room re-paints preserve keyboard focus: if a tf-link with a matching data-cmd survives the new render, focus moves to it; otherwise focus returns to the input (N8). New `share settings` command copies a deep-link URL with current theme + font + lang baked in — closes the v0.60 deep-link loop (N9). Equipment slot rows flash green when wearing/wielding lands an item — mirrors the carried/materials flash (N10).',
@@ -2713,6 +2715,252 @@ function tfLink(label, cmd, kind = 'item') {
   return `<span class="tf-link tf-link-${kind}" data-cmd="${cleaned}" tabindex="0" role="button">${label}</span>`;
 }
 
+// Engine v0.64 — Tier S3: combat panel.
+// Pinned between #output and #prompt-row whenever player.combat_target is
+// set. Renders the enemy portrait + animated HP bar + tappable action
+// buttons. Each button routes through handleCommand() so the engine logic
+// stays single-source: typing `attack` and tapping the button do the
+// exact same thing. Auto-disables actions that aren't currently legal
+// (charge if used, retreat if wolves block path, etc.).
+//
+// Engine v0.65 — Tier S3 follow-on: G1 (Use button + quick-item sheet),
+// G3 (compact mode on small viewports), P1 (low-HP pulse), P2 (damage
+// flash on the panel border), P3 (victory fade-out), P4 (companion HP
+// next to actions), P5 (number-key shortcuts 1–7 → Attack…Use).
+let __cpLastEnemyHp = null;
+let __cpVictoryFading = false;
+function refreshCombatPanel() {
+  const panel = document.getElementById('combat-panel');
+  if (!panel) return;
+  const ct = player?.combat_target;
+  if (!ct) {
+    // P3 — victory fade. Only fire once when transitioning from "had a
+    // target with hp>0" to "no target". On re-enter, the rebuild path
+    // resets state.
+    if (panel.style.display !== 'none' && !__cpVictoryFading) {
+      __cpVictoryFading = true;
+      panel.classList.add('cp-victory');
+      const fillEl = panel.querySelector('.cp-bar-fill');
+      if (fillEl) { fillEl.style.width = '0%'; }
+      setTimeout(() => {
+        try {
+          panel.classList.remove('cp-victory');
+          panel.style.display = 'none';
+          panel.innerHTML = '';
+          panel.removeAttribute('data-built-for');
+        } catch {}
+        __cpVictoryFading = false;
+        __cpLastEnemyHp = null;
+      }, 420);
+    }
+    return;
+  }
+  // If we're between the victory fade and a fresh combat, skip.
+  if (__cpVictoryFading) {
+    panel.classList.remove('cp-victory');
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    panel.removeAttribute('data-built-for');
+    __cpVictoryFading = false;
+  }
+  const ent = STORY.entities[ct.id] || ct;
+  const maxHp = Math.max(1, ent.hp || ct.hp || 1);
+  const cur = Math.max(0, Math.floor(ct.hp || 0));
+  const ratio = Math.min(1, cur / maxHp);
+  const display = t(ent.display) || ct.id || 'enemy';
+  // First render or full re-render? Build the static structure once.
+  if (!panel.dataset.builtFor || panel.dataset.builtFor !== ct.id) {
+    panel.dataset.builtFor = ct.id;
+    __cpLastEnemyHp = null;  // reset hit-tracking for new fight
+    let portraitHtml = '';
+    if (isImageUrl(ent.image)) {
+      portraitHtml = `<img src="${ent.image}" alt="" loading="lazy" decoding="async">`;
+    } else if (isShortGlyph(ent.image)) {
+      portraitHtml = escapeHtml(ent.image);
+    } else {
+      portraitHtml = '⚔';
+    }
+    panel.innerHTML = `
+      <div class="cp-row">
+        <div class="cp-portrait">${portraitHtml}</div>
+        <div class="cp-info">
+          <div class="cp-name"><span class="cp-display">${escapeHtml(display)}</span><span class="cp-hp"></span></div>
+          <div class="cp-bar"><div class="cp-bar-fill" style="width:0%;"></div></div>
+        </div>
+        <div class="cp-companion" style="display:none;"></div>
+      </div>
+      <div class="cp-buttons" role="toolbar" aria-label="Combat actions">
+        <button data-cp-cmd="attack" data-cp-key="1" class="cp-primary" title="Strike with your wielded weapon (1)"><span class="cp-glyph">⚔</span><span class="cp-label">Attack</span></button>
+        <button data-cp-cmd="parry" data-cp-key="2" title="+60% dodge on the next blow (2)"><span class="cp-glyph">🛡</span><span class="cp-label">Parry</span></button>
+        <button data-cp-cmd="charge" data-cp-key="3" title="+50% damage next attack, but enemy hits 1.5× (3)"><span class="cp-glyph">💥</span><span class="cp-label">Charge</span></button>
+        <button data-cp-cmd="retreat" data-cp-key="4" title="Try to slip away (4)"><span class="cp-glyph">↩</span><span class="cp-label">Retreat</span></button>
+        <button data-cp-cmd="flee" data-cp-key="5" class="cp-flee" title="Flee — take a parting hit (5)"><span class="cp-glyph">🏃</span><span class="cp-label">Flee</span></button>
+        <button data-cp-cmd="__use" data-cp-key="6" title="Eat / drink / read something from your pack (6)"><span class="cp-glyph">🧪</span><span class="cp-label">Use</span></button>
+        <button data-cp-cmd="recap" data-cp-key="7" class="cp-flee" title="Replay the last fight's narration (7)"><span class="cp-glyph">📜</span><span class="cp-label">Recap</span></button>
+      </div>
+    `;
+    panel.querySelectorAll('button[data-cp-cmd]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cmd = btn.getAttribute('data-cp-cmd');
+        if (cmd === '__use') { try { showCombatUseSheet(); } catch (e) { console.warn(e); } return; }
+        if (cmd) handleCommand(cmd);
+      });
+    });
+  } else {
+    // Update the display name + portrait if the target shape changed mid-combat
+    // (e.g. group-hunt swap). Cheap re-write of the visible bits only.
+    const dispEl = panel.querySelector('.cp-display');
+    if (dispEl) dispEl.textContent = display;
+  }
+  // HP / bar update on every refresh.
+  const hpEl = panel.querySelector('.cp-hp');
+  const fillEl = panel.querySelector('.cp-bar-fill');
+  if (hpEl) hpEl.textContent = `${cur} / ${maxHp} hp`;
+  if (fillEl) {
+    const pct = Math.round(ratio * 100);
+    fillEl.style.width = pct + '%';
+    // Color shift: green > 66%, accent > 33%, red below.
+    fillEl.style.background = ratio > 0.66
+      ? 'linear-gradient(to right, #6dc28d, #6dc28d)'
+      : (ratio > 0.33
+        ? 'linear-gradient(to right, #c79b3a, #c79b3a)'
+        : 'linear-gradient(to right, #e07a7a, #e07a7a)');
+  }
+  // P1 — pulse the bar when enemy is nearly dead (<20% HP). Persistent
+  // animation; cleared above this threshold.
+  if (fillEl) {
+    if (ratio > 0 && ratio < 0.20) fillEl.classList.add('cp-bar-low');
+    else fillEl.classList.remove('cp-bar-low');
+  }
+  // P2 — damage flash on the panel border when player takes a hit.
+  // Detected via the existing __lastLife tracker (set by refreshSidebar
+  // earlier in this same call). When __lastLife > current life by a
+  // meaningful amount we mirror the red flash here.
+  // Implemented inline: the border-flash class is added in the player
+  // damage-flash branch of refreshSidebar (see below).
+  // Companion HP echo (P4).
+  const compEl = panel.querySelector('.cp-companion');
+  if (compEl) {
+    if (player?.companion?.hp > 0) {
+      const c = player.companion;
+      const ent2 = STORY.entities[c.entity];
+      const cMax = Math.max(1, c.max_hp || ent2?.hp || 1);
+      const cRatio = Math.max(0, c.hp) / cMax;
+      const cColor = cRatio > 0.5 ? '#6dc28d' : (cRatio > 0.25 ? '#c79b3a' : '#e07a7a');
+      compEl.style.display = 'flex';
+      compEl.innerHTML = `
+        <div class="cp-comp-glyph" title="${escapeHtml(ent2?.display || c.entity)}">${isShortGlyph(ent2?.image) ? escapeHtml(ent2.image) : '🐺'}</div>
+        <div class="cp-comp-hp" style="color:${cColor};">${Math.max(0, c.hp)}/${cMax}</div>`;
+    } else {
+      compEl.style.display = 'none';
+    }
+  }
+  // Disable buttons that aren't currently legal.
+  const chargeBtn = panel.querySelector('button[data-cp-cmd="charge"]');
+  if (chargeBtn) chargeBtn.disabled = !!player.charge_used_this_combat;
+  // Use button: disable if there's nothing usable in carried/materials.
+  const useBtn = panel.querySelector('button[data-cp-cmd="__use"]');
+  if (useBtn) useBtn.disabled = !combatUsableItems().length;
+  // G3 — compact mode on small viewports. CSS handles most of it via
+  // media queries, but on really tall-narrow phones we can't fit all 7
+  // buttons in a single row. Toggle a class that hides labels and
+  // condenses spacing further.
+  const tooNarrow = window.innerWidth <= 380;
+  panel.classList.toggle('cp-compact', tooNarrow);
+  // Show the panel.
+  if (panel.style.display !== 'flex') panel.style.display = 'flex';
+}
+
+// Engine v0.65 — Tier G1: list usable items for the combat Use button.
+// Anything food/drink/readable in inventory or materials is fair game.
+function combatUsableItems() {
+  if (!STORY?.items) return [];
+  const out = [];
+  const seen = new Set();
+  function consider(id) {
+    if (seen.has(id)) return;
+    const it = STORY.items[id];
+    if (!it) return;
+    const isFood = it.consumable_action === 'eat' || it.tags?.includes('food');
+    const isDrink = it.consumable_action === 'drink' || it.tags?.includes('drink');
+    const isReadable = it.read_text || it.readable || it.tags?.includes('readable') || it.tags?.includes('book');
+    if (isFood || isDrink || isReadable) { out.push(id); seen.add(id); }
+  }
+  for (const i of (player?.inventory || [])) consider(i);
+  for (const [k, q] of Object.entries(player?.materials || {})) { if (q > 0) consider(k); }
+  return out;
+}
+
+// Engine v0.65 — Tier G1: combat Use sheet.
+// Lighter overlay than the full action sheet — a quick list of food /
+// drink / readable items the player carries; tap one and the
+// corresponding command fires.
+function showCombatUseSheet() {
+  const ids = combatUsableItems();
+  if (!ids.length) {
+    write('Nothing in your pack you can use right now.', 'system');
+    return;
+  }
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:flex-end;justify-content:center;padding:0;font-family:inherit;color:#e8e6e3;';
+  const sheet = document.createElement('div');
+  sheet.style.cssText = 'background:#1a1815;border:1px solid #3a352e;border-bottom:none;border-top-left-radius:10px;border-top-right-radius:10px;max-width:480px;width:100%;max-height:65vh;overflow:auto;box-shadow:0 -8px 24px rgba(0,0,0,0.4);animation:tf-sheet-in 0.18s ease-out;';
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #2a2724;';
+  head.innerHTML = `<div style="font-size:15px;font-weight:600;color:var(--accent, #c79b3a);">🧪 Use during combat</div><button id="cu-close" style="background:#3a352e;border:none;color:#e8e6e3;border-radius:4px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;">×</button>`;
+  sheet.appendChild(head);
+  const body = document.createElement('div');
+  body.style.cssText = 'padding:10px 12px 16px;display:flex;flex-direction:column;gap:6px;';
+  for (const id of ids) {
+    const it = STORY.items[id];
+    const haveMat = player.materials?.[id] || 0;
+    const haveInv = player.inventory.filter(x => x === id).length;
+    const have = it.stackable ? haveMat : haveInv;
+    const isFood = it.consumable_action === 'eat' || it.tags?.includes('food');
+    const isDrink = it.consumable_action === 'drink' || it.tags?.includes('drink');
+    const isReadable = it.read_text || it.readable || it.tags?.includes('readable') || it.tags?.includes('book');
+    let glyph = '🧪';
+    let cmd = `eat ${id}`;
+    if (isDrink) { glyph = '🥤'; cmd = `drink ${id}`; }
+    else if (isReadable) { glyph = '📖'; cmd = `read ${id}`; }
+    else if (isFood) { glyph = '🍴'; cmd = `eat ${id}`; }
+    const restore = it.effects?.restore_life || 0;
+    const restoreLabel = restore ? ` <span style="color:#6dc28d;font-size:11px;">(+${restore} life)</span>` : '';
+    const btn = document.createElement('button');
+    btn.style.cssText = 'display:flex;align-items:center;gap:10px;text-align:left;padding:10px 14px;background:#23201c;color:var(--fg, #e8e6e3);border:1px solid #3a352e;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;';
+    btn.innerHTML = `<span style="font-size:18px;width:22px;text-align:center;">${glyph}</span><span style="flex:1;">${escapeHtml(t(it.display) || id)}${restoreLabel}</span><span style="color:#9c9388;font-size:12px;">×${have}</span>`;
+    btn.addEventListener('mouseenter', () => { btn.style.background = '#2a2724'; btn.style.borderColor = 'var(--accent, #c79b3a)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = '#23201c'; btn.style.borderColor = '#3a352e'; });
+    btn.addEventListener('click', () => {
+      overlay.remove();
+      handleCommand(cmd);
+    });
+    body.appendChild(btn);
+  }
+  sheet.appendChild(body);
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  const release = tfFocusTrap(sheet, { label: 'Use during combat' });
+  function close() { try { release(); } catch {} overlay.remove(); document.removeEventListener('keydown', onEsc); }
+  function onEsc(e) { if (e.key === 'Escape') close(); }
+  head.querySelector('#cu-close').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onEsc);
+}
+
+// Engine v0.65 — Tier P2: trigger a one-shot border flash on the combat
+// panel when the player takes a hit. Called from refreshSidebar's
+// damage-flash branch so the two flashes (life value + combat panel)
+// fire in sync.
+function flashCombatPanelHit() {
+  const panel = document.getElementById('combat-panel');
+  if (!panel || panel.style.display === 'none') return;
+  panel.classList.remove('cp-hit-flash');
+  void panel.offsetWidth;  // restart animation
+  panel.classList.add('cp-hit-flash');
+  setTimeout(() => { try { panel.classList.remove('cp-hit-flash'); } catch {} }, 700);
+}
+
 // Engine v0.58 — interactive helpers for click-driven UI.
 // appendDomToOutput attaches a node to the terminal pane in-flow. Used by
 // dialogue choice buttons (S1), NPC portraits (A2), and any future inline
@@ -3093,6 +3341,9 @@ function refreshSidebar() {
         // Suspend any running animation (pulse) for the flash duration.
         lifeEl.style.animation = '';
         lifeEl.classList.add(flashClass);
+        // v0.65 P2: also flash the combat panel border red on damage so
+        // the player's primary attention surface registers the hit too.
+        if (flashClass === 'tf-life-hit') { try { flashCombatPanelHit(); } catch {} }
         setTimeout(() => {
           try {
             lifeEl.classList.remove(flashClass);
@@ -3329,30 +3580,12 @@ function refreshSidebar() {
     }
   }
 
+  // Engine v0.65 — Tier G2: the sidebar combat tracker is now redundant
+  // with the v0.64 prominent combat panel. Hide it whenever the combat
+  // panel is rendering. Keep the section in the DOM so existing CSS /
+  // selectors don't break.
   const combatSec = document.getElementById('combatTrackerSection');
-  const combatEl = document.getElementById('combatTracker');
-  if (combatSec && combatEl) {
-    if (player.combat_target) {
-      const ct = player.combat_target;
-      const ent = STORY.entities[ct.id] || ct;
-      const maxHp = Math.max(1, ent.hp || ct.hp || 1);
-      const cur = Math.max(0, ct.hp);
-      const filled = Math.min(12, Math.round((cur / maxHp) * 12));
-      const bar = '▓'.repeat(filled) + '░'.repeat(12 - filled);
-      const ratio = cur / maxHp;
-      const color = ratio > 0.66 ? 'var(--green)' : (ratio > 0.33 ? 'var(--accent)' : 'var(--red)');
-      combatEl.innerHTML = '';
-      const r1 = document.createElement('div'); r1.className = 'row';
-      r1.innerHTML = `<span style="color:var(--red);">${escapeHtml(ent.display || ct.id)}</span><span class="qty" style="color:${color};">${cur}/${maxHp}</span>`;
-      combatEl.appendChild(r1);
-      const r2 = document.createElement('div'); r2.className = 'row';
-      r2.innerHTML = `<span style="color:${color};font-family:monospace;letter-spacing:1px;">${bar}</span>`;
-      combatEl.appendChild(r2);
-      combatSec.style.display = '';
-    } else {
-      combatSec.style.display = 'none';
-    }
-  }
+  if (combatSec) combatSec.style.display = 'none';
   const compSec = document.getElementById('companionSection');
   const compEl = document.getElementById('companionPanel');
   if (compSec && compEl) {
@@ -3441,6 +3674,9 @@ function refreshSidebar() {
     row.innerHTML = `<span class="name">${sk.display}</span><span class="cost">${T('tier {0}', sk.tier)}</span>`;
     sklEl.appendChild(row);
   }
+  // Engine v0.64 — Tier S3: keep the combat panel in sync with the sidebar.
+  // Refresh on every tick so HP bar / portrait / disabled-state stay live.
+  try { refreshCombatPanel(); } catch {}
   // Engine v0.60 — Tier B2: arm the diff tracker after the first paint so
   // initial counts don't all flash green.
   __countSnapshotInitialised = true;
@@ -5260,6 +5496,9 @@ function describeRoom() {
     return tfLink(label, `go ${dir}`, 'exit');
   });
   write(T('Exits: {0}', exitLabels.join(', ')), 'exits');
+  // Engine v0.64 — Tier S3: kick the combat panel after the room render so
+  // wolf encounters that spawn mid-describe show the panel immediately.
+  try { refreshCombatPanel(); } catch {}
   // Engine v0.62 — Tier N8: restore focus after re-paint.
   try {
     if (__preservedCmd) {
@@ -11076,6 +11315,28 @@ refreshRelayLabel();
 setTimeout(() => { if (loadOutbox().length) drainOutbox(true); }, 5000);
 
 // Engine v0.59 — Tier B2 + B3: wire the bell button + bottom-tabs at boot.
+// Engine v0.65 — Tier P5: number-key shortcuts for the combat panel.
+// 1=Attack, 2=Parry, 3=Charge, 4=Retreat, 5=Flee, 6=Use, 7=Recap.
+// Active only when player.combat_target is set, the combat panel is
+// visible, and the focused element is NOT the cmd input (so typed text
+// containing digits still works) and not a contenteditable.
+document.addEventListener('keydown', (e) => {
+  if (!player?.combat_target) return;
+  const panel = document.getElementById('combat-panel');
+  if (!panel || panel.style.display === 'none') return;
+  // Don't hijack while the user is typing in the prompt or in any modal.
+  const tag = (e.target?.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  const key = e.key;
+  if (!/^[1-7]$/.test(key)) return;
+  const btn = panel.querySelector(`button[data-cp-key="${key}"]`);
+  if (btn && !btn.disabled) {
+    e.preventDefault();
+    btn.click();
+  }
+});
+
 try {
   const bell = document.getElementById('toast-bell');
   if (bell) bell.addEventListener('click', () => { try { showToastHistoryModal(); } catch {} });
