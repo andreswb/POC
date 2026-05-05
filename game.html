@@ -625,18 +625,84 @@
   }
   @keyframes tf-fade-in { from { opacity: 0; } to { opacity: 1; } }
   #ending-overlay .ending-card {
-    max-width: 560px; width: 100%;
+    max-width: 640px; width: 100%;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
     background: var(--panel); border: 1px solid var(--accent); border-radius: 8px;
     box-shadow: 0 8px 40px rgba(240, 181, 74, 0.25), 0 0 0 1px var(--accent) inset;
-    padding: 28px 24px;
+    padding: 0;  /* v0.70 — banner needs zero top padding */
     color: var(--text);
   }
-  #ending-overlay .ending-tag { color: var(--accent); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }
-  #ending-overlay h2 { color: var(--accent); margin: 4px 0 14px; font-size: 22px; }
-  #ending-overlay .ending-title { color: var(--muted); font-style: italic; margin-bottom: 16px; }
-  #ending-overlay .ending-stats { background: var(--panel-2); padding: 12px 14px; border-radius: 4px; border-left: 3px solid var(--accent); margin: 14px 0; font-size: 13px; line-height: 1.55; }
+  /* v0.70 — optional banner image at the top of the ending card. */
+  #ending-overlay .ending-banner {
+    height: 140px;
+    background: #0c0e10 center/cover no-repeat;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom: 1px solid var(--accent);
+    margin-bottom: 4px;
+  }
+  /* All non-banner content gets its own padding since the card itself
+     has zero. */
+  #ending-overlay .ending-card > *:not(.ending-banner) { padding-left: 24px; padding-right: 24px; }
+  #ending-overlay .ending-card > *:first-child:not(.ending-banner) { padding-top: 28px; }
+  #ending-overlay .ending-card > *:last-child { padding-bottom: 28px; }
+  #ending-overlay .ending-tag {
+    color: var(--accent); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; font-weight: 600;
+    margin-top: 24px;
+  }
+  #ending-overlay .ending-banner + .ending-tag { margin-top: 18px; }
+  #ending-overlay h2 { color: #f0b54a; margin: 6px 0 12px; font-size: 26px; line-height: 1.25; }
+  #ending-overlay .ending-title { color: var(--muted); font-style: italic; margin-bottom: 18px; font-size: 13px; line-height: 1.5; }
+  /* v0.70 — epilogue prose, the new centerpiece. Multi-paragraph
+     supported via <p> elements written by the engine. Slightly larger
+     font, comfortable line-height, drop-cap-ish accent on first line. */
+  #ending-overlay .ending-epilogue {
+    margin: 4px 0 18px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(199,155,58,0.08), rgba(240,181,74,0.04));
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    font-size: 14px; line-height: 1.65;
+    color: #d8d3c4;
+  }
+  #ending-overlay .ending-epilogue p { margin: 0 0 10px; }
+  #ending-overlay .ending-epilogue p:last-child { margin-bottom: 0; }
+  #ending-overlay .ending-epilogue p:first-child::first-letter {
+    font-size: 1.6em; color: var(--accent); font-weight: 700; line-height: 1;
+    margin-right: 2px; vertical-align: -2px;
+  }
+  /* v0.70 — journey recap. Story-derived narrative. */
+  #ending-overlay .ending-recap {
+    margin: 12px 0 14px;
+    padding: 12px 14px;
+    background: var(--panel-2);
+    border-radius: 4px;
+    border-left: 3px solid var(--muted);
+    font-size: 13px; line-height: 1.5;
+  }
+  #ending-overlay .ending-recap .recap-header {
+    color: var(--muted); font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; font-weight: 600;
+    margin-bottom: 6px;
+  }
+  #ending-overlay .ending-recap .recap-line { color: #bcb4a8; margin-bottom: 3px; }
+  #ending-overlay .ending-recap .recap-line:last-child { margin-bottom: 0; }
+  #ending-overlay .ending-stats {
+    background: var(--panel-2); padding: 10px 14px; border-radius: 4px;
+    border-left: 3px solid var(--accent); margin: 12px 0;
+    font-size: 13px; line-height: 1.55;
+  }
   #ending-overlay .ending-stats .row { display: flex; justify-content: space-between; }
-  #ending-overlay .ending-legacy { color: var(--gold); margin: 12px 0; font-size: 13px; }
+  #ending-overlay .ending-stats .v.gold { color: var(--gold, #e8c468); font-weight: 600; }
+  #ending-overlay .ending-stats .v.spark { color: var(--spark, #c896e0); font-weight: 600; }
+  #ending-overlay .ending-legacy { color: var(--gold); margin: 12px 0; font-size: 13px; line-height: 1.5; }
+  /* v0.70 — credit line for the story author. */
+  #ending-overlay .ending-credit {
+    color: var(--muted); font-size: 11px; font-style: italic;
+    text-align: right; margin: 10px 0 4px;
+  }
   #ending-overlay .ending-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
   #ending-overlay button {
     width: 100%; padding: 12px 14px;

@@ -5,8 +5,9 @@
     "title": "The Hollow Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.7.0",
+    "version": "1.8.0",
     "changelog": {
+      "1.8.0": "Rich endings (engine v0.70): meta.endings populated for all 4 endings — HUMAN, VAMPIRE, WEREWOLF, HEDGEWITCH. Each gets a title, a one-line italic flavor, and a 2-3 paragraph epilogue that closes the run with proper closing prose. The engine renders a polished share screen with these fields plus an auto-derived journey recap, and the same data drives the shareable PNG.",
       "1.7.0": "Fourth ending added: HEDGEWITCH (drink the witch's brew after the baptism — the third path, neither cured nor cursed). The witch's `baptism_ready` dialogue now grants a `fen_token` item; new auto-quest `embrace_the_fen` triggers the ending on receipt.",
       "1.6.0": "Three endings added: HUMAN (cure the curse, kill the count), VAMPIRE (accept the count's gift), WEREWOLF (run with the pack — new auto-quest after meeting the witch).",
       "1.5.0": "Hollow Forest opens. Gothic horror across chapel, lake, count's tower, witch hut. Lycanthropy + vampirism transform mechanics. 18 quests."
@@ -136,7 +137,29 @@
       "daily_three_pelts",
       "daily_silver_dust",
       "daily_holy_water_run"
-    ]
+    ],
+    "endings": {
+      "HUMAN": {
+        "title": "Stayed Yourself",
+        "flavor": "The bell rings at dawn. The shutters open one by one.",
+        "epilogue": "The signet is heavy in the priest's hand. He holds it like a man who has lost it in his sleep for years. Then he weeps, briefly — not for the master who wore it, but for the years it took the village to refuse him.\n\nYou stayed yourself. You said no when the wolves asked. You said no when the Count poured you the third glass. You said no when the witch offered the third path. You said it gently, and you said it bleeding, and you said it twice when once was not enough.\n\nThe village will rebuild. There will be funerals. There will be marriages. There will be children born who never know what almost happened to their parents. The bell will ring at dawn, and at dusk, and at the hour the priest used to be afraid of, and the wood at the village's edge will be a forest again, not a mouth.\n\nYou walked through it and did not lose yourself. Not many do."
+      },
+      "VAMPIRE": {
+        "title": "The Night Accepts You",
+        "flavor": "You will not need the daylight again.",
+        "epilogue": "The third glass goes down without flinching. The Count watches you over the rim of his own — old, patient, and not entirely unkind. 'Now,' he says, 'you may sleep, and the morning will not find you.'\n\nThe morning does not find you. Nor do the villagers — not truly. You will see them in the windows, in the lane, at the festival fires, and they will not see you back. That is the price of the gift, and the gift was given freely.\n\nThere are libraries the daylight never reaches. There are conversations that take a hundred years to finish. There are friends, slow and strange, who have been waiting for you in the cold corners of the world. The hunger is real, but it is manageable, and the night is long, and the night is yours.\n\nDawn is hours away. You are no longer afraid of it. You have other hours."
+      },
+      "WEREWOLF": {
+        "title": "Run with the Pack",
+        "flavor": "The hunger is not loneliness — it is direction.",
+        "epilogue": "Three of theirs lie at your feet. The moon stands high enough that the line between you and them has stopped meaning anything at all. The change settles. The pain that has lived in your bones for weeks finally goes away.\n\nThis is not a curse. It was, once. It is something else now — a body that fits, a hunger that knows what it wants, a pack that knows your scent before they know your face. You will not see the village again. The priest will pray for your soul; the Count will smile at the rumour; the witch will say nothing because she is not surprised.\n\nYou run. The forest is wide. Your brothers and sisters keep pace. The moon comes and goes and comes again. A year from now you will not remember the name you used to carry. You will not miss it. The wood is large, and the hunting is good, and the long howl at moonrise is a thing you do now without thinking, the way you used to breathe."
+      },
+      "HEDGEWITCH": {
+        "title": "The Fen's Apprentice",
+        "flavor": "Older than the priest. Older than the Count. Older than the pack.",
+        "epilogue": "The witch's token is warm in your palm, and it stays warm. The bog-water at the path's edge slows where you ask it to. The fog parts because you know its name now — a name that no one taught you, and that you cannot say out loud, and that you will know for the rest of your life.\n\nYou are not the priest's. You are not the Count's. You are not the pack's. You are the fen's, and the fen is older than any of them. The witch will teach you what she can in the years she has left. After that, the teaching becomes yours. After that, the next one will come — frightened, freezing, wrong-footed at the door — and you will let them in, and you will pour them tea, and you will not tell them anything they are not ready to hear.\n\nThe village will not remember the third path, because the third path does not announce itself. The brews you can make now will keep your few chosen friends alive a little longer than they were going to be. That is most of what witchcraft is. The rest is patience.\n\nYou settle in. The fen is patient too."
+      }
+    }
   },
   "rooms": {
     "chapel": {

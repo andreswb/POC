@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.69';
+const ENGINE_VERSION_LABEL = 'v0.70';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.70':   'Rich endings — playtester feedback was that the ending screen felt plain ("you ended due to X, Y, Z" with no recap, no closure, no shareable artifact). Now: every ENDING tag can declare a `meta.endings[TAG]` block with a `title` (headline), `flavor` (one italic line), `epilogue` (multi-paragraph closing prose with an accent drop-cap on the first letter), optional banner `image` (URL or data URI), and optional `credit` line. The end-screen is rebuilt as a proper card: optional banner, ending tag pill, title, flavor subtitle, epilogue prose block, an auto-derived journey recap (days alive · rooms explored / total · kills · skills learned · quests completed, plus top-3 kills, top-3 crafts, companion, renown tier, achievements), gold + sparks earned, legacy line, optional credit, primary "Share" button at the top. The shareable PNG (`endingToSvg`) was rebuilt to match — flavor + epilogue (ellipsis-wrapped to 4 lines), a one-line recap, credit, gold/sparks colored. All 11 bundled endings (Whispering Forest 4, Hollow Forest 4, Saltbound 3) ship with custom epilogue prose. Builder gains an "Endings (rich share screen)" editor in the Meta tab — auto-detects ENDING tags from quest completion_messages, lets authors fill title/flavor/epilogue/image/credit per tag, flags orphaned tags ("authored but no quest declares it"). Backwards compatible: stories without `meta.endings` fall through to per-quest `ending_*` fields, then to plain defaults — no migration required.',
   'v0.69':   'Two real bugs reported during playtest, both fixed. (1) Capacity overflow when capacity drops: selling a leather pack (or any item with carry_capacity_bonus), transforming to wolf/bat (capacity halved), or unwearing a pack used to leave the player carrying over the new ceiling indefinitely. New `dropOverflowToRoom(reason)` helper now drops heaviest items (inventory first, then materials) to the current room until back under capacity, with a clear "⚠ Too heavy! …you drop X, Y" message. Wired into `sell`, `transform`, and `unwear`. (2) Trap set/place was missing — items tagged "trap" (snare, bone_trap) had descriptions saying "ready to be sold or set" but no `set` command existed. Now: `set <trap>` (alias `place <trap>`) places a trap from inventory into the current room\'s spawn_table area; the trap settles for 8 turns, then each visit rolls a 45% catch chance against the room\'s spawn_table. On catch, the player gains the entity\'s base_drops + skinning + rare drops (with overflow handling), kill stats fire, quest progress increments, the trap is consumed. New `traps` command lists active traps with settle status. State persisted in save / restored on load.',
   'v0.68.1': 'Final pre-pause cleanup. Z1: categorized help modal was missing three recently-added commands — `reading` / `focus` (Preferences), `tour` / `walkthrough` (Preferences), `notifications` / `notif` (Feedback & updates). All three now listed so the help modal no longer lies about what commands exist. Z2: builder reference dock no longer hardcodes top:80px — measures the actual header.bottom at render time and places the dock just below it (with a 80px floor). Fixes the edge case where the header toolbar wraps to two rows on narrow desktops, growing past 80px and leaving the dock overlapping the bottom row of toolbar buttons. The dev pause is now declared.',
   'v0.68':   'v0.67 surfaced gaps batch: reading-mode exit pill drops below the mobile-header on phones (≤720px) so it doesn\'t overlap the bell + drawer-toggle (NN1). Builder reference dock visibility now also re-evaluates on window resize via a 120ms-debounced listener — the dock hides/shows naturally when dragging the browser window across the 1100px threshold (NN2). Defensive position:relative on every picker cover div so the bottom-fade pseudo-element anchors correctly even on edge-case render paths (NN3). Long-press tooltip placement now measures size after appendChild (force-layout via offsetWidth) so first-show on mobile correctly clamps within the viewport — was reading 0×0 dimensions before. Added a defensive bottom-clamp too (P1). Combat panel "✓ Used" Charge label font-size matched to active state (11px, was 10px) so the button doesn\'t subtly shift when transitioning fresh ↔ used (P2).',
@@ -5487,6 +5488,103 @@ function listStoryEndings(story = STORY) {
   return out;
 }
 
+// Engine v0.70 — rich endings: pull per-ending metadata from the story.
+// Two sources, both optional, in priority order:
+//   1. story.meta.endings[TAG] = { title, flavor, epilogue, image, credit }
+//   2. quest.ending_flavor / quest.ending_epilogue / quest.ending_image
+// Falls through to plain defaults if neither is set, preserving the
+// pre-v0.70 behaviour for any story that hasn't migrated yet.
+function getEndingMeta(tag, story = STORY) {
+  if (!tag || !story) return {};
+  const fromMeta = story.meta?.endings?.[tag] || story.meta?.endings?.[tag.toUpperCase()] || null;
+  if (fromMeta) {
+    return {
+      title:    (typeof fromMeta.title === 'string') ? fromMeta.title : (fromMeta.title?.en || ''),
+      flavor:   (typeof fromMeta.flavor === 'string') ? fromMeta.flavor : (fromMeta.flavor?.en || ''),
+      epilogue: (typeof fromMeta.epilogue === 'string') ? fromMeta.epilogue : (fromMeta.epilogue?.en || ''),
+      image:    (typeof fromMeta.image === 'string') ? fromMeta.image : '',
+      credit:   (typeof fromMeta.credit === 'string') ? fromMeta.credit : ''
+    };
+  }
+  // Fallback to per-quest fields, locating the quest that declares this tag.
+  for (const q of Object.values(story.quests || {})) {
+    const cm = (typeof q.completion_message === 'string') ? q.completion_message : (q.completion_message?.en || '');
+    const m = />>>\s*ENDING:\s*([\w-]+)\s*<<</.exec(cm);
+    if (!m || m[1].toUpperCase() !== tag.toUpperCase()) continue;
+    return {
+      title:    (typeof q.ending_title === 'string') ? q.ending_title : (q.ending_title?.en || ''),
+      flavor:   (typeof q.ending_flavor === 'string') ? q.ending_flavor : (q.ending_flavor?.en || ''),
+      epilogue: (typeof q.ending_epilogue === 'string') ? q.ending_epilogue : (q.ending_epilogue?.en || ''),
+      image:    (typeof q.ending_image === 'string') ? q.ending_image : '',
+      credit:   (typeof q.ending_credit === 'string') ? q.ending_credit : ''
+    };
+  }
+  return {};
+}
+
+// Engine v0.70 — build a journey recap from the current player state.
+// Surfaces what the player actually did in this run: top kills, top
+// crafts, achievements earned, riddles solved, companion status, renown
+// tier, quests completed. Used by both the ending overlay and the share
+// PNG. Returns a structured object so callers pick which fields to show.
+function buildJourneyRecap() {
+  const recap = {
+    name: player.name || '—',
+    days_alive: Math.floor((player.turn || 0) / (STORY.meta.turns_per_day || 96)),
+    rooms_explored: (player.visited?.size) || 0,
+    rooms_total: Object.keys(STORY.rooms || {}).length,
+    kills_total: Object.values(player.stats?.kills || {}).reduce((a, b) => a + b, 0),
+    skills_learned: (player.skills?.size) || 0,
+    riddles_solved: (player.riddles_solved?.size) || 0,
+    quests_completed: 0,
+    achievements_earned: [...(player.achievements || [])].length,
+    gold: player.gold || 0,
+    sparks: player.sparks || 0,
+    companion: null,
+    renown: player.renown || 0,
+    renown_tier: '',
+    top_kills: [],
+    top_crafts: [],
+    notable_quests: []
+  };
+  try { recap.renown_tier = renownTier(recap.renown).label; } catch {}
+  try {
+    if (player.companion?.hp > 0) {
+      const ent = STORY.entities[player.companion.entity];
+      recap.companion = ent?.display || player.companion.entity;
+    }
+  } catch {}
+  // Top 3 killed entities by count.
+  try {
+    const kills = Object.entries(player.stats?.kills || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([id, n]) => ({ display: STORY.entities[id]?.display || id, count: n }));
+    recap.top_kills = kills;
+  } catch {}
+  // Top 3 crafted recipes by count.
+  try {
+    const crafts = Object.entries(player.stats?.crafts_per_recipe || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([id, n]) => ({ display: STORY.recipes?.[id]?.display || id, count: n }));
+    recap.top_crafts = crafts;
+  } catch {}
+  // Quests completed (ignore daily / recurrence) — surface 3 most recent
+  // by id-order as a proxy for completion order (state doesn't carry
+  // timestamps per quest, so this is best-effort).
+  try {
+    const completed = Object.entries(player.quests || {})
+      .filter(([qid, ps]) => ps?.state === 'completed' && STORY.quests[qid] && STORY.quests[qid].recurrence !== 'daily');
+    recap.quests_completed = completed.length;
+    recap.notable_quests = completed.slice(-3).map(([qid]) => {
+      const q = STORY.quests[qid];
+      return (typeof q.title === 'string') ? q.title : (q.title?.en || qid);
+    });
+  } catch {}
+  return recap;
+}
+
 const GLOBAL_ENDINGS_KEY = 'taleforge:endings_global';
 function loadGlobalEndings() {
   try { return JSON.parse(localStorage.getItem(GLOBAL_ENDINGS_KEY) || '{}') || {}; }
@@ -5628,20 +5726,34 @@ function triggerStoryEnding(tag) {
   const firstTimeBonus = firstTime ? 50 : 10;
   player.legacy_gold = (player.legacy_gold || 0) + goldRollover + firstTimeBonus;
   player.legacy_sparks = (player.legacy_sparks || 0) + sparksRollover;
+  // v0.70 — capture rich metadata + journey recap at lock time so the
+  // ending overlay and share PNG have everything they need without
+  // re-deriving from live state (which can be reset by restart).
+  const meta = getEndingMeta(tag);
+  const recap = buildJourneyRecap();
   player.ending_locked = {
     story_id: storyId,
     story_title: storyTitle,
+    story_author: STORY?.meta?.author || '',
     tag,
     first_time: firstTime,
     completed_at: Date.now(),
     gold_at_end: player.gold || 0,
     sparks_at_end: player.sparks || 0,
-    rooms_explored: (player.visited && typeof player.visited.size === 'number') ? player.visited.size : 0,
-    kills: Object.values(player.stats?.kills || {}).reduce((a, b) => a + b, 0),
-    skills_learned: (player.skills && typeof player.skills.size === 'number') ? player.skills.size : 0,
-    days_alive: Math.floor((player.turn || 0) / (STORY.meta.turns_per_day || 96)),
+    rooms_explored: recap.rooms_explored,
+    rooms_total: recap.rooms_total,
+    kills: recap.kills_total,
+    skills_learned: recap.skills_learned,
+    days_alive: recap.days_alive,
     legacy_gold_awarded: goldRollover + firstTimeBonus,
-    legacy_sparks_awarded: sparksRollover
+    legacy_sparks_awarded: sparksRollover,
+    // v0.70 rich endings:
+    ending_title:    meta.title || '',
+    ending_flavor:   meta.flavor || '',
+    ending_epilogue: meta.epilogue || '',
+    ending_image:    meta.image || '',
+    ending_credit:   meta.credit || '',
+    recap
   };
   publishAction('ending', { story: storyId, tag, first_time: firstTime });
   saveLocal();
@@ -5657,33 +5769,118 @@ function showEndingOverlay(info) {
   overlay.id = 'ending-overlay';
   const card = document.createElement('div');
   card.className = 'ending-card';
+
+  // v0.70 — rich ending: optional banner image at the top.
+  if (info.ending_image && /^(https?:|data:image\/)/.test(info.ending_image)) {
+    const banner = document.createElement('div');
+    banner.className = 'ending-banner';
+    banner.style.backgroundImage = `url("${info.ending_image}")`;
+    card.appendChild(banner);
+  }
+
   const tagEl = document.createElement('div'); tagEl.className = 'ending-tag';
-  tagEl.textContent = `Ending — ${info.tag}` + (info.first_time ? ' · first time!' : ' · revisited');
-  const h = document.createElement('h2'); h.textContent = info.story_title;
-  const sub = document.createElement('div'); sub.className = 'ending-title';
-  sub.textContent = info.first_time ? 'A new chapter closes for this character.' : 'You\'ve walked this road before.';
+  tagEl.textContent = `★ Ending reached — ${info.tag}` + (info.first_time ? '  ·  first time!' : '  ·  revisited');
+
+  const h = document.createElement('h2');
+  h.textContent = info.ending_title ? `${info.ending_title}` : info.story_title;
+
+  const subWrap = document.createElement('div'); subWrap.className = 'ending-title';
+  if (info.ending_title) {
+    // Show story title under the ending-specific title.
+    subWrap.innerHTML = `<span style="color:var(--accent);font-style:normal;font-weight:600;">${escapeHtml(info.story_title)}</span>${info.ending_flavor ? '  ·  ' + escapeHtml(info.ending_flavor) : ''}`;
+  } else if (info.ending_flavor) {
+    subWrap.textContent = info.ending_flavor;
+  } else {
+    subWrap.textContent = info.first_time ? 'A new chapter closes for this character.' : 'You\'ve walked this road before.';
+  }
+
+  // v0.70 — epilogue prose. The centerpiece. Multi-paragraph ok (split
+  // on \n\n). Falls back to nothing if author didn't write one.
+  let epilogueEl = null;
+  if (info.ending_epilogue && info.ending_epilogue.trim()) {
+    epilogueEl = document.createElement('div');
+    epilogueEl.className = 'ending-epilogue';
+    const paras = info.ending_epilogue.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+    for (const p of paras) {
+      const pEl = document.createElement('p');
+      pEl.textContent = p;
+      epilogueEl.appendChild(pEl);
+    }
+  }
+
+  // v0.70 — journey recap. Story-derived narrative summary of what the
+  // player actually did this run. Always shown.
+  const recapEl = document.createElement('div');
+  recapEl.className = 'ending-recap';
+  const recap = info.recap || {};
+  const recapHeader = document.createElement('div');
+  recapHeader.className = 'recap-header';
+  recapHeader.textContent = 'Your journey';
+  recapEl.appendChild(recapHeader);
+  const recapLines = [];
+  recapLines.push(`<strong>${escapeHtml(recap.name || '—')}</strong>${recap.renown_tier ? ` · <em>${escapeHtml(recap.renown_tier)}</em>` : ''}`);
+  recapLines.push(`Walked ${recap.days_alive} day${recap.days_alive === 1 ? '' : 's'} through ${recap.rooms_explored}/${recap.rooms_total} rooms.`);
+  if (recap.kills_total > 0) {
+    let killStr = `${recap.kills_total} creature${recap.kills_total === 1 ? '' : 's'} fell to you`;
+    if (recap.top_kills?.length) {
+      const top = recap.top_kills.map(k => `${k.count} ${escapeHtml(k.display)}${k.count === 1 ? '' : 's'}`).join(', ');
+      killStr += ` (${top})`;
+    }
+    recapLines.push(killStr + '.');
+  }
+  if (recap.skills_learned > 0) recapLines.push(`Mastered ${recap.skills_learned} skill${recap.skills_learned === 1 ? '' : 's'}.`);
+  if (recap.top_crafts?.length) {
+    const top = recap.top_crafts.map(c => `${c.count}× ${escapeHtml(c.display)}`).join(', ');
+    recapLines.push(`Crafted: ${top}.`);
+  }
+  if (recap.riddles_solved > 0) recapLines.push(`Solved ${recap.riddles_solved} riddle${recap.riddles_solved === 1 ? '' : 's'}.`);
+  if (recap.quests_completed > 0) {
+    let qStr = `Completed ${recap.quests_completed} quest${recap.quests_completed === 1 ? '' : 's'}`;
+    if (recap.notable_quests?.length) {
+      qStr += ` — ending with <em>${escapeHtml(recap.notable_quests[recap.notable_quests.length - 1])}</em>`;
+    }
+    recapLines.push(qStr + '.');
+  }
+  if (recap.companion) recapLines.push(`Walked alongside a tamed ${escapeHtml(recap.companion)}.`);
+  if (recap.achievements_earned > 0) recapLines.push(`Earned ${recap.achievements_earned} achievement${recap.achievements_earned === 1 ? '' : 's'}.`);
+  const recapBody = document.createElement('div');
+  recapBody.className = 'recap-body';
+  recapBody.innerHTML = recapLines.map(l => `<div class="recap-line">${l}</div>`).join('');
+  recapEl.appendChild(recapBody);
+
   const stats = document.createElement('div'); stats.className = 'ending-stats';
-  const rows = [
-    ['Days alive', String(info.days_alive)],
-    ['Rooms explored', String(info.rooms_explored)],
-    ['Kills', String(info.kills)],
-    ['Skills learned', String(info.skills_learned)],
-    ['Gold at end', String(info.gold_at_end)],
-    ['Sparks at end', String(info.sparks_at_end)]
+  const statRows = [
+    ['Gold at end', String(info.gold_at_end), 'gold'],
+    ['Sparks at end', String(info.sparks_at_end), 'spark']
   ];
-  for (const [k, v] of rows) {
+  for (const [k, v, cls] of statRows) {
     const r = document.createElement('div'); r.className = 'row';
-    r.innerHTML = `<span style="color:var(--muted);">${k}</span><span>${v}</span>`;
+    r.innerHTML = `<span style="color:var(--muted);">${k}</span><span class="v ${cls}">${v}</span>`;
     stats.appendChild(r);
   }
+
   const legacy = document.createElement('div'); legacy.className = 'ending-legacy';
-  legacy.innerHTML = `★ Legacy awarded to your character: <strong>+${info.legacy_gold_awarded}</strong> legacy gold, <strong>+${info.legacy_sparks_awarded}</strong> legacy sparks.<br><span style="color:var(--muted);">Total carried forward — gold: ${player.legacy_gold || 0}, sparks: ${player.legacy_sparks || 0}.</span>`;
+  legacy.innerHTML = `★ Legacy awarded: <strong>+${info.legacy_gold_awarded}</strong> gold, <strong>+${info.legacy_sparks_awarded}</strong> sparks.<br><span style="color:var(--muted);font-size:11px;">Total carried forward to future runs — gold: ${player.legacy_gold || 0}, sparks: ${player.legacy_sparks || 0}.</span>`;
+
+  // Optional credit line.
+  let creditEl = null;
+  if (info.ending_credit || info.story_author) {
+    creditEl = document.createElement('div');
+    creditEl.className = 'ending-credit';
+    creditEl.textContent = info.ending_credit || (info.story_author ? `Story by ${info.story_author}` : '');
+  }
+
   const actions = document.createElement('div'); actions.className = 'ending-actions';
-  const btnRestart = document.createElement('button'); btnRestart.className = 'primary';
-  btnRestart.innerHTML = `↻ Start a new run of "${info.story_title}"<span class="sub">Resets inventory, location, life, sparks, gold, quests, riddles. Keeps name, achievements, login streak, endings reached, legacy carry-over.</span>`;
+  // Primary button: Share — this is what the user wants to do first.
+  const btnShare = document.createElement('button');
+  btnShare.className = 'primary';
+  btnShare.innerHTML = `📷 Share this ending<span class="sub">Generate a 1200×630 PNG with the epilogue + your journey recap. Post it anywhere.</span>`;
+  btnShare.addEventListener('click', () => { try { showEndingShareModal(info); } catch (e) { alert('Share failed: ' + (e?.message || e)); } });
+  const btnRestart = document.createElement('button');
+  btnRestart.innerHTML = `↻ Start a new run of "${info.story_title}"<span class="sub">Resets inventory, life, gold, quests. Keeps name, achievements, endings reached, legacy carry-over.</span>`;
   btnRestart.addEventListener('click', () => { try { overlay.remove(); } catch {} restartCurrentStory(); });
   const btnPick = document.createElement('button');
-  btnPick.innerHTML = `≡ Pick a different story<span class="sub">Open the story picker. Your character keeps everything; the lock applies only to this story until you restart it.</span>`;
+  btnPick.innerHTML = `≡ Pick a different story<span class="sub">Open the story picker. Your character keeps everything; the lock applies only to this story.</span>`;
   btnPick.addEventListener('click', () => {
     try { overlay.remove(); } catch {}
     try { showStoryPicker(STORY?.meta?.id || null); } catch {}
@@ -5691,19 +5888,19 @@ function showEndingOverlay(info) {
   const btnDismiss = document.createElement('button');
   btnDismiss.innerHTML = `× Stay and re-read<span class="sub">Close this dialog. Most commands will refuse with a hint until you restart or switch.</span>`;
   btnDismiss.addEventListener('click', () => { try { overlay.remove(); } catch {} });
-  // Engine v0.57 — Tier A3: shareable ending screenshot.
-  // Renders the ending card to a PNG via canvas + offers download / clipboard.
-  // Pure SVG-based composition so it works without any image library.
-  const btnShare = document.createElement('button');
-  btnShare.innerHTML = `📷 Share screenshot<span class="sub">Generate a PNG of this ending card with stats — drop on Twitter / Bluesky / wherever you brag.</span>`;
-  btnShare.addEventListener('click', () => { try { showEndingShareModal(info); } catch (e) { alert('Share failed: ' + (e?.message || e)); } });
-  actions.append(btnRestart, btnPick, btnShare, btnDismiss);
-  card.append(tagEl, h, sub, stats, legacy, actions);
+  actions.append(btnShare, btnRestart, btnPick, btnDismiss);
+
+  // Layout: tag → title → subtitle → epilogue → recap → stats → legacy → credit → actions
+  card.append(tagEl, h, subWrap);
+  if (epilogueEl) card.appendChild(epilogueEl);
+  card.append(recapEl, stats, legacy);
+  if (creditEl) card.appendChild(creditEl);
+  card.appendChild(actions);
   overlay.appendChild(card);
   document.body.appendChild(overlay);
   // v0.62 N6: focus-trap on the ending overlay (it's modal — players
   // shouldn't tab into the muted terminal underneath).
-  const release = tfFocusTrap(card, { label: `Ending — ${info.tag}`, initialFocus: btnRestart });
+  const release = tfFocusTrap(card, { label: `Ending — ${info.tag}`, initialFocus: btnShare });
   // Each button now releases the trap before its own action; we wrap their
   // existing handlers so we don't have to rewrite the original buttons.
   for (const btn of [btnRestart, btnPick, btnShare, btnDismiss]) {
@@ -5717,14 +5914,56 @@ function showEndingOverlay(info) {
 function endingToSvg(info) {
   const W = 1200, H = 630;  // Twitter card aspect ratio
   const tag = info.tag || '?';
-  const title = info.story_title || '?';
+  const title = info.ending_title || info.story_title || '?';
+  const storyTitle = info.story_title || '';
+  const flavor = info.ending_flavor || '';
+  const epilogue = info.ending_epilogue || '';
+  const credit = info.ending_credit || (info.story_author ? `Story by ${info.story_author}` : '');
+  const recap = info.recap || {};
   const days = info.days_alive ?? 0;
   const rooms = info.rooms_explored ?? 0;
   const kills = info.kills ?? 0;
-  const skills = info.skills_learned ?? 0;
   const gold = info.gold_at_end ?? 0;
   const sparks = info.sparks_at_end ?? 0;
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  // v0.70 — wrap a long string into multiple SVG text lines. Approx
+  // measurement (1 monospace char = 0.55 × font-size). Trims to maxLines
+  // and adds ellipsis on the last line if the string overruns.
+  function wrapLines(text, maxChars, maxLines) {
+    const words = String(text || '').split(/\s+/);
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      if (!w) continue;
+      const next = cur ? cur + ' ' + w : w;
+      if (next.length > maxChars && cur) {
+        lines.push(cur);
+        cur = w;
+        if (lines.length >= maxLines) break;
+      } else cur = next;
+    }
+    if (cur && lines.length < maxLines) lines.push(cur);
+    if (lines.length === maxLines && words.join(' ').length > lines.join(' ').length) {
+      // Ellipsis on the last line.
+      let last = lines[maxLines - 1];
+      while (last.length > maxChars - 1) last = last.slice(0, -1);
+      lines[maxLines - 1] = last.replace(/[.,;:!?]+$/, '') + '…';
+    }
+    return lines;
+  }
+  // v0.70 — build a one-line journey recap for the share card.
+  // "Walked 14 days · 18/24 rooms · 47 kills · 5 skills · 2 quests"
+  const recapBits = [];
+  if (recap.days_alive != null) recapBits.push(`${recap.days_alive}d`);
+  if (recap.rooms_explored != null && recap.rooms_total) recapBits.push(`${recap.rooms_explored}/${recap.rooms_total} rooms`);
+  if (recap.kills_total > 0) recapBits.push(`${recap.kills_total} kills`);
+  if (recap.skills_learned > 0) recapBits.push(`${recap.skills_learned} skills`);
+  if (recap.quests_completed > 0) recapBits.push(`${recap.quests_completed} quests`);
+  const recapLine = recapBits.join('  ·  ');
+  // Prefer the epilogue if present; otherwise fall back to flavor; else
+  // the generic "first time" line.
+  const proseSource = epilogue || flavor || (info.first_time ? 'A new chapter closes for this character.' : 'You have walked this road before.');
+  const proseLines = wrapLines(proseSource, 64, 4);  // ~64 chars/line, 4 lines max
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
@@ -5734,19 +5973,18 @@ function endingToSvg(info) {
     </defs>
     <rect width="${W}" height="${H}" fill="url(#bg)"/>
     <rect x="40" y="40" width="${W-80}" height="${H-80}" fill="#1a1815" stroke="#c79b3a" stroke-width="2" rx="12"/>
-    <text x="80" y="120" font-family="ui-monospace,monospace" font-size="18" fill="#c79b3a" letter-spacing="6" font-weight="600">ENDING REACHED</text>
-    <text x="80" y="200" font-family="ui-monospace,monospace" font-size="68" fill="#f0b54a" font-weight="700">★ ${esc(tag)}</text>
-    <text x="80" y="270" font-family="ui-monospace,monospace" font-size="32" fill="#bcb4a8">${esc(title)}</text>
-    <text x="80" y="312" font-family="ui-monospace,monospace" font-size="18" fill="#9c9388" font-style="italic">${info.first_time ? 'A new chapter closes for this character.' : 'You have walked this road before.'}</text>
-    <g font-family="ui-monospace,monospace" font-size="22" fill="#bcb4a8">
-      <text x="80" y="400">Days alive</text>      <text x="380" y="400" fill="#e8e6e3" text-anchor="end">${days}</text>
-      <text x="430" y="400">Rooms explored</text> <text x="780" y="400" fill="#e8e6e3" text-anchor="end">${rooms}</text>
-      <text x="830" y="400">Kills</text>           <text x="1120" y="400" fill="#e8e6e3" text-anchor="end">${kills}</text>
-      <text x="80" y="450">Skills learned</text>  <text x="380" y="450" fill="#e8e6e3" text-anchor="end">${skills}</text>
-      <text x="430" y="450">Gold</text>            <text x="780" y="450" fill="#e8c468" text-anchor="end">${gold}</text>
-      <text x="830" y="450">Sparks</text>          <text x="1120" y="450" fill="#c896e0" text-anchor="end">${sparks}</text>
+    <text x="80" y="100" font-family="ui-monospace,monospace" font-size="14" fill="#c79b3a" letter-spacing="6" font-weight="600">★ ENDING REACHED  ·  ${esc(tag)}</text>
+    <text x="80" y="172" font-family="ui-monospace,monospace" font-size="56" fill="#f0b54a" font-weight="700">${esc(title)}</text>
+    ${storyTitle && info.ending_title ? `<text x="80" y="210" font-family="ui-monospace,monospace" font-size="20" fill="#bcb4a8">in ${esc(storyTitle)}</text>` : ''}
+    ${flavor ? `<text x="80" y="250" font-family="ui-monospace,monospace" font-size="18" fill="#9c9388" font-style="italic">${esc(flavor)}</text>` : ''}
+    <g font-family="ui-monospace,monospace" font-size="20" fill="#d8d3c4">
+      ${proseLines.map((line, i) => `<text x="80" y="${315 + i * 30}">${esc(line)}</text>`).join('')}
     </g>
-    <text x="80" y="560" font-family="ui-monospace,monospace" font-size="14" fill="#7a7367" letter-spacing="2">TALEFORGE.PAGES.DEV  ·  ${esc(ENGINE_VERSION_LABEL)}</text>
+    <text x="80" y="475" font-family="ui-monospace,monospace" font-size="13" fill="#7a7367" letter-spacing="3" font-weight="600">YOUR JOURNEY</text>
+    <text x="80" y="500" font-family="ui-monospace,monospace" font-size="18" fill="#bcb4a8">${esc(recapLine)}</text>
+    <text x="80" y="540" font-family="ui-monospace,monospace" font-size="16" fill="#e8c468">${gold} gold  ·  <tspan fill="#c896e0">${sparks} sparks</tspan></text>
+    ${credit ? `<text x="${W - 80}" y="540" text-anchor="end" font-family="ui-monospace,monospace" font-size="14" fill="#9c9388" font-style="italic">${esc(credit)}</text>` : ''}
+    <text x="80" y="580" font-family="ui-monospace,monospace" font-size="12" fill="#5a5249" letter-spacing="2">TALEFORGE.PAGES.DEV  ·  ${esc(ENGINE_VERSION_LABEL)}</text>
   </svg>`;
 }
 

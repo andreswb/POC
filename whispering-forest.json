@@ -5,8 +5,9 @@
     "title": "The Whispering Forest",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.18.0",
+    "version": "1.19.0",
     "changelog": {
+      "1.19.0": "Rich endings (engine v0.70): meta.endings populated for all 4 endings — PILGRIM, MASTER_SMITH, FOREST_WARDEN, TRUSTED_MERCHANT. Each has a title, a one-line italic flavor, and a 2-3 paragraph epilogue that closes the run with proper prose instead of just the quest's completion message. The engine now renders a polished share screen with these fields plus an auto-derived journey recap (days alive · rooms explored · top kills · skills learned · quests completed), and the same data drives the shareable PNG.",
       "1.18.0": "Schema bumped 0.10 → 0.20 (no content change — declares features the story already uses). Renown reactions deepened: each shopkeeper NPC now has up to 4 conditional_dialogue tiers (low <10 / mid 30+ / high 70+ / legendary 120+) so the village's posture shifts as your reputation grows or sours. Low-renown means gruff and cautious; high-renown unlocks warmer voice + favored-customer asides.",
       "1.17.0": "Four endings added: PILGRIM (climb to the mountain peak with the hermit), MASTER_SMITH (forge the iron axe and earn the smith's blessing), FOREST_WARDEN (deliver three frost-salves to the trapper's pact), TRUSTED_MERCHANT (the long road quest — 10 cured meat + 3 leather to the weathered merchant).",
       "1.16.3": "Skill-id typo fixes: valley_smith profile now points at smelting (was smithing); frozen_lake resource at stone_knapping (was mining)."
@@ -142,6 +143,28 @@
         "tags": [
           "mortal"
         ]
+      }
+    },
+    "endings": {
+      "PILGRIM": {
+        "title": "The Pilgrim's Path",
+        "flavor": "The mountain remembers your name.",
+        "epilogue": "Below you, the hermit's hut is a smudge of woodsmoke against the white. Above you, only the wind, and a sky that is not the sky you grew up under. The pack is heavy on your shoulders — heavier with what was given than with what it carries.\n\nYou came up with breath you did not have, on legs that refused you twice, and the cold tried hard to stop you. It did not. The forest watched the whole climb. So did the village. So did the part of yourself that does not have a name yet.\n\nYou will go back down, but not the same way. The road that opens for pilgrims is not always the one they came up. Wherever it ends, the wind asked, and you stood. That is enough."
+      },
+      "MASTER_SMITH": {
+        "title": "Master of the Forge",
+        "flavor": "Iron, and the price of iron, are yours now.",
+        "epilogue": "The iron axe rings on the anvil for the last time. You set it down. The smith's hand on your shoulder is heavy and old and final.\n\nThere is a kind of mastery that no certificate names. You have it. Every villager who carries a tool you made will think of you when it doesn't break — and will not think of you when it works, which is the highest praise the trade allows.\n\nThe smith goes inside. The forge is yours. The valley will come to your door for axes and arrowheads and shoes and gates. You will not turn them away. The fire will always be warm, and you will always know what to do with it. The road behind you is iron. The one ahead is iron, too."
+      },
+      "FOREST_WARDEN": {
+        "title": "Warden of the Wood",
+        "flavor": "The wood remembers who walks it kindly.",
+        "epilogue": "The trapper's cloak settles on your shoulders like it was waiting for you. It smells of cedar and frost-salve and the long patience of a man who has watched a wood for forty winters.\n\nThe pact was simple: three salves, three warm nights, three more years for an old man and the creatures he could no longer reach. You delivered it. The traps know you now. The deer step away from your path, but only at a respectful distance. The crows speak of you to other crows.\n\nYou did not save the forest — the forest does not need saving. You stood inside it for a while, kindly, and that was the whole of it. The cloak will keep you warm a long time. The forest will keep you longer."
+      },
+      "TRUSTED_MERCHANT": {
+        "title": "The Long Road",
+        "flavor": "You're on the road that opens for those who keep their word.",
+        "epilogue": "The caravan rolls out at dawn. You walk beside it, the spirit glass cold in your pocket — a promise, a passage, a thing that opens doors you have not yet seen. The merchant nods once, and that is more weight than a year of small talk.\n\nTen cured meats. Three hides. A contract delivered, not haggled. The village comes out to see you off because the village knows what kind of road you are stepping onto, and because they know that the people who walk it the longest started exactly here, with a promise kept on time.\n\nThe forest at your back. The mountains ahead. Somewhere beyond them, a city that has heard of you before you arrive. The road is yours. Walk it long."
       }
     }
   },

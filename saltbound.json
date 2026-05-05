@@ -5,8 +5,9 @@
     "title": "Saltbound",
     "author": "awb_🇨🇭",
     "author_pubkey": null,
-    "version": "1.3.0",
+    "version": "1.4.0",
     "changelog": {
+      "1.4.0": "Rich endings (engine v0.70): meta.endings populated for all 3 endings — RESCUE, SAIL, STAY. Each ending now ships with a title, a one-line italic flavor, and a 2-3 paragraph epilogue that closes the run with proper closing prose (homecoming for RESCUE, the long road for SAIL, belonging for STAY). The engine renders a polished share screen with these fields plus an auto-derived journey recap, and the same data drives the shareable PNG.",
       "1.3.0": "World expansion: 2 new NPCs (washed-up castaway at the tidal pools, ferryman's shade in the sea-caves), 5 new side quests (botanist's journal, navigator's charts, castaway's offering, companion's signal, ferryman's toll), 3 daily quests (fresh catch, fresh water, jungle forage). 7 → 15 quests total. Quest density doubled. Two new items: botanist_journal, coin_of_passage.",
       "1.2.2": "Map fix: overhead-layer (mountain summit ↔ lava field) now renders correctly with stair markers ⇡⇣. No content changes.",
       "1.2.0": "Tier 3 polish pass: 5 character_profiles added (castaway / surveyor / scholar / sailor / cook), tags + content_warnings declared, spawn timing tightened.",
@@ -77,7 +78,24 @@
         "tags": ["mortal"]
       }
     },
-    "world_event_pool": ["tropical_storm"]
+    "world_event_pool": ["tropical_storm"],
+    "endings": {
+      "RESCUE": {
+        "title": "The Signal Fire",
+        "flavor": "They saw you.",
+        "epilogue": "The brazier holds the flame steady. Driftwood, salt-stiff sail, a striker that almost did not catch — and then the column of smoke and white light, tall enough to be a mistake the horizon has to answer.\n\nDays pass. You sit by the cold ashes of it on a morning that is too grey for hope and you see the sail anyway: small at first, then larger, then near enough that you can count the men on the deck before they can count you. They are calling your name from a distance you cannot have heard them at, and you are crying without knowing it.\n\nYou are going home. The island shrinks behind you, and you do not turn around even once. There will be questions back there, and a long quiet evening with someone who thought you were dead, and a meal that does not taste like coconut, and a bed that does not sway. The other castaways are still on the island. The tablet is still in the ruins. The botanist's ghost will still hum to herself at dusk.\n\nBut you are going home."
+      },
+      "SAIL": {
+        "title": "Riding the Tide",
+        "flavor": "You made the road. You are still on it.",
+        "epilogue": "The raft you built does not look like a thing the sea would take seriously. The tide takes it anyway — out and out and out, until the island is a smudge, and then a notion, and then nothing at all.\n\nThe first night, the sea is kind. You sleep an hour at a time. The stars are familiar in the wrong order. The second night, the sea is not kind. The lashings hold. You hold. The water inside the raft is the same colour as the water outside it, and you are too tired to be afraid the right way.\n\nThe third — a bell. A long shadow above the swell. A hand reaching down for yours. Whoever they are, they are real, and the deck under your feet is real, and the cup of warm broth in your hands is real, and the captain's questions are kindly and few.\n\nYou did not wait to be saved. You went and made the saving happen. The road you are on now is not a road anyone planned. That is fine. It is yours. Walk it as far as it goes."
+      },
+      "STAY": {
+        "title": "The Island Holds You",
+        "flavor": "The forest holds you. The sea holds the men who left.",
+        "epilogue": "The mysterious idol settles onto the lintel where the tablet has waited so long. The carvings on the walls steady themselves, as if a held breath has been let out. The elder's spirit looks at you for a long time, and then past you, into a sky that is not the sky you arrived under.\n\n'The temple has its centre back,' he says. 'The island is whole, for now.'\n\nYou understand, with a kind of slow gratitude, that the choice was never really between staying and going. It was between belonging somewhere and belonging nowhere. The men who sailed away will spend the rest of their lives almost coming back. The men who lit the signal fire will spend the rest of their lives explaining where they have been. You will not have to explain anything to anyone.\n\nThe botanist's ghost will read her last herbs into the journal. The castaway's ghost will fade by inches as the salt eats his cairn. The elder will sleep more often. You will tend the centre. You will mark the tides. You will speak to the few who pass, and you will be kind to them, and you will not need them.\n\nThis is a place a person can choose to stay. You chose. You are home, in a way you were not before."
+      }
+    }
   },
   "rooms": {
     "shipwreck_beach": {
