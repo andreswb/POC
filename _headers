@@ -1,0 +1,76 @@
+# Cloudflare Pages cache headers — Taleforge
+#
+# Goals:
+#   1. Speed up repeat visits (browser cache + edge cache).
+#   2. Keep deploys propagating quickly (short TTL on the version pivots).
+#   3. Never cache the service worker itself — sw.js MUST be fresh or
+#      a buggy version traps the user forever.
+#
+# Update model: the engine compares its own ENGINE_VERSION_LABEL against
+# manifest.json#engine_version at boot and prompts a reload on mismatch.
+# That makes a 5-minute manifest cache safe (worst case: a player sees
+# the update prompt up to 5 minutes after deploy).
+
+# ── Engine source ──────────────────────────────────────────────────────
+# Largest static asset (~437KB). Doesn't change between deploys within
+# the same engine version. 1-hour browser cache cuts repeat origin hits
+# significantly. must-revalidate forces the browser to check freshness
+# after expiry rather than serving stale.
+/engine.mjs
+  Cache-Control: public, max-age=3600, must-revalidate
+
+# ── Story content ──────────────────────────────────────────────────────
+# Stories have their own version field (meta.version). The engine's
+# story-changelog detection (showStoryChangelogIfBumped) catches updates
+# on next reload. 5-minute TTL is fine.
+/whispering-forest.json
+  Cache-Control: public, max-age=300, must-revalidate
+/hollow-forest.json
+  Cache-Control: public, max-age=300, must-revalidate
+/saltbound.json
+  Cache-Control: public, max-age=300, must-revalidate
+
+# ── Manifest (version pivot) ───────────────────────────────────────────
+# Engine fetches this at boot; engine_version mismatch triggers the
+# update banner. Short TTL so deploys propagate quickly.
+/manifest.json
+  Cache-Control: public, max-age=60, must-revalidate
+
+# ── HTML shells ────────────────────────────────────────────────────────
+# game.html is the engine entry. Short cache so a deploy with a fix
+# reaches users on their next visit.
+/game.html
+  Cache-Control: public, max-age=60, must-revalidate
+/index.html
+  Cache-Control: public, max-age=60, must-revalidate
+
+# ── Builder (separate cadence) ─────────────────────────────────────────
+# Author-facing tool — it changes less often than the engine but still
+# benefits from short cache so authors get fixes promptly.
+/story-builder.html
+  Cache-Control: public, max-age=300, must-revalidate
+
+# ── Service worker ─────────────────────────────────────────────────────
+# CRITICAL: sw.js must NEVER be cached for long. A stale SW will keep
+# serving stale assets to a user even after a deploy fixes a bug. The
+# `must-revalidate` ensures every navigation re-checks. max-age=0 means
+# the browser asks the origin every time, but Cloudflare's 304-response
+# path keeps that cheap.
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+# ── Static assets ──────────────────────────────────────────────────────
+# Images / icons rarely change; long cache is fine.
+/*.png
+  Cache-Control: public, max-age=86400, must-revalidate
+/*.ico
+  Cache-Control: public, max-age=86400, must-revalidate
+/*.svg
+  Cache-Control: public, max-age=86400, must-revalidate
+
+# ── Security headers (bonus while we're here) ──────────────────────────
+# Reasonable defaults that don't break the engine's existing behaviour.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer-when-downgrade
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
