@@ -64,7 +64,7 @@ const ACTIVE_STORY_KEY = 'nstadv:active_story_id';
 const CUSTOM_STORY_PREFIX = 'nstadv:custom_story:';
 const PAID_STORIES_KEY = 'nstadv:paid_stories';
 const BUG_REPORT_EMAIL = 'bandurria.apps@gmail.com';
-const ENGINE_VERSION_LABEL = 'v0.70';
+const ENGINE_VERSION_LABEL = 'v0.70.1';
 
 function loadPaidStories() {
   try { return new Set(JSON.parse(localStorage.getItem(PAID_STORIES_KEY) || '[]')); }
@@ -136,6 +136,7 @@ const ENGINE_UPDATE_DISMISS_KEY = 'taleforge:engine_update_dismissed';
 // player last played. Keep entries punchy — 1-2 lines, what they'll
 // notice from the player's seat.
 const ENGINE_CHANGELOG = {
+  'v0.70.1': 'v0.70 surfaced four real items, all addressed. (1) Builder validator now lints `meta.endings` (SCHEMA rules 69-73): TAG shape, object shape, allowed-fields whitelist (title/flavor/epilogue/image/credit), localized `{en,...}` shape check, empty-string warnings, orphan TAG warnings (authored but no quest declares it). Catches typos like `eipologue: ...` that previously fell silently through to engine fallback. (2) Banner image probe-load — `info.ending_image` is now loaded by a hidden `Image()` first; the banner div is mounted hidden and revealed only on `onload`. A 404, blocked hotlink, or malformed data-URI removes the banner cleanly instead of leaving a broken-image icon at the top of the most emotional screen. (3) Endings list views prefer the rich title — `listStoryEndings` now enriches each entry with `ending_title` from `getEndingMeta`, the cross-story `endings all` view shows "★ The Pilgrim\'s Path" instead of "★ PILGRIM" when authored, the per-story `endings` view appends "Title  ·  TAG" for context, and the picker tile tooltip reads "Endings reached on this browser:\\n  Title (TAG)\\n  ..." with one ending per line. (4) Recap empty-state polish — kill line now collapses "1 creature fell to you (1 wolf)" → "1 wolf fell to you" when the top entry is the whole count, the section header swaps from "Your journey" to a quieter "A short run" when the player has zero activity beyond walking through rooms, and the name line is suppressed entirely when name is missing (instead of rendering an em-dash placeholder).',
   'v0.70':   'Rich endings — playtester feedback was that the ending screen felt plain ("you ended due to X, Y, Z" with no recap, no closure, no shareable artifact). Now: every ENDING tag can declare a `meta.endings[TAG]` block with a `title` (headline), `flavor` (one italic line), `epilogue` (multi-paragraph closing prose with an accent drop-cap on the first letter), optional banner `image` (URL or data URI), and optional `credit` line. The end-screen is rebuilt as a proper card: optional banner, ending tag pill, title, flavor subtitle, epilogue prose block, an auto-derived journey recap (days alive · rooms explored / total · kills · skills learned · quests completed, plus top-3 kills, top-3 crafts, companion, renown tier, achievements), gold + sparks earned, legacy line, optional credit, primary "Share" button at the top. The shareable PNG (`endingToSvg`) was rebuilt to match — flavor + epilogue (ellipsis-wrapped to 4 lines), a one-line recap, credit, gold/sparks colored. All 11 bundled endings (Whispering Forest 4, Hollow Forest 4, Saltbound 3) ship with custom epilogue prose. Builder gains an "Endings (rich share screen)" editor in the Meta tab — auto-detects ENDING tags from quest completion_messages, lets authors fill title/flavor/epilogue/image/credit per tag, flags orphaned tags ("authored but no quest declares it"). Backwards compatible: stories without `meta.endings` fall through to per-quest `ending_*` fields, then to plain defaults — no migration required.',
   'v0.69':   'Two real bugs reported during playtest, both fixed. (1) Capacity overflow when capacity drops: selling a leather pack (or any item with carry_capacity_bonus), transforming to wolf/bat (capacity halved), or unwearing a pack used to leave the player carrying over the new ceiling indefinitely. New `dropOverflowToRoom(reason)` helper now drops heaviest items (inventory first, then materials) to the current room until back under capacity, with a clear "⚠ Too heavy! …you drop X, Y" message. Wired into `sell`, `transform`, and `unwear`. (2) Trap set/place was missing — items tagged "trap" (snare, bone_trap) had descriptions saying "ready to be sold or set" but no `set` command existed. Now: `set <trap>` (alias `place <trap>`) places a trap from inventory into the current room\'s spawn_table area; the trap settles for 8 turns, then each visit rolls a 45% catch chance against the room\'s spawn_table. On catch, the player gains the entity\'s base_drops + skinning + rare drops (with overflow handling), kill stats fire, quest progress increments, the trap is consumed. New `traps` command lists active traps with settle status. State persisted in save / restored on load.',
   'v0.68.1': 'Final pre-pause cleanup. Z1: categorized help modal was missing three recently-added commands — `reading` / `focus` (Preferences), `tour` / `walkthrough` (Preferences), `notifications` / `notif` (Feedback & updates). All three now listed so the help modal no longer lies about what commands exist. Z2: builder reference dock no longer hardcodes top:80px — measures the actual header.bottom at render time and places the dock just below it (with a 80px floor). Fixes the edge case where the header toolbar wraps to two rows on narrow desktops, growing past 80px and leaving the dock overlapping the bottom row of toolbar buttons. The dev pause is now declared.',
@@ -893,7 +894,15 @@ function showStoryPicker(currentId = null) {
           const star = document.createElement('div');
           star.style.cssText = 'position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.7);color:#f0b54a;font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;letter-spacing:0.04em;border:1px solid rgba(240,181,74,0.45);';
           star.textContent = `★ ${reachedCount}`;
-          star.title = `Endings reached on this browser: ${(globalEndings[opt.id] || []).join(', ')}`;
+          // v0.70.1 — prefer authored ending titles over raw TAGs in the tooltip.
+          const tags = globalEndings[opt.id] || [];
+          const tooltipLabels = tags.map(t => {
+            try {
+              const meta = (typeof getEndingMeta === 'function') ? getEndingMeta(t, opt.story) : null;
+              return meta?.title ? `${meta.title} (${t})` : t;
+            } catch { return t; }
+          });
+          star.title = `Endings reached on this browser:\n  ${tooltipLabels.join('\n  ')}`;
           card.appendChild(star);
         }
         // Body.
@@ -5418,7 +5427,10 @@ function showEndings(arg) {
           write(`  ${label}  ${bar}  ${reachedCount}/${all.length}  (${pct}%)`, reachedCount === all.length ? 'success' : 'system');
           for (const e of all) {
             const got = reached.has(e.tag);
-            write(`    ${got ? '★' : '·'} ${e.tag}${got ? '' : ' '.repeat(Math.max(0, 18 - e.tag.length)) + ' (locked)'}`, got ? 'success' : 'muted');
+            // v0.70.1 — prefer the rich ending title when authored; otherwise fall back to the TAG.
+            const display = e.ending_title || e.tag;
+            const padTarget = Math.max(18, display.length);
+            write(`    ${got ? '★' : '·'} ${display}${got ? '' : ' '.repeat(Math.max(0, padTarget - display.length)) + ' (locked)'}`, got ? 'success' : 'muted');
           }
         }
         write('');
@@ -5446,7 +5458,20 @@ function showEndings(arg) {
     }
     for (const [sid, tags] of byStory) {
       write(`  ${sid}`, 'system');
-      for (const t of tags) write(`    ★ ${t}`, 'success');
+      // v0.70.1 — prefer the rich ending title authored in meta.endings[TAG]
+      // when available. We resolve against the current STORY when sid matches,
+      // falling back to the bare TAG for stories not currently loaded.
+      const lookupStory = (STORY?.meta?.id === sid) ? STORY : null;
+      for (const t of tags) {
+        let display = t;
+        if (lookupStory) {
+          try {
+            const meta = getEndingMeta(t, lookupStory);
+            if (meta?.title) display = `${meta.title}  ·  ${t}`;
+          } catch {}
+        }
+        write(`    ★ ${display}`, 'success');
+      }
     }
     write('');
     write(`Legacy carry-over: ${player.legacy_gold || 0} gold, ${player.legacy_sparks || 0} sparks.`, 'spark');
@@ -5483,7 +5508,22 @@ function listStoryEndings(story = STORY) {
   for (const [qid, q] of Object.entries(story.quests)) {
     const cm = (typeof q.completion_message === 'string') ? q.completion_message : (q.completion_message?.en || '');
     const m = />>>\s*ENDING:\s*([\w-]+)\s*<<</.exec(cm);
-    if (m) out.push({ tag: m[1].toUpperCase(), quest: qid, title: (typeof q.title === 'string') ? q.title : (q.title?.en || qid) });
+    if (m) {
+      const tag = m[1].toUpperCase();
+      // v0.70.1 — enrich each entry with the ending's authored title (if any),
+      // so list views can prefer the rich title over the bare TAG.
+      let endingTitle = '';
+      try {
+        const meta = getEndingMeta(tag, story);
+        if (meta?.title) endingTitle = meta.title;
+      } catch {}
+      out.push({
+        tag,
+        quest: qid,
+        title: (typeof q.title === 'string') ? q.title : (q.title?.en || qid),
+        ending_title: endingTitle  // empty string when no meta.endings.<TAG>.title authored
+      });
+    }
   }
   return out;
 }
@@ -5771,11 +5811,28 @@ function showEndingOverlay(info) {
   card.className = 'ending-card';
 
   // v0.70 — rich ending: optional banner image at the top.
+  // v0.70.1 — probe the URL with a hidden Image() loader before mounting.
+  // A 404 / blocked-hotlink / malformed-data-URI used to leave a broken-
+  // image icon at the top of the most emotional screen in the story; now
+  // the banner is only revealed once the image actually loads, and a
+  // failure leaves the rest of the card untouched.
   if (info.ending_image && /^(https?:|data:image\/)/.test(info.ending_image)) {
     const banner = document.createElement('div');
     banner.className = 'ending-banner';
-    banner.style.backgroundImage = `url("${info.ending_image}")`;
+    banner.style.display = 'none';  // hidden until the probe succeeds
     card.appendChild(banner);
+    const probe = new Image();
+    probe.onload = () => {
+      banner.style.backgroundImage = `url("${info.ending_image}")`;
+      banner.style.display = '';
+    };
+    probe.onerror = () => {
+      // Silent fallback. Author sees the issue in console; player sees a
+      // clean ending card without the banner.
+      console.warn(`[ending] banner image failed to load: ${info.ending_image}`);
+      banner.remove();
+    };
+    probe.src = info.ending_image;
   }
 
   const tagEl = document.createElement('div'); tagEl.className = 'ending-tag';
@@ -5809,22 +5866,36 @@ function showEndingOverlay(info) {
   }
 
   // v0.70 — journey recap. Story-derived narrative summary of what the
-  // player actually did this run. Always shown.
+  // player actually did this run.
+  // v0.70.1 — empty-state polish: skip the "—" name fallback, collapse the
+  // kill line when the top entry IS the whole count (avoids "1 creature
+  // fell to you (1 wolf)" parens-redundant), and downgrade the section
+  // header to a quieter "Brief run" when there's nothing notable to say.
   const recapEl = document.createElement('div');
   recapEl.className = 'ending-recap';
   const recap = info.recap || {};
-  const recapHeader = document.createElement('div');
-  recapHeader.className = 'recap-header';
-  recapHeader.textContent = 'Your journey';
-  recapEl.appendChild(recapHeader);
   const recapLines = [];
-  recapLines.push(`<strong>${escapeHtml(recap.name || '—')}</strong>${recap.renown_tier ? ` · <em>${escapeHtml(recap.renown_tier)}</em>` : ''}`);
+  // Identity line — skip entirely when name is missing (cleaner than the em-dash).
+  if (recap.name) {
+    recapLines.push(`<strong>${escapeHtml(recap.name)}</strong>${recap.renown_tier ? ` · <em>${escapeHtml(recap.renown_tier)}</em>` : ''}`);
+  }
+  // Mandatory line — every run has days alive + rooms explored.
   recapLines.push(`Walked ${recap.days_alive} day${recap.days_alive === 1 ? '' : 's'} through ${recap.rooms_explored}/${recap.rooms_total} rooms.`);
+  // Activity-line count starts here — used to decide if the section is "thin".
+  const activityStart = recapLines.length;
   if (recap.kills_total > 0) {
-    let killStr = `${recap.kills_total} creature${recap.kills_total === 1 ? '' : 's'} fell to you`;
-    if (recap.top_kills?.length) {
-      const top = recap.top_kills.map(k => `${k.count} ${escapeHtml(k.display)}${k.count === 1 ? '' : 's'}`).join(', ');
-      killStr += ` (${top})`;
+    let killStr;
+    // If the top entry covers the entire kill count, just say that — avoids
+    // "1 creature fell to you (1 wolf)" or "5 fell to you (5 wolves)".
+    if (recap.top_kills?.length === 1 && recap.top_kills[0].count === recap.kills_total) {
+      const k = recap.top_kills[0];
+      killStr = `${k.count} ${escapeHtml(k.display)}${k.count === 1 ? '' : 's'} fell to you`;
+    } else {
+      killStr = `${recap.kills_total} creature${recap.kills_total === 1 ? '' : 's'} fell to you`;
+      if (recap.top_kills?.length) {
+        const top = recap.top_kills.map(k => `${k.count} ${escapeHtml(k.display)}${k.count === 1 ? '' : 's'}`).join(', ');
+        killStr += ` (${top})`;
+      }
     }
     recapLines.push(killStr + '.');
   }
@@ -5843,6 +5914,14 @@ function showEndingOverlay(info) {
   }
   if (recap.companion) recapLines.push(`Walked alongside a tamed ${escapeHtml(recap.companion)}.`);
   if (recap.achievements_earned > 0) recapLines.push(`Earned ${recap.achievements_earned} achievement${recap.achievements_earned === 1 ? '' : 's'}.`);
+  const activityCount = recapLines.length - activityStart;
+  // Header tone follows substance: confident "Your journey" when there's real
+  // activity to recount; a quieter "A short run" when the player just walked
+  // through and triggered the ending. Avoids the heavy heading over a 1-line body.
+  const recapHeader = document.createElement('div');
+  recapHeader.className = 'recap-header';
+  recapHeader.textContent = activityCount === 0 ? 'A short run' : 'Your journey';
+  recapEl.appendChild(recapHeader);
   const recapBody = document.createElement('div');
   recapBody.className = 'recap-body';
   recapBody.innerHTML = recapLines.map(l => `<div class="recap-line">${l}</div>`).join('');
